@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Khmer Text Breaking - TipTap Extension Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 2em;
+      margin-bottom: 10px;
+    }
+
+    header p {
+      opacity: 0.9;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 30px;
+    }
+
+    .section {
+      background: #f9f9f9;
+      border-radius: 6px;
+      padding: 20px;
+    }
+
+    .section h2 {
+      font-size: 1.3em;
+      margin-bottom: 15px;
+      color: #333;
+    }
+
+    #editor {
+      border: 2px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 15px;
+      min-height: 300px;
+      background: white;
+      font-size: 16px;
+      line-height: 1.8;
+      font-family: 'Khmer OS System', 'Khmer OS', 'Noto Sans Khmer', sans-serif;
+    }
+
+    #editor:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    #analysis {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 15px;
+      min-height: 200px;
+      font-family: 'Khmer OS System', 'Khmer OS', 'Noto Sans Khmer', monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #5568d3;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button.secondary {
+      background: #48bb78;
+    }
+
+    button.secondary:hover {
+      background: #38a169;
+    }
+
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+    }
+
+    .info-box h3 {
+      color: #1976d2;
+      margin-bottom: 8px;
+      font-size: 1.1em;
+    }
+
+    .info-box p {
+      color: #555;
+      line-height: 1.6;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .stat-card {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 15px;
+      text-align: center;
+    }
+
+    .stat-card .value {
+      font-size: 2em;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    .stat-card .label {
+      color: #666;
+      font-size: 0.9em;
+      margin-top: 5px;
+    }
+
+    /* Khmer text styles */
+    .khmer-text {
+      word-break: normal;
+      overflow-wrap: break-word;
+      line-break: strict;
+      word-spacing: 0;
+      white-space: pre-wrap;
+    }
+
+    .khmer-break-indicator {
+      color: rgba(255, 0, 0, 0.5);
+      font-size: 0.8em;
+      pointer-events: none;
+      user-select: none;
+      font-weight: bold;
+    }
+
+    .break-point {
+      background: rgba(255, 255, 0, 0.3);
+      padding: 0 2px;
+    }
+
+    .sample-text {
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .sample-text:hover {
+      background: #e0e0e0;
+    }
+
+    @media (max-width: 768px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Loading indicator */
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+
+    .loading::after {
+      content: '...';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🇰🇭 Khmer Text Breaking Demo</h1>
+      <p>TipTap Extension for Proper Khmer Word & Line Breaking</p>
+    </header>
+
+    <div class="content">
+      <!-- Editor Section -->
+      <div class="section">
+        <h2>✏️ Editor</h2>
+        
+        <div class="controls">
+          <button onclick="insertBreaks()">Insert Breaks</button>
+          <button onclick="analyzeText()">Analyze Text</button>
+          <button onclick="clearEditor()">Clear</button>
+          <button class="secondary" onclick="toggleBreakIndicators()">Toggle Indicators</button>
+        </div>
+
+        <div id="editor" contenteditable="true">
+          <p data-khmer-text>សួស្តី! នេះជាឧទាហរណ៍អត្ថបទភាសាខ្មែរ។ ប្រព័ន្ធនេះប្រើវចនានុក្រមភាសាខ្មែរដើម្បីកំណត់ព្រំដែនពាក្យ និងឱកាសបំបែកបន្ទាត់។</p>
+        </div>
+
+        <div class="info-box">
+          <h3>How to Use:</h3>
+          <p>
+            Type or paste Khmer text above. The extension will automatically identify word boundaries 
+            and insert break opportunities for proper line wrapping. Click "Insert Breaks" to manually 
+            add zero-width spaces, or "Analyze Text" to see detailed break information.
+          </p>
+        </div>
+
+        <div class="sample-text" onclick="loadSample(1)">
+          <strong>Sample 1:</strong> ប្រទេសកម្ពុជា ជាប្រទេសមួយស្ថិតនៅអាស៊ីអាគ្នេយ៍
+        </div>
+        <div class="sample-text" onclick="loadSample(2)">
+          <strong>Sample 2:</strong> រាជធានីភ្នំពេញ មានប្រជាជនជាង២លាននាក់
+        </div>
+      </div>
+
+      <!-- Analysis Section -->
+      <div class="section">
+        <h2>📊 Analysis</h2>
+        
+        <div class="stats">
+          <div class="stat-card">
+            <div class="value" id="wordCount">0</div>
+            <div class="label">Words</div>
+          </div>
+          <div class="stat-card">
+            <div class="value" id="breakCount">0</div>
+            <div class="label">Break Points</div>
+          </div>
+          <div class="stat-card">
+            <div class="value" id="charCount">0</div>
+            <div class="label">Characters</div>
+          </div>
+        </div>
+
+        <h3 style="margin: 20px 0 10px 0;">Break Analysis:</h3>
+        <div id="analysis" class="loading">Loading dictionary...</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import the Khmer breaker
+    import { KhmerBreaker } from './khmer-breaker.js';
+
+    // Sample dictionary data (subset for demo)
+    const sampleDictionary = [
+      { word: "បាន", frequency: 119234 },
+      { word: "ការ", frequency: 95826 },
+      { word: "មាន", frequency: 87199 },
+      { word: "ជា", frequency: 86416 },
+      { word: "នៅ", frequency: 83124 },
+      { word: "និង", frequency: 76576 },
+      { word: "ដែល", frequency: 73719 },
+      { word: "ក្នុង", frequency: 67763 },
+      { word: "នេះ", frequency: 65406 },
+      { word: "ថា", frequency: 60804 },
+      { word: "ទៅ", frequency: 59848 },
+      { word: "ពី", frequency: 53926 },
+      { word: "មិន", frequency: 49022 },
+      { word: "របស់", frequency: 47665 },
+      { word: "ទី", frequency: 47373 },
+      { word: "មក", frequency: 45858 },
+      { word: "ឲ្យ", frequency: 42587 },
+      { word: "នោះ", frequency: 42271 },
+      { word: "ហើយ", frequency: 42062 },
+      { word: "តែ", frequency: 40922 },
+      { word: "លោក", frequency: 40154 },
+      { word: "ដោយ", frequency: 38217 },
+      { word: "មួយ", frequency: 37275 },
+      { word: "អ្នក", frequency: 36320 },
+      { word: "យក", frequency: 36180 },
+      { word: "ថ្ងៃ", frequency: 35077 },
+      { word: "នឹង", frequency: 33380 },
+      { word: "ខែ", frequency: 33363 },
+      { word: "ត្រូវ", frequency: 32225 },
+      { word: "ឆ្នាំ", frequency: 31913 },
+      { word: "សួស្តី", frequency: 15000 },
+      { word: "ឧទាហរណ៍", frequency: 12000 },
+      { word: "អត្ថបទ", frequency: 18000 },
+      { word: "ភាសា", frequency: 25000 },
+      { word: "ខ្មែរ", frequency: 30000 },
+      { word: "ប្រព័ន្ធ", frequency: 22000 },
+      { word: "ប្រើ", frequency: 28000 },
+      { word: "វចនានុក្រម", frequency: 8000 },
+      { word: "កំណត់", frequency: 15000 },
+      { word: "ព្រំដែន", frequency: 10000 },
+      { word: "ពាក្យ", frequency: 20000 },
+      { word: "ឱកាស", frequency: 18000 },
+      { word: "បំបែក", frequency: 12000 },
+      { word: "បន្ទាត់", frequency: 14000 },
+      { word: "ប្រទេស", frequency: 35000 },
+      { word: "កម្ពុជា", frequency: 40000 },
+      { word: "ស្ថិត", frequency: 18000 },
+      { word: "អាស៊ី", frequency: 25000 },
+      { word: "អាគ្នេយ៍", frequency: 20000 },
+      { word: "រាជធានី", frequency: 22000 },
+      { word: "ភ្នំពេញ", frequency: 35000 },
+      { word: "ប្រជាជន", frequency: 28000 },
+      { word: "លាន", frequency: 25000 },
+      { word: "នាក់", frequency: 30000 }
+    ];
+
+    // Initialize breaker
+    const breaker = new KhmerBreaker(sampleDictionary);
+    window.khmerBreaker = breaker;
+
+    // Update analysis display
+    function updateAnalysis() {
+      const editor = document.getElementById('editor');
+      const text = editor.innerText || editor.textContent;
+      
+      if (!text.trim()) {
+        document.getElementById('analysis').textContent = 'No text to analyze';
+        document.getElementById('wordCount').textContent = '0';
+        document.getElementById('breakCount').textContent = '0';
+        document.getElementById('charCount').textContent = '0';
+        return;
+      }
+
+      const breaks = breaker.findWordBreaks(text);
+      const lineBreaks = breaker.findLineBreaks(text);
+
+      // Update stats
+      document.getElementById('wordCount').textContent = breaks.length;
+      document.getElementById('breakCount').textContent = lineBreaks.length;
+      document.getElementById('charCount').textContent = text.length;
+
+      // Build analysis text
+      let analysis = 'Word Breaks:\n';
+      let lastPos = 0;
+      
+      for (let i = 0; i < breaks.length; i++) {
+        const breakPos = breaks[i];
+        const word = text.substring(lastPos, breakPos).trim();
+        if (word) {
+          analysis += `  [${lastPos}-${breakPos}] "${word}"\n`;
+        }
+        lastPos = breakPos;
+      }
+
+      // Add remaining text
+      if (lastPos < text.length) {
+        const word = text.substring(lastPos).trim();
+        if (word) {
+          analysis += `  [${lastPos}-${text.length}] "${word}"\n`;
+        }
+      }
+
+      analysis += `\nLine Break Positions: ${lineBreaks.join(', ')}`;
+
+      document.getElementById('analysis').textContent = analysis;
+    }
+
+    // Global functions
+    window.insertBreaks = function() {
+      const editor = document.getElementById('editor');
+      const text = editor.innerText || editor.textContent;
+      const processed = breaker.insertBreakOpportunities(text);
+      editor.textContent = processed;
+      updateAnalysis();
+    };
+
+    window.analyzeText = function() {
+      updateAnalysis();
+    };
+
+    window.clearEditor = function() {
+      document.getElementById('editor').textContent = '';
+      updateAnalysis();
+    };
+
+    window.toggleBreakIndicators = function() {
+      const editor = document.getElementById('editor');
+      const text = editor.innerText || editor.textContent;
+      
+      if (text.includes('|')) {
+        // Remove indicators
+        editor.textContent = text.replace(/\|/g, '');
+      } else {
+        // Add indicators
+        const breaks = breaker.findLineBreaks(text);
+        let result = '';
+        let lastPos = 0;
+        
+        for (const breakPos of breaks) {
+          result += text.substring(lastPos, breakPos) + '|';
+          lastPos = breakPos;
+        }
+        result += text.substring(lastPos);
+        
+        editor.textContent = result;
+      }
+    };
+
+    window.loadSample = function(num) {
+      const samples = {
+        1: 'ប្រទេសកម្ពុជា ជាប្រទេសមួយស្ថិតនៅអាស៊ីអាគ្នេយ៍ មានប្រជាជនជាង១៦លាននាក់',
+        2: 'រាជធានីភ្នំពេញ មានប្រជាជនជាង២លាននាក់ និងជាក្រុងធំបំផុតក្នុងប្រទេស'
+      };
+      
+      const editor = document.getElementById('editor');
+      editor.textContent = samples[num];
+      updateAnalysis();
+    };
+
+    // Auto-analyze on input
+    document.getElementById('editor').addEventListener('input', () => {
+      setTimeout(updateAnalysis, 300);
+    });
+
+    // Initial analysis
+    document.getElementById('analysis').textContent = 'Dictionary loaded! Type or paste Khmer text to analyze.';
+    updateAnalysis();
+  </script>
+</body>
+</html>
