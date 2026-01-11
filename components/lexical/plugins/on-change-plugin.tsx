@@ -14,10 +14,10 @@ const WJ = "\u2060"
 
 export function OnChangePlugin({ onChange, onContentChange }: OnChangePluginProps) {
   const [editor] = useLexicalComposerContext()
-  const previousTextRef = useRef<string>("")
+  const previousTextRef = useRef<string | null>(null)
 
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves }) => {
+    return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
         const root = $getRoot()
         let text = ""
@@ -46,10 +46,15 @@ export function OnChangePlugin({ onChange, onContentChange }: OnChangePluginProp
 
         onChange(text, wordCount, charCount)
 
-        if (onContentChange && textWithoutWJ !== previousTextRef.current) {
-          previousTextRef.current = textWithoutWJ
+        // Use null as initial state to ensure first change after load is detected
+        const hasActualChange = previousTextRef.current !== null && textWithoutWJ !== previousTextRef.current
+
+        if (hasActualChange && onContentChange) {
           onContentChange()
         }
+
+        // Always update the previous text ref
+        previousTextRef.current = textWithoutWJ
       })
     })
   }, [editor, onChange, onContentChange])

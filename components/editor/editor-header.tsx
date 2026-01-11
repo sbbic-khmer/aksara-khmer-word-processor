@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Sun, Moon, Check, Loader2, Cloud, CloudOff } from "lucide-react"
+import { Sun, Moon, Loader2, Cloud } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { UserMenu } from "@/components/user-menu"
 import { cn } from "@/lib/utils"
@@ -72,95 +72,35 @@ export function EditorHeader({
   }
 
   const renderSaveStatus = () => {
-    // New document that hasn't been saved yet
+    // Actively saving - show spinner
+    if (saveStatus === "saving" || hasUnsavedChanges) {
+      return (
+        <span className="text-xs text-gray-400 flex items-center gap-1.5">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Saving...
+        </span>
+      )
+    }
+
+    // Error state
+    if (saveStatus === "error") {
+      return <span className="text-xs text-red-500">Unable to save</span>
+    }
+
+    // New unsaved document (no ID yet)
     if (!documentId) {
       if (hasUnsavedChanges) {
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 cursor-help">
-                  <CloudOff className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Not saved</span>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Use File → Save or Ctrl+S to save this document</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )
+        return <span className="text-xs text-gray-400">Unsaved</span>
       }
-      return (
-        <span className="flex items-center gap-1.5 text-xs text-gray-400">
-          <Cloud className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">New</span>
-        </span>
-      )
+      return null // New empty document
     }
 
-    // Existing document - show auto-save status
-    if (saveStatus === "saving") {
-      return (
-        <span className="flex items-center gap-1.5 text-xs text-blue-500">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          <span className="hidden sm:inline">Saving...</span>
-        </span>
-      )
-    }
-
-    if (saveStatus === "saved") {
-      return (
-        <span className="flex items-center gap-1.5 text-xs text-green-500">
-          <Check className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Saved</span>
-        </span>
-      )
-    }
-
-    if (saveStatus === "error") {
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="flex items-center gap-1.5 text-xs text-red-500 cursor-help">
-                <CloudOff className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Error</span>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Failed to save. Check your connection and try again.</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )
-    }
-
-    // Idle state with unsaved changes (auto-save will trigger soon)
-    if (hasUnsavedChanges) {
-      return (
-        <span className="flex items-center gap-1.5 text-xs text-gray-400">
-          <Cloud className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Editing...</span>
-        </span>
-      )
-    }
-
-    // Fully saved
+    // Existing document - saved
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="flex items-center gap-1.5 text-xs text-green-500/70 cursor-help">
-              <Cloud className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Saved</span>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>All changes saved to cloud</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <span className="text-xs text-gray-400 flex items-center gap-1.5">
+        <Cloud className="h-3 w-3" />
+        Saved
+      </span>
     )
   }
 

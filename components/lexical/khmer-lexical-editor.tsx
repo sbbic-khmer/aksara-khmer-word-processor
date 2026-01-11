@@ -282,6 +282,12 @@ function EditorWrapper({
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastDocLoadedRef = useRef(false)
+  const documentStateRef = useRef(documentState)
+  const skipNextContentChangeRef = useRef(false)
+
+  useEffect(() => {
+    documentStateRef.current = documentState
+  }, [documentState])
 
   useEffect(() => {
     if (lastDocLoadedRef.current) return
@@ -345,6 +351,7 @@ function EditorWrapper({
         return
       }
     }
+    skipNextContentChangeRef.current = true
     editor.update(() => {
       const root = $getRoot()
       root.clear()
@@ -380,22 +387,69 @@ function EditorWrapper({
   )
 
   const triggerAutoSave = useCallback(async () => {
-    if (!documentState.id || !documentState.hasUnsavedChanges) return
+    const currentState = documentStateRef.current
 
+    if (!currentState.id && currentState.hasUnsavedChanges) {
+      console.log("[v0] triggerAutoSave: creating new document")
+      setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
+
+      const editorState = JSON.stringify(editor.getEditorState().toJSON())
+      const content = editor.getEditorState().read(() => {
+        return $getRoot().getTextContent()
+      })
+
+      try {
+        const response = await fetch("/api/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: currentState.title, content, editorState }),
+        })
+
+        if (response.ok) {
+          const doc = await response.json()
+          console.log("[v0] triggerAutoSave: new document created:", doc.id)
+          setDocumentState({ id: doc.id, title: doc.title, hasUnsavedChanges: false, saveStatus: "saved" })
+          localStorage.setItem(LAST_DOCUMENT_KEY, doc.id)
+          if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
+          savedStatusTimeoutRef.current = setTimeout(() => {
+            setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
+          }, 2000)
+        } else {
+          console.log("[v0] triggerAutoSave: failed to create document")
+          setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+        }
+      } catch (error) {
+        console.error("[v0] Error creating document:", error)
+        setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+      }
+      return
+    }
+
+    if (!currentState.id || !currentState.hasUnsavedChanges) {
+      console.log("[v0] triggerAutoSave skipped:", {
+        id: currentState.id,
+        hasUnsavedChanges: currentState.hasUnsavedChanges,
+      })
+      return
+    }
+
+    console.log("[v0] triggerAutoSave starting for:", currentState.id)
     setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
 
-    const success = await performSave(documentState.id, documentState.title)
+    const success = await performSave(currentState.id, currentState.title)
 
     if (success) {
+      console.log("[v0] triggerAutoSave success")
       setDocumentState((prev) => ({ ...prev, hasUnsavedChanges: false, saveStatus: "saved" }))
       if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
       savedStatusTimeoutRef.current = setTimeout(() => {
         setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
       }, 2000)
     } else {
+      console.log("[v0] triggerAutoSave failed")
       setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
     }
-  }, [documentState.id, documentState.title, documentState.hasUnsavedChanges, performSave, setDocumentState])
+  }, [editor, performSave, setDocumentState])
 
   const handleSave = useCallback(async () => {
     if (!documentState.id) {
@@ -485,6 +539,11 @@ function EditorWrapper({
   )
 
   const handleContentChange = useCallback(() => {
+    if (skipNextContentChangeRef.current) {
+      skipNextContentChangeRef.current = false
+      return
+    }
+
     setDocumentState((prev) => ({ ...prev, hasUnsavedChanges: true, saveStatus: "idle" }))
 
     if (autoSaveTimeoutRef.current) {
