@@ -38,6 +38,7 @@ export default function LoginPage() {
         return
       }
 
+      router.refresh()
       router.push("/editor")
     } catch {
       setError("An error occurred. Please try again.")

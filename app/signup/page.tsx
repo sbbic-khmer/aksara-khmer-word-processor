@@ -99,6 +99,7 @@ export default function SignupPage() {
         return
       }
 
+      router.refresh()
       router.push("/editor")
     } catch {
       setError("An error occurred. Please try again.")

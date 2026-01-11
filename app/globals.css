@@ -146,22 +146,6 @@
     format("woff2");
 }
 
-@font-face {
-  font-family: "Battambang";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url(https://fonts.gstatic.com/s/battambang/v24/uk-mEGe7raEw-HjkzZabPnKp.woff2) format("woff2");
-}
-
-@font-face {
-  font-family: "Battambang";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url(https://fonts.gstatic.com/s/battambang/v24/uk-lEGe7raEw-HjkzZabNsmMEaI.woff2) format("woff2");
-}
-
 /* Document editor styles */
 .prose h1 {
   @apply text-3xl font-bold mb-4 mt-6;
