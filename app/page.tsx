@@ -100,17 +100,20 @@ export default function LandingPage() {
             {/* Main headline */}
             <h1 className="mb-6">
   <span
-    className="flex items-baseline text-5xl sm:text-7xl text-primary mb-4 leading-tight"
-    style={{ fontFamily: "var(--font-moul), serif" }}
-  >
+  className="flex justify-center items-center text-5xl sm:text-7xl mb-4 leading-tight"
+  style={{ fontFamily: "var(--font-moul), serif" }}
+>
+  <span className="text-primary">
     អក្សរា
-    <span
-      className="ml-[6px] text-2xl sm:text-3xl font-semibold text-foreground"
-      style={{ fontFamily: "var(--font-geist-sans), sans" }}
-    >
-      Pro
-    </span>
   </span>
+
+  <span
+    className="ml-[10px] text-foreground"
+    style={{ fontFamily: "var(--font-geist-sans), sans" }}
+  >
+    Pro
+  </span>
+</span>
 
   <span className="block text-3xl sm:text-5xl font-bold text-foreground tracking-tight">
     The Modern Khmer Word Processor
