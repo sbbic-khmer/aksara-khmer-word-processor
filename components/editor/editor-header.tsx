@@ -195,7 +195,7 @@ export function EditorHeader({
               <div className="hidden sm:flex flex-col gap-0">
                 <div className="flex items-baseline gap-1.5">
                   <h1
-  className="flex items-baseline gap-1.5 text-[22px] sm:text-[26px] leading-none tracking-tight text-gray-900 dark:text-white"
+  className="flex items-baseline gap-1 text-[22px] sm:text-[26px] leading-none tracking-tight text-gray-900 dark:text-white"
   style={{ fontFamily: "var(--font-moul), serif" }}
 >
   អក្សរា
