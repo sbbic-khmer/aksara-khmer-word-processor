@@ -23,6 +23,7 @@ import { OnChangePlugin } from "./plugins/on-change-plugin"
 import { KhmerBreaker } from "@/lib/khmer-breaker"
 import { KHMER_DICTIONARY } from "@/lib/khmer-dictionary-data"
 import { VoiceInput, type VoiceInputHandle } from "@/components/voice-input"
+import { VoiceIndicator } from "@/components/voice-indicator"
 import { FormattingToolbar } from "@/components/editor/formatting-toolbar"
 import { FileMenu } from "@/components/editor/file-menu"
 import { EditorHeader } from "@/components/editor/editor-header"
@@ -76,6 +77,8 @@ function EditorContent({
   onExportOdt,
   debugMode,
   setDebugMode,
+  onVoiceStateChange,
+  onPartialTranscriptChange,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -87,6 +90,8 @@ function EditorContent({
   onExportOdt: () => void
   debugMode: boolean
   setDebugMode: (debug: boolean) => void
+  onVoiceStateChange: (active: boolean) => void
+  onPartialTranscriptChange: (text: string) => void
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
@@ -113,16 +118,19 @@ function EditorContent({
   const handleVoiceTranscript = useCallback(
     (text: string) => {
       editor.dispatchCommand(INSERT_VOICE_TEXT_COMMAND, text)
+      onPartialTranscriptChange("")
     },
-    [editor],
+    [editor, onPartialTranscriptChange],
   )
 
-  const handlePartialTranscript = useCallback((text: string) => {
-    // Could show partial transcript indicator
-  }, [])
+  const handlePartialTranscript = useCallback(
+    (text: string) => {
+      onPartialTranscriptChange(text)
+    },
+    [onPartialTranscriptChange],
+  )
 
   const handleCopyWithBreaks = useCallback(() => {
-    // Copy text with ZWSP breaks
     editor.getEditorState().read(() => {
       const text = editor.getRootElement()?.textContent || ""
       navigator.clipboard.writeText(text)
@@ -168,6 +176,7 @@ function EditorContent({
             ref={voiceInputRef}
             onTranscript={handleVoiceTranscript}
             onPartialTranscript={handlePartialTranscript}
+            onVoiceStateChange={onVoiceStateChange}
             applyReplacements={applyReplacements}
           />
         </div>
@@ -216,6 +225,8 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     const [currentText, setCurrentText] = useState("")
     const [debugMode, setDebugMode] = useState(false)
     const [mounted, setMounted] = useState(false)
+    const [isVoiceActive, setIsVoiceActive] = useState(false)
+    const [partialTranscript, setPartialTranscript] = useState("")
     const voiceInputRef = useRef<VoiceInputHandle>(null)
     const editorRef = useRef<HTMLDivElement>(null)
     const { theme: colorTheme, setTheme } = useTheme()
@@ -250,6 +261,13 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
         if (contentEditable) {
           exportToOdtFromLexical(contentEditable as HTMLElement, "document.odt")
         }
+      }
+    }, [])
+
+    const handleVoiceStateChange = useCallback((active: boolean) => {
+      setIsVoiceActive(active)
+      if (!active) {
+        setPartialTranscript("")
       }
     }, [])
 
@@ -289,8 +307,12 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
             onExportOdt={handleExportOdt}
             debugMode={debugMode}
             setDebugMode={setDebugMode}
+            onVoiceStateChange={handleVoiceStateChange}
+            onPartialTranscriptChange={setPartialTranscript}
           />
         </LexicalComposer>
+
+        <VoiceIndicator isActive={isVoiceActive} partialTranscript={partialTranscript} />
 
         {/* Footer with stats */}
         <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-500 dark:text-gray-400">
