@@ -63,7 +63,7 @@ export default function LandingPage() {
       អក្សរា
     </span>
     <span
-      className="ml-[4px] text-base sm:text-lg font-semibold text-foreground/80 leading-none"
+      className="ml-[4px] text-base sm:text-2xl text-foreground/80 leading-none"
       style={{ fontFamily: "var(--font-geist-sans), sans" }}
     >
       Pro
@@ -328,7 +328,7 @@ export default function LandingPage() {
       អក្សរា
     </span>
     <span
-      className="ml-[3px] text-sm font-semibold text-foreground/80 leading-none"
+      className="ml-[3px] text-lg text-foreground/80 leading-none"
       style={{ fontFamily: "var(--font-geist-sans), sans" }}
     >
       Pro
