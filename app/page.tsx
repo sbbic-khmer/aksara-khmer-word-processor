@@ -41,24 +41,35 @@ export default function LandingPage() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Logo icon */}
-            <div className="relative w-10 h-10">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg shadow-blue-500/25" />
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
-              <div className="absolute inset-[1px] rounded-[14px] border border-white/20" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white text-2xl font-bold leading-none translate-y-[-1.5px]">អ</span>
-              </div>
-            </div>
-            {/* Logo text */}
-            <span className="text-xl sm:text-2xl text-foreground" style={{ fontFamily: "var(--font-moul), serif" }}>
-              អក្សរា
-            </span>
-            <span className="text-xl sm:text-2xl text-foreground" style={{ fontFamily: "var(--font-geist-sans), sans" }}>
-              Pro
-            </span>
-          </div>
+          <div className="flex items-center gap-2">
+  {/* Logo icon */}
+  <div className="relative w-10 h-10 shrink-0">
+    <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg shadow-blue-500/25" />
+    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
+    <div className="absolute inset-[1px] rounded-[14px] border border-white/20" />
+    <div className="absolute inset-0 flex items-center justify-center">
+      <span className="text-white text-2xl font-bold leading-none translate-y-[-1px]">
+        អ
+      </span>
+    </div>
+  </div>
+
+  {/* Logo text */}
+  <div className="flex items-baseline">
+    <span
+      className="text-xl sm:text-2xl text-foreground leading-none"
+      style={{ fontFamily: "var(--font-moul), serif" }}
+    >
+      អក្សរា
+    </span>
+    <span
+      className="ml-[4px] text-base sm:text-lg font-semibold text-foreground/80 leading-none"
+      style={{ fontFamily: "var(--font-geist-sans), sans" }}
+    >
+      Pro
+    </span>
+  </div>
+</div>
           <div className="flex items-center gap-3">
             <Link href="/login">
               <Button variant="ghost" size="sm">
@@ -88,16 +99,23 @@ export default function LandingPage() {
 
             {/* Main headline */}
             <h1 className="mb-6">
-              <span
-                className="block text-5xl sm:text-7xl text-primary mb-4 leading-tight"
-                style={{ fontFamily: "var(--font-moul), serif" }}
-              >
-                អក្សរា
-              </span>
-              <span className="block text-3xl sm:text-5xl font-bold text-foreground tracking-tight">
-                The Modern Khmer Word Processor
-              </span>
-            </h1>
+  <span
+    className="flex items-baseline text-5xl sm:text-7xl text-primary mb-4 leading-tight"
+    style={{ fontFamily: "var(--font-moul), serif" }}
+  >
+    អក្សរា
+    <span
+      className="ml-[6px] text-2xl sm:text-3xl font-semibold text-foreground"
+      style={{ fontFamily: "var(--font-geist-sans), sans" }}
+    >
+      Pro
+    </span>
+  </span>
+
+  <span className="block text-3xl sm:text-5xl font-bold text-foreground tracking-tight">
+    The Modern Khmer Word Processor
+  </span>
+</h1>
 
             {/* Subheadline */}
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
@@ -287,17 +305,33 @@ export default function LandingPage() {
       <footer className="border-t border-border py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="relative w-8 h-8">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-white text-lg font-bold leading-none">អ</span>
-                </div>
-              </div>
-              <span className="text-lg text-foreground" style={{ fontFamily: "var(--font-moul), serif" }}>
-                អក្សរា
-              </span>
-            </div>
+            <div className="flex items-center gap-2">
+  {/* Logo icon */}
+  <div className="relative w-8 h-8 shrink-0">
+    <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl" />
+    <div className="absolute inset-0 flex items-center justify-center">
+      <span className="text-white text-lg font-bold leading-none translate-y-[-0.5px]">
+        អ
+      </span>
+    </div>
+  </div>
+
+  {/* Logo text */}
+  <div className="flex items-baseline">
+    <span
+      className="text-lg text-foreground leading-none"
+      style={{ fontFamily: "var(--font-moul), serif" }}
+    >
+      អក្សរា
+    </span>
+    <span
+      className="ml-[3px] text-sm font-semibold text-foreground/80 leading-none"
+      style={{ fontFamily: "var(--font-geist-sans), sans" }}
+    >
+      Pro
+    </span>
+  </div>
+</div>
             <p className="text-sm text-muted-foreground">Smart Khmer Writing</p>
           </div>
         </div>
