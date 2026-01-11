@@ -9,11 +9,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowRight, Loader2, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
 
 const SIGNUPS_ENABLED = process.env.NEXT_PUBLIC_SIGNUPS_ENABLED === "true"
 
 export default function SignupPage() {
   const router = useRouter()
+  const { register } = useAuth()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -84,27 +86,15 @@ export default function SignupPage() {
 
     setIsLoading(true)
 
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      })
+    const result = await register(email, password, name)
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error || "Registration failed")
-        setIsLoading(false)
-        return
-      }
-
-      router.refresh()
-      router.push("/editor")
-    } catch {
-      setError("An error occurred. Please try again.")
+    if (!result.success) {
+      setError(result.error || "Registration failed")
       setIsLoading(false)
+      return
     }
+
+    router.push("/editor")
   }
 
   return (

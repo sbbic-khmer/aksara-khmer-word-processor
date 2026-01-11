@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowRight, Loader2, Eye, EyeOff } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -23,27 +25,15 @@ export default function LoginPage() {
     setError("")
     setIsLoading(true)
 
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      })
+    const result = await login(email, password)
 
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error || "Login failed")
-        setIsLoading(false)
-        return
-      }
-
-      router.refresh()
-      router.push("/editor")
-    } catch {
-      setError("An error occurred. Please try again.")
+    if (!result.success) {
+      setError(result.error || "Login failed")
       setIsLoading(false)
+      return
     }
+
+    router.push("/editor")
   }
 
   return (
