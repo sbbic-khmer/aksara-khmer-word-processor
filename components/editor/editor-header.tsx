@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Sun, Moon, Loader2, Cloud, CloudOff } from "lucide-react"
+import { Sun, Moon, Loader2, Cloud, CloudOff, FileText } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { UserMenu } from "@/components/user-menu"
 import { cn } from "@/lib/utils"
@@ -122,31 +122,37 @@ export function EditorHeader({
   const renderDesktopTitle = () => {
     if (isEditingTitle) {
       return (
-        <Input
-          ref={inputRef}
-          value={editedTitle}
-          onChange={(e) => setEditedTitle(e.target.value)}
-          onBlur={handleTitleSave}
-          onKeyDown={handleKeyDown}
-          className="h-8 w-[250px] text-lg"
-          placeholder="Document title"
-        />
+        <div className="flex items-center gap-2">
+          <FileText className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+          <Input
+            ref={inputRef}
+            value={editedTitle}
+            onChange={(e) => setEditedTitle(e.target.value)}
+            onBlur={handleTitleSave}
+            onKeyDown={handleKeyDown}
+            className="h-8 w-[250px] text-lg"
+            placeholder="Document title"
+          />
+        </div>
       )
     }
 
     return (
-      <button
-        onClick={handleTitleClick}
-        className={cn(
-          "text-lg font-medium text-gray-700 dark:text-gray-200 truncate max-w-[300px]",
-          "hover:text-gray-900 dark:hover:text-white",
-          "transition-colors cursor-pointer text-left",
-          !onTitleChange && "cursor-default",
-        )}
-        title={onTitleChange ? "Click to rename" : undefined}
-      >
-        {documentTitle || "Untitled"}
-      </button>
+      <div className="flex items-center gap-2">
+        <FileText className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+        <button
+          onClick={handleTitleClick}
+          className={cn(
+            "text-lg font-medium text-gray-700 dark:text-gray-200 truncate max-w-[300px]",
+            "hover:text-gray-900 dark:hover:text-white",
+            "transition-colors cursor-pointer text-left",
+            !onTitleChange && "cursor-default",
+          )}
+          title={onTitleChange ? "Click to rename" : undefined}
+        >
+          {documentTitle || "Untitled"}
+        </button>
+      </div>
     )
   }
 
@@ -169,7 +175,9 @@ export function EditorHeader({
                 </div>
               </div>
 
+              {/* Mobile: Title next to logo */}
               <div className="flex sm:hidden items-center gap-2 min-w-0 flex-1">
+                <FileText className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                 <button
                   onClick={handleMobileTitleClick}
                   className={cn(
