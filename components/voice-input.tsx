@@ -36,14 +36,14 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
   const { preferences, updatePreference, isLoading: prefsLoading } = usePreferences()
 
   const [selectedMicId, setSelectedMicId] = useState<string | null>(null)
-  const [vadSilenceThreshold, setVadSilenceThreshold] = useState(DEFAULT_VAD_SILENCE)
-  const [vadSensitivity, setVadSensitivity] = useState(DEFAULT_VAD_SENSITIVITY)
+  const [vadSilenceThreshold, setVadSilenceThreshold] = useState<number>(DEFAULT_VAD_SILENCE)
+  const [vadSensitivity, setVadSensitivity] = useState<number>(DEFAULT_VAD_SENSITIVITY)
 
   useEffect(() => {
     if (!prefsLoading && preferences) {
       setSelectedMicId(preferences.preferred_mic_device_id)
-      setVadSilenceThreshold(preferences.vad_silence_threshold || DEFAULT_VAD_SILENCE)
-      setVadSensitivity(preferences.vad_threshold || DEFAULT_VAD_SENSITIVITY)
+      setVadSilenceThreshold(Number(preferences.vad_silence_threshold) || DEFAULT_VAD_SILENCE)
+      setVadSensitivity(Number(preferences.vad_threshold) || DEFAULT_VAD_SENSITIVITY)
     }
   }, [preferences, prefsLoading])
 
@@ -228,9 +228,9 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
         <MicSelector
           selectedDeviceId={selectedMicId}
           onDeviceChange={handleMicChange}
-          vadSilenceThreshold={vadSilenceThreshold}
+          vadSilenceThreshold={vadSilenceThreshold ?? DEFAULT_VAD_SILENCE}
           onVadSilenceThresholdChange={handleVadSilenceChange}
-          vadSensitivity={vadSensitivity}
+          vadSensitivity={vadSensitivity ?? DEFAULT_VAD_SENSITIVITY}
           onVadSensitivityChange={handleVadSensitivityChange}
         />
 
