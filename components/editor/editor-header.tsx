@@ -1,17 +1,169 @@
 "use client"
 
+import type React from "react"
+
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Sun, Moon } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Sun, Moon, Check, Loader2, Cloud, CloudOff } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { UserMenu } from "@/components/user-menu"
+import { cn } from "@/lib/utils"
 
 interface EditorHeaderProps {
   theme: string | undefined
   setTheme: (theme: string) => void
   mounted: boolean
+  documentTitle?: string
+  documentId?: string | null
+  hasUnsavedChanges?: boolean
+  saveStatus?: "idle" | "saving" | "saved" | "error"
+  onTitleChange?: (title: string) => void
 }
 
-export function EditorHeader({ theme, setTheme, mounted }: EditorHeaderProps) {
+export function EditorHeader({
+  theme,
+  setTheme,
+  mounted,
+  documentTitle,
+  documentId,
+  hasUnsavedChanges,
+  saveStatus = "idle",
+  onTitleChange,
+}: EditorHeaderProps) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editedTitle, setEditedTitle] = useState(documentTitle || "Untitled")
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setEditedTitle(documentTitle || "Untitled")
+  }, [documentTitle])
+
+  useEffect(() => {
+    if (isEditingTitle && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditingTitle])
+
+  const handleTitleClick = () => {
+    if (onTitleChange) {
+      setIsEditingTitle(true)
+    }
+  }
+
+  const handleTitleSave = () => {
+    const trimmed = editedTitle.trim()
+    if (trimmed && trimmed !== documentTitle && onTitleChange) {
+      onTitleChange(trimmed)
+    } else {
+      setEditedTitle(documentTitle || "Untitled")
+    }
+    setIsEditingTitle(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleTitleSave()
+    } else if (e.key === "Escape") {
+      setEditedTitle(documentTitle || "Untitled")
+      setIsEditingTitle(false)
+    }
+  }
+
+  const renderSaveStatus = () => {
+    // New document that hasn't been saved yet
+    if (!documentId) {
+      if (hasUnsavedChanges) {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 cursor-help">
+                  <CloudOff className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Not saved</span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Use File → Save or Ctrl+S to save this document</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      }
+      return (
+        <span className="flex items-center gap-1.5 text-xs text-gray-400">
+          <Cloud className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">New</span>
+        </span>
+      )
+    }
+
+    // Existing document - show auto-save status
+    if (saveStatus === "saving") {
+      return (
+        <span className="flex items-center gap-1.5 text-xs text-blue-500">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span className="hidden sm:inline">Saving...</span>
+        </span>
+      )
+    }
+
+    if (saveStatus === "saved") {
+      return (
+        <span className="flex items-center gap-1.5 text-xs text-green-500">
+          <Check className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Saved</span>
+        </span>
+      )
+    }
+
+    if (saveStatus === "error") {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="flex items-center gap-1.5 text-xs text-red-500 cursor-help">
+                <CloudOff className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Error</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Failed to save. Check your connection and try again.</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    }
+
+    // Idle state with unsaved changes (auto-save will trigger soon)
+    if (hasUnsavedChanges) {
+      return (
+        <span className="flex items-center gap-1.5 text-xs text-gray-400">
+          <Cloud className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Editing...</span>
+        </span>
+      )
+    }
+
+    // Fully saved
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="flex items-center gap-1.5 text-xs text-green-500/70 cursor-help">
+              <Cloud className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Saved</span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>All changes saved to cloud</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
   return (
     <div className="flex items-center justify-between px-2 sm:px-4 py-2 border-b border-gray-100 dark:border-gray-800">
       <div className="flex items-center gap-2 sm:gap-3">
@@ -46,6 +198,35 @@ export function EditorHeader({ theme, setTheme, mounted }: EditorHeaderProps) {
               </span>
             </div>
           </div>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-2 ml-4 pl-4 border-l border-gray-200 dark:border-gray-700">
+          {isEditingTitle ? (
+            <Input
+              ref={inputRef}
+              value={editedTitle}
+              onChange={(e) => setEditedTitle(e.target.value)}
+              onBlur={handleTitleSave}
+              onKeyDown={handleKeyDown}
+              className="h-7 w-[200px] text-sm"
+              placeholder="Document title"
+            />
+          ) : (
+            <button
+              onClick={handleTitleClick}
+              className={cn(
+                "text-sm text-gray-600 dark:text-gray-300 max-w-[200px] truncate",
+                "hover:text-gray-900 dark:hover:text-white hover:underline",
+                "transition-colors cursor-pointer text-left",
+                !onTitleChange && "cursor-default hover:no-underline",
+              )}
+              title={onTitleChange ? "Click to rename" : undefined}
+            >
+              {documentTitle || "Untitled"}
+            </button>
+          )}
+
+          <div className="flex items-center min-w-[80px]">{renderSaveStatus()}</div>
         </div>
       </div>
 

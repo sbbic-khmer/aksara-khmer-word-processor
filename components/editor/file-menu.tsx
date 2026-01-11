@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Copy, Download, Bug, BugOff, ChevronDown } from "lucide-react"
+import { FilePlus, FolderOpen, Save, Copy, Download, Bug, BugOff, ChevronDown } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,13 +11,30 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 interface FileMenuProps {
+  onNew: () => void
+  onOpen: () => void
+  onSave: () => void
+  onSaveAs: () => void
   onCopyWithBreaks: () => void
   onExportOdt: () => void
   debugMode: boolean
   onToggleDebug: () => void
+  hasUnsavedChanges?: boolean
+  currentDocTitle?: string
 }
 
-export function FileMenu({ onCopyWithBreaks, onExportOdt, debugMode, onToggleDebug }: FileMenuProps) {
+export function FileMenu({
+  onNew,
+  onOpen,
+  onSave,
+  onSaveAs,
+  onCopyWithBreaks,
+  onExportOdt,
+  debugMode,
+  onToggleDebug,
+  hasUnsavedChanges,
+  currentDocTitle,
+}: FileMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -27,6 +44,25 @@ export function FileMenu({ onCopyWithBreaks, onExportOdt, debugMode, onToggleDeb
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
+        <DropdownMenuItem onClick={onNew}>
+          <FilePlus className="h-4 w-4 mr-2" />
+          New
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onOpen}>
+          <FolderOpen className="h-4 w-4 mr-2" />
+          Open...
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onSave}>
+          <Save className="h-4 w-4 mr-2" />
+          Save
+          {hasUnsavedChanges && <span className="ml-auto text-xs text-gray-500">●</span>}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onSaveAs}>
+          <Save className="h-4 w-4 mr-2" />
+          Save As...
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onCopyWithBreaks}>
           <Copy className="h-4 w-4 mr-2" />
           Copy with breaks

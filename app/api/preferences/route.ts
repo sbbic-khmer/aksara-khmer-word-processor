@@ -10,19 +10,17 @@ export async function GET() {
   }
 
   try {
+    // First try to insert default preferences (will do nothing if exists)
+    await sql`
+      INSERT INTO user_preferences (user_id)
+      VALUES (${user.id})
+      ON CONFLICT (user_id) DO NOTHING
+    `
+
+    // Then always SELECT to get the current preferences
     const result = await sql`
       SELECT * FROM user_preferences WHERE user_id = ${user.id}
     `
-
-    if (result.length === 0) {
-      // Create default preferences if none exist
-      const newPrefs = await sql`
-        INSERT INTO user_preferences (user_id)
-        VALUES (${user.id})
-        RETURNING *
-      `
-      return NextResponse.json(newPrefs[0])
-    }
 
     return NextResponse.json(result[0])
   } catch (error) {

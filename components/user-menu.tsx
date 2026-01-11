@@ -224,7 +224,7 @@ export function UserMenu() {
             <Key className="h-4 w-4 mr-2" />
             Change Password
           </DropdownMenuItem>
-          <DropdownMenuItem className="cursor-pointer">
+          <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/settings")}>
             <Settings className="h-4 w-4 mr-2" />
             Settings
           </DropdownMenuItem>

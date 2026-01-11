@@ -2,20 +2,22 @@
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $getRoot, $isTextNode } from "lexical"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { $isKhmerBreakNode } from "../nodes/khmer-break-node"
 
 interface OnChangePluginProps {
   onChange: (text: string, wordCount: number, charCount: number) => void
+  onContentChange?: () => void
 }
 
 const WJ = "\u2060"
 
-export function OnChangePlugin({ onChange }: OnChangePluginProps) {
+export function OnChangePlugin({ onChange, onContentChange }: OnChangePluginProps) {
   const [editor] = useLexicalComposerContext()
+  const previousTextRef = useRef<string>("")
 
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
+    return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves }) => {
       editorState.read(() => {
         const root = $getRoot()
         let text = ""
@@ -43,9 +45,14 @@ export function OnChangePlugin({ onChange }: OnChangePluginProps) {
         const charCount = textWithoutWJ.length
 
         onChange(text, wordCount, charCount)
+
+        if (onContentChange && textWithoutWJ !== previousTextRef.current) {
+          previousTextRef.current = textWithoutWJ
+          onContentChange()
+        }
       })
     })
-  }, [editor, onChange])
+  }, [editor, onChange, onContentChange])
 
   return null
 }

@@ -82,7 +82,7 @@ export async function getCurrentUser(): Promise<User | null> {
     // This prevents accidental production exposure
     if (process.env.NODE_ENV === "development" && process.env.ALLOW_DEV_AUTH_BYPASS === "true") {
       return {
-        id: "dev-user-id",
+        id: "00000000-0000-0000-0000-000000000001",
         email: "dev@localhost",
         password_hash: "",
         name: "Developer",

@@ -13,6 +13,7 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useTheme } from "next-themes"
+import { $getRoot } from "lexical"
 
 import { KhmerBreakNode } from "./nodes/khmer-break-node"
 import { KhmerWordBreakPlugin } from "./plugins/khmer-word-break-plugin"
@@ -27,12 +28,24 @@ import { VoiceIndicator } from "@/components/voice-indicator"
 import { FormattingToolbar } from "@/components/editor/formatting-toolbar"
 import { FileMenu } from "@/components/editor/file-menu"
 import { EditorHeader } from "@/components/editor/editor-header"
+import { DocumentsDialog } from "@/components/editor/documents-dialog"
+import { SaveDialog } from "@/components/editor/save-dialog"
 import { useReplacements } from "@/hooks/use-replacements"
 import { exportToOdtFromLexical } from "@/lib/odt-export-lexical"
 import { cn } from "@/lib/utils"
 
+const LAST_DOCUMENT_KEY = "aksara-last-document-id"
+
+interface DocumentState {
+  id: string | null
+  title: string
+  hasUnsavedChanges: boolean
+  saveStatus: "idle" | "saving" | "saved" | "error"
+}
+
 interface KhmerLexicalEditorProps {
   className?: string
+  initialEditorState?: string
 }
 
 export interface KhmerLexicalEditorHandle {
@@ -65,7 +78,6 @@ function onError(error: Error) {
   console.error("[v0] Lexical error:", error)
 }
 
-// Inner component that has access to the composer context
 function EditorContent({
   breaker,
   showBreaks,
@@ -79,6 +91,12 @@ function EditorContent({
   setDebugMode,
   onVoiceStateChange,
   onPartialTranscriptChange,
+  documentState,
+  onNew,
+  onOpenDialog,
+  onSave,
+  onSaveAs,
+  onContentChange,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -92,6 +110,12 @@ function EditorContent({
   setDebugMode: (debug: boolean) => void
   onVoiceStateChange: (active: boolean) => void
   onPartialTranscriptChange: (text: string) => void
+  documentState: DocumentState
+  onNew: () => void
+  onOpenDialog: () => void
+  onSave: () => void
+  onSaveAs: () => void
+  onContentChange: () => void
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
@@ -142,23 +166,26 @@ function EditorContent({
       <ToolbarPlugin onFormatsChange={handleFormatsChange} />
       <KhmerWordBreakPlugin breaker={breaker} showBreaks={showBreaks} />
       <VoiceInputPlugin />
-      <OnChangePlugin onChange={onTextChange} />
+      <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} />
       <HistoryPlugin />
       <ListPlugin />
 
-      {/* Toolbar Row */}
       <div className="flex flex-wrap items-center gap-1 px-2 sm:px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        {/* File Menu */}
         <FileMenu
+          onNew={onNew}
+          onOpen={onOpenDialog}
+          onSave={onSave}
+          onSaveAs={onSaveAs}
           onCopyWithBreaks={handleCopyWithBreaks}
           onExportOdt={onExportOdt}
           debugMode={debugMode}
           onToggleDebug={() => setDebugMode(!debugMode)}
+          hasUnsavedChanges={documentState.hasUnsavedChanges}
+          currentDocTitle={documentState.title}
         />
 
         <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
 
-        {/* Formatting Toolbar */}
         <FormattingToolbar
           activeFormats={activeFormats}
           onFormat={formatText}
@@ -170,7 +197,6 @@ function EditorContent({
           onToggleBreaks={() => setShowBreaks(!showBreaks)}
         />
 
-        {/* Voice Input - pushed to the right */}
         <div className="ml-auto flex items-center">
           <VoiceInput
             ref={voiceInputRef}
@@ -182,7 +208,6 @@ function EditorContent({
         </div>
       </div>
 
-      {/* Document Area - Google Docs style */}
       <div className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
         <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative">
           <RichTextPlugin
@@ -216,8 +241,317 @@ function EditorContent({
   )
 }
 
+function EditorWrapper({
+  breaker,
+  showBreaks,
+  setShowBreaks,
+  onActiveFormatsChange,
+  onTextChange,
+  voiceInputRef,
+  applyReplacements,
+  onExportOdt,
+  debugMode,
+  setDebugMode,
+  onVoiceStateChange,
+  onPartialTranscriptChange,
+  documentState,
+  setDocumentState,
+  initialEditorState,
+}: {
+  breaker: KhmerBreaker
+  showBreaks: boolean
+  setShowBreaks: (show: boolean) => void
+  onActiveFormatsChange: (formats: ActiveFormats) => void
+  onTextChange: (text: string, wordCount: number, charCount: number) => void
+  voiceInputRef: React.RefObject<VoiceInputHandle | null>
+  applyReplacements: (text: string) => string
+  onExportOdt: () => void
+  debugMode: boolean
+  setDebugMode: (debug: boolean) => void
+  onVoiceStateChange: (active: boolean) => void
+  onPartialTranscriptChange: (text: string) => void
+  documentState: DocumentState
+  setDocumentState: React.Dispatch<React.SetStateAction<DocumentState>>
+  initialEditorState: string | null
+}) {
+  const [editor] = useLexicalComposerContext()
+  const [openDialogOpen, setOpenDialogOpen] = useState(false)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [isSaveAs, setIsSaveAs] = useState(false)
+  const initialLoadRef = useRef(false)
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastDocLoadedRef = useRef(false)
+
+  useEffect(() => {
+    if (lastDocLoadedRef.current) return
+    lastDocLoadedRef.current = true
+
+    const lastDocId = localStorage.getItem(LAST_DOCUMENT_KEY)
+    if (lastDocId) {
+      // Load the last document
+      fetch(`/api/documents/${lastDocId}`)
+        .then((res) => {
+          if (res.ok) return res.json()
+          throw new Error("Document not found")
+        })
+        .then((doc) => {
+          if (doc.editor_state) {
+            const state = editor.parseEditorState(doc.editor_state)
+            editor.setEditorState(state)
+          }
+          setDocumentState({
+            id: doc.id,
+            title: doc.title,
+            hasUnsavedChanges: false,
+            saveStatus: "idle",
+          })
+        })
+        .catch(() => {
+          // Document was deleted or doesn't exist, clear localStorage
+          localStorage.removeItem(LAST_DOCUMENT_KEY)
+        })
+    }
+  }, [editor, setDocumentState])
+
+  useEffect(() => {
+    if (initialEditorState && !initialLoadRef.current) {
+      initialLoadRef.current = true
+      try {
+        const state = editor.parseEditorState(initialEditorState)
+        editor.setEditorState(state)
+      } catch (error) {
+        console.error("[v0] Error loading editor state:", error)
+      }
+    }
+  }, [editor, initialEditorState])
+
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current)
+      if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (documentState.id) {
+      localStorage.setItem(LAST_DOCUMENT_KEY, documentState.id)
+    }
+  }, [documentState.id])
+
+  const handleNew = useCallback(() => {
+    if (documentState.hasUnsavedChanges) {
+      if (!confirm("You have unsaved changes. Create a new document anyway?")) {
+        return
+      }
+    }
+    editor.update(() => {
+      const root = $getRoot()
+      root.clear()
+    })
+    setDocumentState({ id: null, title: "Untitled", hasUnsavedChanges: false, saveStatus: "idle" })
+    localStorage.removeItem(LAST_DOCUMENT_KEY)
+  }, [editor, documentState.hasUnsavedChanges, setDocumentState])
+
+  const performSave = useCallback(
+    async (docId: string, title: string): Promise<boolean> => {
+      const editorState = JSON.stringify(editor.getEditorState().toJSON())
+      const content = editor.getEditorState().read(() => {
+        return $getRoot().getTextContent()
+      })
+
+      try {
+        const response = await fetch(`/api/documents/${docId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            content,
+            editorState,
+          }),
+        })
+        return response.ok
+      } catch (error) {
+        console.error("[v0] Error saving document:", error)
+        return false
+      }
+    },
+    [editor],
+  )
+
+  const triggerAutoSave = useCallback(async () => {
+    if (!documentState.id || !documentState.hasUnsavedChanges) return
+
+    setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
+
+    const success = await performSave(documentState.id, documentState.title)
+
+    if (success) {
+      setDocumentState((prev) => ({ ...prev, hasUnsavedChanges: false, saveStatus: "saved" }))
+      if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
+      savedStatusTimeoutRef.current = setTimeout(() => {
+        setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
+      }, 2000)
+    } else {
+      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+    }
+  }, [documentState.id, documentState.title, documentState.hasUnsavedChanges, performSave, setDocumentState])
+
+  const handleSave = useCallback(async () => {
+    if (!documentState.id) {
+      setIsSaveAs(false)
+      setSaveDialogOpen(true)
+      return
+    }
+
+    setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
+    const success = await performSave(documentState.id, documentState.title)
+
+    if (success) {
+      setDocumentState((prev) => ({ ...prev, hasUnsavedChanges: false, saveStatus: "saved" }))
+      if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
+      savedStatusTimeoutRef.current = setTimeout(() => {
+        setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
+      }, 2000)
+    } else {
+      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+    }
+  }, [documentState.id, documentState.title, performSave, setDocumentState])
+
+  const handleSaveAs = useCallback(() => {
+    setIsSaveAs(true)
+    setSaveDialogOpen(true)
+  }, [])
+
+  const handleSaveWithTitle = useCallback(
+    async (title: string) => {
+      const editorState = JSON.stringify(editor.getEditorState().toJSON())
+      const content = editor.getEditorState().read(() => {
+        return $getRoot().getTextContent()
+      })
+
+      setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
+
+      try {
+        const response = await fetch("/api/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, content, editorState }),
+        })
+
+        if (response.ok) {
+          const doc = await response.json()
+          setDocumentState({ id: doc.id, title: doc.title, hasUnsavedChanges: false, saveStatus: "saved" })
+          localStorage.setItem(LAST_DOCUMENT_KEY, doc.id)
+          if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
+          savedStatusTimeoutRef.current = setTimeout(() => {
+            setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
+          }, 2000)
+        } else {
+          setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+        }
+      } catch (error) {
+        console.error("[v0] Error creating document:", error)
+        setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+      }
+    },
+    [editor, setDocumentState],
+  )
+
+  const handleOpenDocument = useCallback(
+    async (doc: { id: string; title: string }) => {
+      if (documentState.hasUnsavedChanges) {
+        if (!confirm("You have unsaved changes. Open another document anyway?")) {
+          return
+        }
+      }
+
+      try {
+        const response = await fetch(`/api/documents/${doc.id}`)
+        if (response.ok) {
+          const fullDoc = await response.json()
+          if (fullDoc.editor_state) {
+            const state = editor.parseEditorState(fullDoc.editor_state)
+            editor.setEditorState(state)
+          }
+          setDocumentState({ id: fullDoc.id, title: fullDoc.title, hasUnsavedChanges: false, saveStatus: "idle" })
+          localStorage.setItem(LAST_DOCUMENT_KEY, fullDoc.id)
+        }
+      } catch (error) {
+        console.error("[v0] Error opening document:", error)
+      }
+    },
+    [editor, documentState.hasUnsavedChanges, setDocumentState],
+  )
+
+  const handleContentChange = useCallback(() => {
+    setDocumentState((prev) => ({ ...prev, hasUnsavedChanges: true, saveStatus: "idle" }))
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current)
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      triggerAutoSave()
+    }, 5000)
+  }, [setDocumentState, triggerAutoSave])
+
+  const handleDeleteDocument = useCallback(
+    (id: string) => {
+      if (documentState.id === id) {
+        setDocumentState({ id: null, title: "Untitled", hasUnsavedChanges: false, saveStatus: "idle" })
+        localStorage.removeItem(LAST_DOCUMENT_KEY)
+        editor.update(() => {
+          const root = $getRoot()
+          root.clear()
+        })
+      }
+    },
+    [editor, documentState.id, setDocumentState],
+  )
+
+  return (
+    <>
+      <EditorContent
+        breaker={breaker}
+        showBreaks={showBreaks}
+        setShowBreaks={setShowBreaks}
+        onActiveFormatsChange={onActiveFormatsChange}
+        onTextChange={onTextChange}
+        voiceInputRef={voiceInputRef}
+        applyReplacements={applyReplacements}
+        onExportOdt={onExportOdt}
+        debugMode={debugMode}
+        setDebugMode={setDebugMode}
+        onVoiceStateChange={onVoiceStateChange}
+        onPartialTranscriptChange={onPartialTranscriptChange}
+        documentState={documentState}
+        onNew={handleNew}
+        onOpenDialog={() => setOpenDialogOpen(true)}
+        onSave={handleSave}
+        onSaveAs={handleSaveAs}
+        onContentChange={handleContentChange}
+      />
+
+      <DocumentsDialog
+        open={openDialogOpen}
+        onOpenChange={setOpenDialogOpen}
+        onOpen={handleOpenDocument}
+        onDelete={handleDeleteDocument}
+      />
+
+      <SaveDialog
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        onSave={handleSaveWithTitle}
+        defaultTitle={isSaveAs ? documentState.title : ""}
+      />
+    </>
+  )
+}
+
 export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexicalEditorProps>(
-  function KhmerLexicalEditor({ className }, ref) {
+  function KhmerLexicalEditor({ className, initialEditorState }, ref) {
     const [breaker] = useState(() => new KhmerBreaker(KHMER_DICTIONARY))
     const [showBreaks, setShowBreaks] = useState(true)
     const [wordCount, setWordCount] = useState(0)
@@ -230,6 +564,13 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     const voiceInputRef = useRef<VoiceInputHandle>(null)
     const editorRef = useRef<HTMLDivElement>(null)
     const { theme: colorTheme, setTheme } = useTheme()
+
+    const [documentState, setDocumentState] = useState<DocumentState>({
+      id: null,
+      title: "Untitled",
+      hasUnsavedChanges: false,
+      saveStatus: "idle",
+    })
 
     const { applyReplacements } = useReplacements()
 
@@ -259,10 +600,11 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       if (editorRef.current) {
         const contentEditable = editorRef.current.querySelector('[contenteditable="true"]')
         if (contentEditable) {
-          exportToOdtFromLexical(contentEditable as HTMLElement, "document.odt")
+          const filename = `${documentState.title || "document"}.odt`
+          exportToOdtFromLexical(contentEditable as HTMLElement, filename)
         }
       }
-    }, [])
+    }, [documentState.title])
 
     const handleVoiceStateChange = useCallback((active: boolean) => {
       setIsVoiceActive(active)
@@ -271,6 +613,57 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       }
     }, [])
 
+    const handleTitleChange = useCallback(
+      async (newTitle: string) => {
+        setDocumentState((prev) => ({ ...prev, title: newTitle, saveStatus: "saving" }))
+
+        try {
+          if (documentState.id) {
+            // Update existing document title
+            await fetch(`/api/documents/${documentState.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ title: newTitle }),
+            })
+            setDocumentState((prev) => ({ ...prev, saveStatus: "saved", hasUnsavedChanges: false }))
+          } else {
+            // Create new document when user names it
+            const response = await fetch("/api/documents", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: newTitle,
+                content: "",
+              }),
+            })
+            if (response.ok) {
+              const doc = await response.json()
+              setDocumentState((prev) => ({
+                ...prev,
+                id: doc.id,
+                saveStatus: "saved",
+                hasUnsavedChanges: false,
+              }))
+              localStorage.setItem(LAST_DOCUMENT_KEY, doc.id)
+            }
+          }
+        } catch (error) {
+          console.error("[v0] Error saving document:", error)
+          setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+        }
+      },
+      [documentState.id],
+    )
+
+    useImperativeHandle(ref, () => ({
+      insertText: (text: string) => {
+        // Will be implemented if needed
+      },
+      focus: () => {
+        editorRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus()
+      },
+    }))
+
     const initialConfig = {
       namespace: "KhmerEditor",
       theme: lexicalTheme,
@@ -278,25 +671,31 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       nodes: [HeadingNode, ListNode, ListItemNode, KhmerBreakNode],
     }
 
-    useImperativeHandle(ref, () => ({
-      insertText: (text: string) => {
-        console.log("[v0] Insert text requested:", text)
-      },
-      focus: () => {
-        const contentEditable = editorRef.current?.querySelector('[contenteditable="true"]')
-        if (contentEditable) {
-          ;(contentEditable as HTMLElement).focus()
-        }
-      },
-    }))
+    if (!mounted) {
+      return (
+        <div className={cn("flex flex-col h-screen bg-gray-50 dark:bg-gray-900", className)}>
+          <div className="animate-pulse flex-1" />
+        </div>
+      )
+    }
 
     return (
-      <div className={cn("flex flex-col h-screen bg-white dark:bg-gray-900", className)} ref={editorRef}>
-        {/* Header with logo */}
-        <EditorHeader theme={colorTheme} setTheme={setTheme} mounted={mounted} />
+      <div ref={editorRef} className={cn("flex flex-col h-screen bg-gray-50 dark:bg-gray-900", className)}>
+        <VoiceIndicator isActive={isVoiceActive} partialTranscript={partialTranscript} />
+
+        <EditorHeader
+          theme={colorTheme}
+          setTheme={setTheme}
+          mounted={mounted}
+          documentTitle={documentState.title}
+          documentId={documentState.id}
+          hasUnsavedChanges={documentState.hasUnsavedChanges}
+          saveStatus={documentState.saveStatus}
+          onTitleChange={handleTitleChange}
+        />
 
         <LexicalComposer initialConfig={initialConfig}>
-          <EditorContent
+          <EditorWrapper
             breaker={breaker}
             showBreaks={showBreaks}
             setShowBreaks={setShowBreaks}
@@ -309,12 +708,12 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
             setDebugMode={setDebugMode}
             onVoiceStateChange={handleVoiceStateChange}
             onPartialTranscriptChange={setPartialTranscript}
+            documentState={documentState}
+            setDocumentState={setDocumentState}
+            initialEditorState={initialEditorState || null}
           />
         </LexicalComposer>
 
-        <VoiceIndicator isActive={isVoiceActive} partialTranscript={partialTranscript} />
-
-        {/* Footer with stats */}
         <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-4">
             <span>{wordCount} words</span>
