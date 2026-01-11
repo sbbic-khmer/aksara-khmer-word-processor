@@ -302,16 +302,23 @@ function EditorWrapper({
           throw new Error("Document not found")
         })
         .then((doc) => {
-          if (doc.editor_state) {
-            const state = editor.parseEditorState(doc.editor_state)
-            editor.setEditorState(state)
+          try {
+            if (doc.editor_state) {
+              const state = editor.parseEditorState(doc.editor_state)
+              editor.setEditorState(state)
+            }
+            setDocumentState({
+              id: doc.id,
+              title: doc.title,
+              hasUnsavedChanges: false,
+              saveStatus: "idle",
+            })
+          } catch (error) {
+            console.error("[v0] Error parsing editor state, starting fresh:", error)
+            // Clear the corrupted document reference
+            localStorage.removeItem(LAST_DOCUMENT_KEY)
+            // Keep editor in default state
           }
-          setDocumentState({
-            id: doc.id,
-            title: doc.title,
-            hasUnsavedChanges: false,
-            saveStatus: "idle",
-          })
         })
         .catch(() => {
           // Document was deleted or doesn't exist, clear localStorage
@@ -524,12 +531,17 @@ function EditorWrapper({
         const response = await fetch(`/api/documents/${doc.id}`)
         if (response.ok) {
           const fullDoc = await response.json()
-          if (fullDoc.editor_state) {
-            const state = editor.parseEditorState(fullDoc.editor_state)
-            editor.setEditorState(state)
+          try {
+            if (fullDoc.editor_state) {
+              const state = editor.parseEditorState(fullDoc.editor_state)
+              editor.setEditorState(state)
+            }
+            setDocumentState({ id: fullDoc.id, title: fullDoc.title, hasUnsavedChanges: false, saveStatus: "idle" })
+            localStorage.setItem(LAST_DOCUMENT_KEY, fullDoc.id)
+          } catch (parseError) {
+            console.error("[v0] Error parsing document state:", parseError)
+            alert("This document appears to be corrupted and cannot be opened.")
           }
-          setDocumentState({ id: fullDoc.id, title: fullDoc.title, hasUnsavedChanges: false, saveStatus: "idle" })
-          localStorage.setItem(LAST_DOCUMENT_KEY, fullDoc.id)
         }
       } catch (error) {
         console.error("[v0] Error opening document:", error)
