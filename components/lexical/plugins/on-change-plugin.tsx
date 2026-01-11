@@ -4,15 +4,18 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $getRoot, $isTextNode } from "lexical"
 import { useEffect, useRef } from "react"
 import { $isKhmerBreakNode } from "../nodes/khmer-break-node"
+import type { KhmerBreaker } from "@/lib/khmer-breaker"
 
 interface OnChangePluginProps {
   onChange: (text: string, wordCount: number, charCount: number) => void
   onContentChange?: () => void
+  breaker?: KhmerBreaker
 }
 
 const WJ = "\u2060"
+const ZWSP = "\u200B"
 
-export function OnChangePlugin({ onChange, onContentChange }: OnChangePluginProps) {
+export function OnChangePlugin({ onChange, onContentChange, breaker }: OnChangePluginProps) {
   const [editor] = useLexicalComposerContext()
   const previousTextRef = useRef<string | null>(null)
 
@@ -33,15 +36,24 @@ export function OnChangePlugin({ onChange, onContentChange }: OnChangePluginProp
           }
         })
 
-        // Remove Word Joiners for counting
-        const textWithoutWJ = text.replace(new RegExp(WJ, "g"), "")
+        // Remove Word Joiners and ZWSP for counting
+        const textWithoutWJ = text.replace(new RegExp(WJ, "g"), "").replace(new RegExp(ZWSP, "g"), "")
 
-        // Count words (split by whitespace and filter empty)
-        const words = textWithoutWJ
-          .trim()
-          .split(/\s+/)
-          .filter((w) => w.length > 0)
-        const wordCount = words.length
+        let wordCount = 0
+        if (breaker && textWithoutWJ.trim()) {
+          // Use the Khmer breaker to segment text into words
+          const segments = breaker.getSegments(textWithoutWJ)
+          // Filter out whitespace-only segments and count actual words
+          wordCount = segments.filter((s) => s.trim() && !/^\s+$/.test(s)).length
+        } else if (textWithoutWJ.trim()) {
+          // Fallback to whitespace splitting for non-Khmer text
+          const words = textWithoutWJ
+            .trim()
+            .split(/\s+/)
+            .filter((w) => w.length > 0)
+          wordCount = words.length
+        }
+
         const charCount = textWithoutWJ.length
 
         onChange(text, wordCount, charCount)
@@ -57,7 +69,7 @@ export function OnChangePlugin({ onChange, onContentChange }: OnChangePluginProp
         previousTextRef.current = textWithoutWJ
       })
     })
-  }, [editor, onChange, onContentChange])
+  }, [editor, onChange, onContentChange, breaker])
 
   return null
 }

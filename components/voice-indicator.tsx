@@ -23,7 +23,7 @@ export function VoiceIndicator({ isActive, partialTranscript }: VoiceIndicatorPr
   if (!visible) return null
 
   return (
-    <div className="fixed left-1/2 -translate-x-1/2 top-32 z-50">
+    <div className={`fixed left-1/2 -translate-x-1/2 top-32 z-50 ${!isActive ? "pointer-events-none" : ""}`}>
       <div
         className={`transition-all duration-300 ${isActive ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}
       >

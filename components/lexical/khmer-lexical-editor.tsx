@@ -166,7 +166,7 @@ function EditorContent({
       <ToolbarPlugin onFormatsChange={handleFormatsChange} />
       <KhmerWordBreakPlugin breaker={breaker} showBreaks={showBreaks} />
       <VoiceInputPlugin />
-      <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} />
+      <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
       <HistoryPlugin />
       <ListPlugin />
 
