@@ -42,8 +42,8 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
   useEffect(() => {
     if (!prefsLoading && preferences) {
       setSelectedMicId(preferences.preferred_mic_device_id)
-      setVadSilenceThreshold(preferences.vad_silence_threshold ?? DEFAULT_VAD_SILENCE)
-      setVadSensitivity(preferences.vad_threshold ?? DEFAULT_VAD_SENSITIVITY)
+      setVadSilenceThreshold(preferences.vad_silence_threshold || DEFAULT_VAD_SILENCE)
+      setVadSensitivity(preferences.vad_threshold || DEFAULT_VAD_SENSITIVITY)
     }
   }, [preferences, prefsLoading])
 

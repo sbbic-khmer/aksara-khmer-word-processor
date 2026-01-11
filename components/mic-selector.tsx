@@ -18,9 +18,9 @@ import { Slider } from "@/components/ui/slider"
 interface MicSelectorProps {
   selectedDeviceId: string | null
   onDeviceChange: (deviceId: string | null) => void
-  vadSilenceThreshold: number
+  vadSilenceThreshold?: number // Make optional for safety
   onVadSilenceThresholdChange: (value: number) => void
-  vadSensitivity: number
+  vadSensitivity?: number // Make optional for safety
   onVadSensitivityChange: (value: number) => void
 }
 
@@ -37,6 +37,9 @@ export function MicSelector({
   vadSensitivity,
   onVadSensitivityChange,
 }: MicSelectorProps) {
+  const safeVadSilenceThreshold = vadSilenceThreshold ?? 1.0
+  const safeVadSensitivity = vadSensitivity ?? 0.4
+
   const [devices, setDevices] = useState<AudioDevice[]>([])
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -225,10 +228,10 @@ export function MicSelector({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs text-muted-foreground">Pause before commit</label>
-                <span className="text-xs font-medium tabular-nums">{vadSilenceThreshold.toFixed(1)}s</span>
+                <span className="text-xs font-medium tabular-nums">{safeVadSilenceThreshold.toFixed(1)}s</span>
               </div>
               <Slider
-                value={[vadSilenceThreshold]}
+                value={[safeVadSilenceThreshold]}
                 onValueChange={([value]) => onVadSilenceThresholdChange(value)}
                 min={0.5}
                 max={3.0}
@@ -244,10 +247,10 @@ export function MicSelector({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs text-muted-foreground">Voice sensitivity</label>
-                <span className="text-xs font-medium tabular-nums">{Math.round(vadSensitivity * 100)}%</span>
+                <span className="text-xs font-medium tabular-nums">{Math.round(safeVadSensitivity * 100)}%</span>
               </div>
               <Slider
-                value={[vadSensitivity]}
+                value={[safeVadSensitivity]}
                 onValueChange={([value]) => onVadSensitivityChange(value)}
                 min={0.1}
                 max={0.9}
