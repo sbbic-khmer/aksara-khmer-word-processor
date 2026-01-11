@@ -22,6 +22,7 @@ import {
   EyeOff,
   Undo2,
   Redo2,
+  Highlighter,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
@@ -42,6 +43,7 @@ interface ActiveFormats {
   italic: boolean
   underline: boolean
   strikethrough: boolean
+  highlight: boolean
   heading: string | null
   fontSize: string
   alignment: string
@@ -172,6 +174,22 @@ export function FormattingToolbar({
             </Button>
           </TooltipTrigger>
           <TooltipContent>Strikethrough</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onFormat("highlight")}
+              className={cn(
+                "h-8 w-8 p-0",
+                activeFormats.highlight && "bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300",
+              )}
+            >
+              <Highlighter className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Highlight</TooltipContent>
         </Tooltip>
 
         <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />

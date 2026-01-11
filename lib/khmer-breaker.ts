@@ -240,6 +240,7 @@ class KhmerCharSets {
     const after = text[index]
 
     if (this.isCoeng(before)) return false
+    if (this.isCoeng(after)) return false
     if (this.isCombiningMark(after) && !this.isBase(after)) return false
 
     return true

@@ -250,7 +250,40 @@ export default function KhmerEditor() {
       preCaretRange.setEnd(range.startContainer, range.startOffset)
       const tempDiv = document.createElement("div")
       tempDiv.appendChild(preCaretRange.cloneContents())
-      cursorOffset = (tempDiv.textContent || "").replace(new RegExp(ZWSP, "g"), "").length
+
+      let textSoFar = ""
+      const processNode = (node: Node, isFirst = true) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const content = (node.textContent || "").replace(new RegExp(ZWSP, "g"), "")
+          textSoFar += content
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as Element
+          const tagName = el.tagName.toUpperCase()
+
+          if (el.classList.contains("break-marker") || el.classList.contains("wj-data")) {
+            return
+          }
+
+          const isBlockElement = ["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "LI", "BLOCKQUOTE"].includes(tagName)
+
+          if (isBlockElement && !isFirst && textSoFar.length > 0 && !textSoFar.endsWith("\n")) {
+            textSoFar += "\n"
+          }
+
+          if (tagName === "BR") {
+            textSoFar += "\n"
+          } else {
+            el.childNodes.forEach((child, index) => processNode(child, isFirst && index === 0))
+          }
+
+          if (isBlockElement && textSoFar.length > 0 && !textSoFar.endsWith("\n")) {
+            textSoFar += "\n"
+          }
+        }
+      }
+
+      tempDiv.childNodes.forEach((child, index) => processNode(child, index === 0))
+      cursorOffset = textSoFar.length
     }
 
     const newHTML = generateHTML(formattingRanges)
@@ -262,43 +295,97 @@ export default function KhmerEditor() {
         const sel = window.getSelection()
         if (!sel) return
 
-        const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_TEXT)
+        const blockTags = new Set(["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "LI", "BLOCKQUOTE"])
         let currentOffset = 0
-        let node: Text | null = null
+        let foundNode: Text | null = null
+        let foundOffset = 0
 
-        while ((node = walker.nextNode() as Text | null)) {
-          const cleanText = (node.textContent || "").replace(new RegExp(ZWSP, "g"), "")
-          if (currentOffset + cleanText.length >= cursorOffset) {
-            const nodeText = node.textContent || ""
-            let realOffset = 0
-            let cleanOffset = 0
+        const walkNode = (node: Node, isFirst: boolean): boolean => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            const textNode = node as Text
+            const cleanText = (textNode.textContent || "").replace(new RegExp(ZWSP, "g"), "")
 
-            for (let i = 0; i < nodeText.length; i++) {
-              if (cleanOffset >= cursorOffset - currentOffset) break
-              realOffset++
-              if (nodeText[i] !== ZWSP) cleanOffset++
+            if (currentOffset + cleanText.length >= cursorOffset) {
+              // Found the target node
+              foundNode = textNode
+              const nodeText = textNode.textContent || ""
+              let realOffset = 0
+              let cleanOffset = 0
+
+              for (let i = 0; i < nodeText.length; i++) {
+                if (cleanOffset >= cursorOffset - currentOffset) break
+                realOffset++
+                if (nodeText[i] !== ZWSP) cleanOffset++
+              }
+              foundOffset = Math.min(realOffset, nodeText.length)
+              return true // stop walking
+            }
+            currentOffset += cleanText.length
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const el = node as Element
+            const tagName = el.tagName
+            const isBlockElement = blockTags.has(tagName)
+
+            // Add newline BEFORE block elements (except first)
+            if (isBlockElement && !isFirst && currentOffset > 0) {
+              if (currentOffset >= cursorOffset) {
+                // Cursor is at the newline before this block - place at end of previous text
+                return true
+              }
+              currentOffset++
             }
 
-            try {
-              const range = document.createRange()
-              range.setStart(node, Math.min(realOffset, nodeText.length))
-              range.collapse(true)
-              sel.removeAllRanges()
-              sel.addRange(range)
-            } catch (e) {
-              editorRef.current?.focus()
+            if (tagName === "BR") {
+              if (currentOffset >= cursorOffset) {
+                return true
+              }
+              currentOffset++
+            } else {
+              const children = el.childNodes
+              for (let i = 0; i < children.length; i++) {
+                if (walkNode(children[i], isFirst && i === 0)) {
+                  return true
+                }
+              }
             }
-            return
+
+            // Add newline AFTER block elements
+            if (isBlockElement && currentOffset > 0) {
+              // Don't double-count if we already added one
+            }
           }
-          currentOffset += cleanText.length
+          return false
         }
 
-        editorRef.current.focus()
-        const range = document.createRange()
-        range.selectNodeContents(editorRef.current)
-        range.collapse(false)
-        sel.removeAllRanges()
-        sel.addRange(range)
+        const children = editorRef.current.childNodes
+        for (let i = 0; i < children.length; i++) {
+          if (walkNode(children[i], i === 0)) {
+            break
+          }
+        }
+
+        if (foundNode) {
+          try {
+            const range = document.createRange()
+            range.setStart(foundNode, foundOffset)
+            range.collapse(true)
+            sel.removeAllRanges()
+            sel.addRange(range)
+          } catch (e) {
+            editorRef.current?.focus()
+          }
+        } else {
+          // Fallback: place cursor at end of editor
+          try {
+            const range = document.createRange()
+            range.selectNodeContents(editorRef.current)
+            range.collapse(false) // collapse to end
+            sel.removeAllRanges()
+            sel.addRange(range)
+          } catch (e) {
+            editorRef.current?.focus()
+          }
+        }
       }
 
       requestAnimationFrame(restoreCursor)
@@ -319,7 +406,7 @@ export default function KhmerEditor() {
       isTypingRef.current = false
       needsHtmlUpdateRef.current = true
       setRefreshKey((prev) => prev + 1)
-    }, 500)
+    }, 100) // Reduced from 500ms to 100ms to prevent race condition during fast typing
 
     let newText = ""
     const processNode = (node: Node, isFirst = true) => {
@@ -354,8 +441,7 @@ export default function KhmerEditor() {
 
     editorRef.current.childNodes.forEach((child, index) => processNode(child, index === 0))
 
-    newText = newText.replace(/\n+$/, "")
-
+    // Removed the line that strips trailing newlines
     console.log("[v0] handleInput - extracted text:", newText.slice(0, 30), "length:", newText.length)
 
     setText(newText)
@@ -727,7 +813,54 @@ export default function KhmerEditor() {
     preCaretRange.setEnd(range.startContainer, range.startOffset)
     const tempDiv = document.createElement("div")
     tempDiv.appendChild(preCaretRange.cloneContents())
-    const cursorOffset = (tempDiv.textContent || "").replace(new RegExp(ZWSP, "g"), "").length
+
+    let cursorOffset = 0
+    let textSoFar = ""
+    const processNode = (node: Node, isFirst = true) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const content = (node.textContent || "").replace(new RegExp(ZWSP, "g"), "")
+        cursorOffset += content.length
+        textSoFar += content
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as Element
+        const tagName = el.tagName.toUpperCase()
+
+        if (el.classList.contains("break-marker") || el.classList.contains("wj-data")) {
+          return
+        }
+
+        const isBlockElement = ["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6", "LI", "BLOCKQUOTE"].includes(tagName)
+
+        if (isBlockElement && !isFirst && textSoFar.length > 0 && !textSoFar.endsWith("\n")) {
+          cursorOffset += 1
+          textSoFar += "\n"
+        }
+
+        if (tagName === "BR") {
+          cursorOffset += 1
+          textSoFar += "\n"
+        } else {
+          el.childNodes.forEach((child, index) => processNode(child, isFirst && index === 0))
+        }
+
+        if (isBlockElement && textSoFar.length > 0 && !textSoFar.endsWith("\n")) {
+          cursorOffset += 1
+          textSoFar += "\n"
+        }
+      }
+    }
+
+    tempDiv.childNodes.forEach((child, index) => processNode(child, index === 0))
+
+    console.log("[v0] saveCursorPosition DEBUG:", {
+      cursorOffset,
+      textSoFar,
+      tempDivInnerHTML: tempDiv.innerHTML,
+      editorInnerHTML: editorRef.current.innerHTML.substring(0, 200),
+      anchorNodeType: selection.anchorNode.nodeType,
+      anchorNodeName: selection.anchorNode.nodeName,
+      anchorOffset: selection.anchorOffset,
+    })
 
     if (cursorOffset >= 0) {
       savedCursorPositionRef.current = cursorOffset
@@ -741,6 +874,16 @@ export default function KhmerEditor() {
 
     setText((currentText) => {
       const insertPosition = savedCursorPositionRef.current ?? currentText.length
+
+      console.log("[v0] insertTextAtCursor DEBUG:", {
+        insertPosition,
+        savedCursorPositionRef: savedCursorPositionRef.current,
+        currentTextLength: currentText.length,
+        currentTextPreview: currentText.substring(0, 100),
+        currentTextHasNewlines: currentText.includes("\n"),
+        newlineCount: (currentText.match(/\n/g) || []).length,
+        textToInsert,
+      })
 
       const newText = currentText.slice(0, insertPosition) + textToInsert + currentText.slice(insertPosition)
 
