@@ -6,7 +6,7 @@ import { useAuth } from "./auth-provider"
 import { LoginScreen } from "./login-screen"
 import { Loader2 } from "lucide-react"
 
-const PUBLIC_PATHS = ["/"]
+const PUBLIC_PATHS = ["/", "/login", "/signup"]
 
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
