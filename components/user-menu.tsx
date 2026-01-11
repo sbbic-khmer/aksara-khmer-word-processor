@@ -201,12 +201,12 @@ export function UserMenu() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 rounded-full p-0">
-            <Avatar className="h-8 w-8">
+          <Button variant="ghost" size="sm" className="h-10 w-10 rounded-full p-0">
+            <Avatar className="h-10 w-10">
               {user.profile_picture_url && (
                 <AvatarImage src={user.profile_picture_url || "/placeholder.svg"} alt={user.name || "User"} />
               )}
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">{initials}</AvatarFallback>
+              <AvatarFallback className="bg-primary/10 text-primary text-lg font-medium">{initials}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>

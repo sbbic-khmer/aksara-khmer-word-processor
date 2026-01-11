@@ -143,7 +143,7 @@ export function EditorHeader({
         <button
           onClick={handleTitleClick}
           className={cn(
-            "text-lg font-medium text-gray-700 dark:text-gray-200 truncate max-w-[300px]",
+            "text-md font-medium text-gray-700 dark:text-gray-200 truncate max-w-[300px]",
             "hover:text-gray-900 dark:hover:text-white",
             "transition-colors cursor-pointer text-left",
             !onTitleChange && "cursor-default",
