@@ -195,11 +195,17 @@ export function EditorHeader({
               <div className="hidden sm:flex flex-col gap-0">
                 <div className="flex items-baseline gap-1.5">
                   <h1
-                    className="text-[22px] sm:text-[26px] leading-none text-gray-900 dark:text-white tracking-tight"
-                    style={{ fontFamily: "var(--font-moul), serif" }}
-                  >
-                    អក្សរា
-                  </h1>
+  className="flex items-baseline gap-1.5 text-[22px] sm:text-[26px] leading-none tracking-tight text-gray-900 dark:text-white"
+  style={{ fontFamily: "var(--font-moul), serif" }}
+>
+  អក្សរា
+  <span
+    className="text-[22px] sm:text-[26px]  text-foreground"
+    style={{ fontFamily: "var(--font-geist-sans), sans" }}
+  >
+    Pro
+  </span>
+</h1>
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="text-[10px] sm:text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-[0.15em]">

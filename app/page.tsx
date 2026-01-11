@@ -55,6 +55,9 @@ export default function LandingPage() {
             <span className="text-xl sm:text-2xl text-foreground" style={{ fontFamily: "var(--font-moul), serif" }}>
               អក្សរា
             </span>
+            <span className="text-xl sm:text-2xl text-foreground" style={{ fontFamily: "var(--font-geist-sans), sans" }}>
+              Pro
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/login">
