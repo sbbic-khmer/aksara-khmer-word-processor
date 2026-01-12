@@ -48,7 +48,7 @@ export default function LandingPage() {
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
               <div className="absolute inset-[1px] rounded-[14px] border border-white/20" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white text-2xl font-bold leading-none translate-y-[-1px]">អ</span>
+                <span className="text-white text-2xl font-bold leading-none translate-y-[-2px] translate-x-[1px]">អ</span>
               </div>
             </div>
 
@@ -309,7 +309,7 @@ export default function LandingPage() {
               <div className="relative w-8 h-8 shrink-0">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-white text-lg font-bold leading-none translate-y-[-0.5px]">អ</span>
+                  <span className="text-white text-lg font-bold leading-none translate-y-[-0.5px] translate-x-[0.5px]">អ</span>
                 </div>
               </div>
 
