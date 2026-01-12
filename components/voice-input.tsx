@@ -31,8 +31,12 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
 ) {
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isWaitingForFinal, setIsWaitingForFinal] = useState(false)
   const isDisconnectingRef = useRef(false)
   const lastPartialRef = useRef<string>("")
+  const waitingForCommitRef = useRef(false)
+  const onCommitReceivedRef = useRef<((text: string) => void) | null>(null)
+  const commitTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const { preferences, updatePreference, isLoading: prefsLoading } = usePreferences()
 
@@ -89,9 +93,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       if (!text.trim()) return text
       if (applyReplacements) {
         const processed = applyReplacements(text)
-        if (processed !== text) {
-          console.log("[v0] Applied replacements:", text, "->", processed)
-        }
         return processed
       }
       return text
@@ -99,12 +100,21 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     [applyReplacements],
   )
 
+  const cleanupWaitingState = useCallback(() => {
+    waitingForCommitRef.current = false
+    onCommitReceivedRef.current = null
+    setIsWaitingForFinal(false)
+    if (commitTimeoutRef.current) {
+      clearTimeout(commitTimeoutRef.current)
+      commitTimeoutRef.current = null
+    }
+  }, [])
+
   const webSpeech = useWebSpeechRecognition({
     lang: "km-KH",
     onPartialTranscript: useCallback(
       (text: string) => {
         if (isDisconnectingRef.current) return
-        console.log("[v0] WebSpeech partial:", text)
         lastPartialRef.current = text
         onPartialTranscript?.(processTranscript(text))
       },
@@ -112,19 +122,29 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     ),
     onCommittedTranscript: useCallback(
       (text: string) => {
-        if (isDisconnectingRef.current) return
-        console.log("[v0] WebSpeech COMMITTED:", text)
+        if (isDisconnectingRef.current && !waitingForCommitRef.current) return
+
+        if (waitingForCommitRef.current && onCommitReceivedRef.current) {
+          onCommitReceivedRef.current(text)
+          cleanupWaitingState()
+          return
+        }
+
         if (text.trim()) {
           onTranscript(processTranscript(text))
           lastPartialRef.current = ""
         }
       },
-      [onTranscript, processTranscript],
+      [onTranscript, processTranscript, cleanupWaitingState],
     ),
-    onError: useCallback((err: string) => {
-      setError(err)
-      setTimeout(() => setError(null), 3000)
-    }, []),
+    onError: useCallback(
+      (err: string) => {
+        cleanupWaitingState()
+        setError(err)
+        setTimeout(() => setError(null), 3000)
+      },
+      [cleanupWaitingState],
+    ),
   })
 
   // ElevenLabs Scribe hook
@@ -135,19 +155,25 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     vadSilenceThresholdSecs: vadSilenceThreshold,
     vadThreshold: vadSensitivity,
     onConnect: () => {
-      console.log("[v0] Scribe WebSocket connected")
       isDisconnectingRef.current = false
       lastPartialRef.current = ""
     },
     onPartialTranscript: (data) => {
       if (isDisconnectingRef.current) return
-      console.log("[v0] Partial transcript:", data.text)
       lastPartialRef.current = data.text
       onPartialTranscript?.(processTranscript(data.text))
     },
     onCommittedTranscript: (data) => {
+      if (waitingForCommitRef.current && onCommitReceivedRef.current) {
+        onCommitReceivedRef.current(data.text)
+        cleanupWaitingState()
+        // Now actually disconnect
+        scribe.disconnect()
+        return
+      }
+
       if (isDisconnectingRef.current) return
-      console.log("[v0] COMMITTED transcript:", data.text)
+
       if (data.text.trim()) {
         onTranscript(processTranscript(data.text))
         lastPartialRef.current = ""
@@ -156,6 +182,8 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     onError: (err) => {
       const errorMessage = err instanceof Error ? err.message : String(err)
       console.error("[v0] Scribe error:", errorMessage)
+
+      cleanupWaitingState()
 
       if (errorMessage.includes("capacity")) {
         setError("Service busy. Please try again in a moment.")
@@ -170,8 +198,8 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       setTimeout(() => setError(null), 3000)
     },
     onDisconnect: () => {
-      console.log("[v0] Scribe disconnected")
       isDisconnectingRef.current = true
+      cleanupWaitingState()
       onVoiceStateChange?.(false)
     },
   })
@@ -187,12 +215,35 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       // Web Speech toggle
       if (webSpeech.listening) {
         if (lastPartialRef.current.trim()) {
-          console.log("[v0] Inserting last partial on manual stop:", lastPartialRef.current)
-          onTranscript(processTranscript(lastPartialRef.current))
-          lastPartialRef.current = ""
+          setIsWaitingForFinal(true)
+          waitingForCommitRef.current = true
+
+          // Set up callback for when commit arrives
+          onCommitReceivedRef.current = (text: string) => {
+            if (text.trim()) {
+              onTranscript(processTranscript(text))
+            }
+            lastPartialRef.current = ""
+          }
+
+          // Set timeout in case no commit comes (5 seconds)
+          commitTimeoutRef.current = setTimeout(() => {
+            // Fallback to partial if no commit received
+            if (lastPartialRef.current.trim()) {
+              onTranscript(processTranscript(lastPartialRef.current))
+              lastPartialRef.current = ""
+            }
+            cleanupWaitingState()
+            webSpeech.stop()
+          }, 5000)
+
+          // Stop recording but keep waiting for final result
+          // Web Speech will send final result when stopped
+          webSpeech.stop()
+        } else {
+          isDisconnectingRef.current = true
+          webSpeech.stop()
         }
-        isDisconnectingRef.current = true
-        webSpeech.stop()
         return
       }
 
@@ -202,13 +253,37 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       return
     }
 
-    // ElevenLabs toggle (existing logic)
+    // ElevenLabs toggle
     if (scribe.isConnected) {
       if (lastPartialRef.current.trim()) {
-        console.log("[v0] Inserting last partial on manual stop:", lastPartialRef.current)
-        onTranscript(processTranscript(lastPartialRef.current))
-        lastPartialRef.current = ""
+        setIsWaitingForFinal(true)
+        waitingForCommitRef.current = true
+
+        // Set up callback for when commit arrives
+        onCommitReceivedRef.current = (text: string) => {
+          if (text.trim()) {
+            onTranscript(processTranscript(text))
+          }
+          lastPartialRef.current = ""
+        }
+
+        // Set timeout in case no commit comes (5 seconds)
+        commitTimeoutRef.current = setTimeout(() => {
+          // Fallback to partial if no commit received
+          if (lastPartialRef.current.trim()) {
+            onTranscript(processTranscript(lastPartialRef.current))
+            lastPartialRef.current = ""
+          }
+          cleanupWaitingState()
+          isDisconnectingRef.current = true
+          scribe.disconnect()
+        }, 5000)
+
+        // Don't disconnect yet - wait for final commit
+        // The API will process remaining audio and send committed transcript
+        return
       }
+
       isDisconnectingRef.current = true
       scribe.disconnect()
       return
@@ -226,13 +301,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       }
 
       const { token } = await response.json()
-      console.log(
-        "[v0] Got token, connecting to Scribe with VAD (silence:",
-        vadSilenceThreshold,
-        "sensitivity:",
-        vadSensitivity,
-        ")...",
-      )
 
       await scribe.connect({
         token,
@@ -243,7 +311,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
           autoGainControl: true,
         },
       })
-      console.log("[v0] Scribe connected successfully with VAD commit strategy")
     } catch (err) {
       console.error("[v0] Connection error:", err)
       const errorMessage = err instanceof Error ? err.message : "Failed to start voice input"
@@ -267,9 +334,10 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     vadSilenceThreshold,
     vadSensitivity,
     processTranscript,
+    cleanupWaitingState,
   ])
 
-  const showLoader = isConnecting
+  const showLoader = isConnecting || isWaitingForFinal
 
   useImperativeHandle(
     ref,
@@ -284,7 +352,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key.toLowerCase() === "m") {
         e.preventDefault()
-        if (!disabled && !isConnecting) {
+        if (!disabled && !isConnecting && !isWaitingForFinal) {
           handleToggle()
         }
       }
@@ -292,7 +360,15 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [handleToggle, disabled, isConnecting])
+  }, [handleToggle, disabled, isConnecting, isWaitingForFinal])
+
+  useEffect(() => {
+    return () => {
+      if (commitTimeoutRef.current) {
+        clearTimeout(commitTimeoutRef.current)
+      }
+    }
+  }, [])
 
   return (
     <TooltipProvider>
@@ -312,12 +388,16 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant={isActive ? "default" : "outline"}
+              variant={isActive || isWaitingForFinal ? "default" : "outline"}
               size="sm"
               onClick={handleToggle}
               disabled={disabled || showLoader}
               className={`gap-1.5 text-xs sm:text-sm h-8 sm:h-9 transition-all ${
-                isActive ? "bg-red-500 hover:bg-red-600 text-white shadow-md shadow-red-500/25" : "bg-transparent"
+                isActive
+                  ? "bg-red-500 hover:bg-red-600 text-white shadow-md shadow-red-500/25"
+                  : isWaitingForFinal
+                    ? "bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/25"
+                    : "bg-transparent"
               }`}
             >
               {showLoader ? (
@@ -333,10 +413,18 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
               ) : (
                 <Mic className="h-3.5 w-3.5" />
               )}
-              <span className="hidden xs:inline">{isActive ? "Stop" : "Voice"}</span>
+              <span className="hidden xs:inline">
+                {isWaitingForFinal ? "Processing..." : isActive ? "Stop" : "Voice"}
+              </span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{isActive ? "Stop voice input (Ctrl+M)" : "Start voice input (Ctrl+M)"}</TooltipContent>
+          <TooltipContent>
+            {isWaitingForFinal
+              ? "Finishing transcription..."
+              : isActive
+                ? "Stop voice input (Ctrl+M)"
+                : "Start voice input (Ctrl+M)"}
+          </TooltipContent>
         </Tooltip>
 
         {error && <span className="text-xs text-red-500 truncate max-w-[150px] sm:max-w-[200px]">{error}</span>}

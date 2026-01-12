@@ -13,13 +13,16 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useTheme } from "next-themes"
-import { $getRoot } from "lexical"
+import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection } from "lexical"
 
 import { KhmerBreakNode } from "./nodes/khmer-break-node"
 import { KhmerWordBreakPlugin } from "./plugins/khmer-word-break-plugin"
 import { VoiceInputPlugin, INSERT_VOICE_TEXT_COMMAND } from "./plugins/voice-input-plugin"
 import { ToolbarPlugin, useToolbarCommands, type ActiveFormats } from "./plugins/toolbar-plugin"
 import { OnChangePlugin } from "./plugins/on-change-plugin"
+import { $isKhmerBreakNode } from "./nodes/khmer-break-node"
+import { $isHeadingNode } from "@lexical/rich-text"
+import { $isListNode, $isListItemNode } from "@lexical/list"
 
 import { KhmerBreaker } from "@/lib/khmer-breaker"
 import { KHMER_DICTIONARY } from "@/lib/khmer-dictionary-data"
@@ -76,6 +79,167 @@ const lexicalTheme = {
 
 function onError(error: Error) {
   console.error("[v0] Lexical error:", error)
+}
+
+const ZWSP = "\u200B"
+
+function extractTextFromSelection(
+  editor: ReturnType<typeof useLexicalComposerContext>[0],
+): { text: string; html: string } | null {
+  let result: { text: string; html: string } | null = null
+
+  editor.getEditorState().read(() => {
+    const selection = $getSelection()
+    if (!selection || !$isRangeSelection(selection)) {
+      return
+    }
+
+    // Get the selected nodes
+    const nodes = selection.getNodes()
+    if (nodes.length === 0) {
+      return
+    }
+
+    let plainText = ""
+    let html = ""
+
+    // Get the anchor and focus points
+    const anchor = selection.anchor
+    const focus = selection.focus
+    const isBackward = selection.isBackward()
+
+    const startPoint = isBackward ? focus : anchor
+    const endPoint = isBackward ? anchor : focus
+
+    nodes.forEach((node, nodeIndex) => {
+      if ($isKhmerBreakNode(node)) {
+        plainText += ZWSP
+        html += ZWSP
+      } else if ($isTextNode(node)) {
+        let text = node.getTextContent()
+
+        // If this is the first node, slice from start offset
+        if (nodeIndex === 0 && node.getKey() === startPoint.key) {
+          text = text.slice(startPoint.offset)
+        }
+        // If this is the last node, slice to end offset
+        if (nodeIndex === nodes.length - 1 && node.getKey() === endPoint.key) {
+          const startOffset = nodeIndex === 0 && node.getKey() === startPoint.key ? startPoint.offset : 0
+          text = node.getTextContent().slice(startOffset, endPoint.offset)
+        }
+
+        plainText += text
+
+        // Build HTML with formatting
+        let formattedText = text
+        const format = node.getFormat()
+        if (format & 1) formattedText = `<strong>${formattedText}</strong>` // bold
+        if (format & 2) formattedText = `<em>${formattedText}</em>` // italic
+        if (format & 4) formattedText = `<s>${formattedText}</s>` // strikethrough
+        if (format & 8) formattedText = `<u>${formattedText}</u>` // underline
+        html += formattedText
+      } else if ($isParagraphNode(node) || $isHeadingNode(node)) {
+        // For paragraph/heading nodes, we need newlines
+        if (nodeIndex > 0) {
+          plainText += "\n"
+          html += "<br>"
+        }
+      }
+    })
+
+    // Wrap in styled container for Khmer font
+    html = `<div style="font-family: 'Khmer Mondulkiri', 'Battambang', sans-serif;">${html}</div>`
+
+    result = { text: plainText, html }
+  })
+
+  return result
+}
+
+function extractTextWithZWSP(editor: ReturnType<typeof useLexicalComposerContext>[0]): { text: string; html: string } {
+  let plainText = ""
+  let html = ""
+
+  editor.getEditorState().read(() => {
+    const root = $getRoot()
+    const children = root.getChildren()
+
+    children.forEach((child, index) => {
+      if ($isParagraphNode(child) || $isHeadingNode(child)) {
+        const tag = $isHeadingNode(child) ? child.getTag() : "p"
+        let paragraphText = ""
+        let paragraphHtml = ""
+
+        const processNode = (node: typeof child) => {
+          node.getChildren().forEach((n) => {
+            if ($isKhmerBreakNode(n)) {
+              paragraphText += ZWSP
+              paragraphHtml += ZWSP
+            } else if ($isTextNode(n)) {
+              const text = n.getTextContent()
+              paragraphText += text
+
+              // Build HTML with formatting
+              let formattedText = text
+              const format = n.getFormat()
+              if (format & 1) formattedText = `<strong>${formattedText}</strong>` // bold
+              if (format & 2) formattedText = `<em>${formattedText}</em>` // italic
+              if (format & 4) formattedText = `<s>${formattedText}</s>` // strikethrough
+              if (format & 8) formattedText = `<u>${formattedText}</u>` // underline
+              paragraphHtml += formattedText
+            } else if ($isElementNode(n)) {
+              // Recursively process nested elements
+              n.getChildren().forEach((nested) => {
+                if ($isKhmerBreakNode(nested)) {
+                  paragraphText += ZWSP
+                  paragraphHtml += ZWSP
+                } else if ($isTextNode(nested)) {
+                  paragraphText += nested.getTextContent()
+                  paragraphHtml += nested.getTextContent()
+                }
+              })
+            }
+          })
+        }
+
+        processNode(child)
+
+        plainText += paragraphText
+        html += `<${tag} style="font-family: 'Khmer Mondulkiri', 'Battambang', sans-serif;">${paragraphHtml}</${tag}>`
+
+        if (index < children.length - 1) {
+          plainText += "\n"
+        }
+      } else if ($isListNode(child)) {
+        const listTag = child.getListType() === "number" ? "ol" : "ul"
+        html += `<${listTag}>`
+
+        child.getChildren().forEach((listItem) => {
+          if ($isListItemNode(listItem)) {
+            let itemText = ""
+            let itemHtml = ""
+
+            listItem.getChildren().forEach((n) => {
+              if ($isKhmerBreakNode(n)) {
+                itemText += ZWSP
+                itemHtml += ZWSP
+              } else if ($isTextNode(n)) {
+                itemText += n.getTextContent()
+                itemHtml += n.getTextContent()
+              }
+            })
+
+            plainText += itemText + "\n"
+            html += `<li>${itemHtml}</li>`
+          }
+        })
+
+        html += `</${listTag}>`
+      }
+    })
+  })
+
+  return { text: plainText, html }
 }
 
 function EditorContent({
@@ -155,10 +319,44 @@ function EditorContent({
   )
 
   const handleCopyWithBreaks = useCallback(() => {
-    editor.getEditorState().read(() => {
-      const text = editor.getRootElement()?.textContent || ""
+    const { text, html } = extractTextWithZWSP(editor)
+
+    // Use ClipboardItem API for rich text support
+    if (typeof ClipboardItem !== "undefined") {
+      const clipboardItem = new ClipboardItem({
+        "text/plain": new Blob([text], { type: "text/plain" }),
+        "text/html": new Blob([html], { type: "text/html" }),
+      })
+      navigator.clipboard.write([clipboardItem])
+    } else {
+      // Fallback for browsers without ClipboardItem support
       navigator.clipboard.writeText(text)
-    })
+    }
+  }, [editor])
+
+  useEffect(() => {
+    const handleCopy = (e: ClipboardEvent) => {
+      const selection = window.getSelection()
+      if (!selection || selection.isCollapsed) return
+
+      // Check if copy is from inside the editor
+      const editorElement = editor.getRootElement()
+      if (!editorElement) return
+
+      const anchorNode = selection.anchorNode
+      if (!anchorNode || !editorElement.contains(anchorNode)) return
+
+      e.preventDefault()
+
+      const selectionResult = extractTextFromSelection(editor)
+      if (selectionResult && e.clipboardData) {
+        e.clipboardData.setData("text/plain", selectionResult.text)
+        e.clipboardData.setData("text/html", selectionResult.html)
+      }
+    }
+
+    document.addEventListener("copy", handleCopy)
+    return () => document.removeEventListener("copy", handleCopy)
   }, [editor])
 
   return (
@@ -446,14 +644,12 @@ function EditorWrapper({
     const success = await performSave(currentState.id, currentState.title)
 
     if (success) {
-      console.log("[v0] triggerAutoSave success")
       setDocumentState((prev) => ({ ...prev, hasUnsavedChanges: false, saveStatus: "saved" }))
       if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
       savedStatusTimeoutRef.current = setTimeout(() => {
         setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
       }, 2000)
     } else {
-      console.log("[v0] triggerAutoSave failed")
       setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
     }
   }, [editor, performSave, setDocumentState])
