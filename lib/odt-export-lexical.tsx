@@ -2,6 +2,7 @@ import JSZip from "jszip"
 import { debugLog } from "./debug"
 
 const WJ = "\u2060"
+const ZWSP = "\u200B"
 
 interface TextRun {
   text: string
@@ -93,7 +94,13 @@ function parseEditorContent(element: HTMLElement): Paragraph[] {
     const el = node as HTMLElement
     const tagName = el.tagName.toLowerCase()
 
-    if (el.classList.contains("break-marker")) return
+    if (el.classList.contains("break-marker")) {
+      if (currentParagraph.runs.length > 0) {
+        const lastRun = currentParagraph.runs[currentParagraph.runs.length - 1]
+        lastRun.text += ZWSP
+      }
+      return
+    }
 
     if (el.classList.contains("text-3xl")) currentHeading = "h1"
     else if (el.classList.contains("text-2xl")) currentHeading = "h2"
@@ -189,8 +196,50 @@ const fontSizeMap: Record<string, string> = {
   "7": "32pt",
 }
 
-const KHMER_FONT_FACE_NAME = "Khmer Mondulkiri1"
-const KHMER_FONT_FAMILY = "Khmer Mondulkiri"
+/**
+ * ============================================================================
+ * CRITICAL ODT/ODF FONT CONFIGURATION - READ BEFORE MODIFYING
+ * ============================================================================
+ * 
+ * These constants control font rendering in LibreOffice/OpenOffice.
+ * Getting this wrong = font won't display, even though the ODT "looks" correct.
+ * 
+ * RULE 1: Font Face Name MUST include the "1" suffix
+ * ------------------------------------------------
+ * KHMER_FONT_FACE_NAME is used in style:name and style:font-name attributes.
+ * It MUST be "Khmer Mondulkiri1" (with the "1" at the end).
+ * 
+ * ❌ WRONG: const KHMER_FONT_FACE_NAME = "Khmer Mondulkiri"
+ * ✅ CORRECT: const KHMER_FONT_FACE_NAME = "Khmer Mondulkiri1"
+ * 
+ * RULE 2: Font Family is the actual font family name (no suffix)
+ * ---------------------------------------------------------------
+ * KHMER_FONT_FAMILY is used in fo:font-family and svg:font-family attributes.
+ * It should be "Khmer Mondulkiri" (WITHOUT the "1").
+ * 
+ * ✅ CORRECT: const KHMER_FONT_FAMILY = "Khmer Mondulkiri"
+ * 
+ * RULE 3: These MUST match in all font declarations
+ * --------------------------------------------------
+ * Both constants are used together in EVERY font style. They must be consistent:
+ * 
+ * <style:font-face 
+ *   style:name="Khmer Mondulkiri1"        ← KHMER_FONT_FACE_NAME
+ *   svg:font-family="Khmer Mondulkiri"    ← KHMER_FONT_FAMILY
+ * />
+ * <style:text-properties
+ *   style:font-name="Khmer Mondulkiri1"   ← KHMER_FONT_FACE_NAME
+ *   fo:font-family="Khmer Mondulkiri"     ← KHMER_FONT_FAMILY
+ * />
+ * 
+ * WHY THIS MATTERS:
+ * - ODF uses style:name as an internal reference ID
+ * - style:font-name must match this ID exactly
+ * - svg:font-family and fo:font-family reference the actual system font
+ * - If these don't match, LibreOffice can't find the font and uses a fallback
+ */
+const KHMER_FONT_FACE_NAME = "Khmer Mondulkiri1"  // ← Must have "1" suffix!
+const KHMER_FONT_FAMILY = "Khmer Mondulkiri"      // ← No "1" suffix here!
 
 function generateContentXml(paragraphs: Paragraph[]): string {
   let bodyContent = ""
@@ -240,19 +289,71 @@ function generateContentXml(paragraphs: Paragraph[]): string {
 
   let automaticStyles = ""
 
+  /**
+   * ============================================================================
+   * CRITICAL: ODF ATTRIBUTE NAMING RULES
+   * ============================================================================
+   * 
+   * ODF (OpenDocument Format) requires HYPHENATED attribute names, NOT camelCase.
+   * LibreOffice will IGNORE attributes with wrong names, causing fonts to not display.
+   * 
+   * COMMON MISTAKES TO AVOID:
+   * ❌ fo:fontFamily    → ✅ fo:font-family
+   * ❌ fo:fontSize      → ✅ fo:font-size
+   * ❌ fo:fontWeight    → ✅ fo:font-weight
+   * ❌ fo:fontStyle     → ✅ fo:font-style
+   * ❌ svg:fontFamily   → ✅ svg:font-family
+   * 
+   * WHY THIS HAPPENS:
+   * - JavaScript/TypeScript uses camelCase (fontSize, fontFamily)
+   * - XML/ODF uses kebab-case with hyphens (font-size, font-family)
+   * - It's easy to accidentally type camelCase when working in JS/TS
+   * - LibreOffice strictly follows the ODF spec and ignores invalid attributes
+   * 
+   * HOW TO VERIFY YOUR CODE IS CORRECT:
+   * 1. Search this file for "fo:font" - should ONLY find hyphenated versions
+   * 2. Search for "svg:font" - should ONLY find hyphenated versions
+   * 3. Search for "fontFamily" or "fontSize" - should find ZERO matches in XML strings
+   * 
+   * TESTING YOUR EXPORTED ODT:
+   * 1. Export a test document
+   * 2. Unzip the .odt file (it's a ZIP archive)
+   * 3. Check content.xml and styles.xml
+   * 4. Search for "fontFamily" or "fontSize" in those files
+   * 5. If you find ANY camelCase font attributes, the font WON'T work
+   * 6. All font attributes MUST be hyphenated
+   */
+
   textStyles.forEach((styleName, key) => {
     const parts = key.split("_")
+    
+    /**
+     * CRITICAL: NO EXTRA QUOTES IN FONT FAMILY VALUES
+     * ------------------------------------------------
+     * The font family value should be:
+     * ✅ CORRECT: fo:font-family="Khmer Mondulkiri"
+     * ❌ WRONG:   fo:font-family="'Khmer Mondulkiri'"  ← Extra quotes inside!
+     * 
+     * The template literal ${KHMER_FONT_FAMILY} is already inside double quotes.
+     * Don't add single quotes around it like this: '${KHMER_FONT_FAMILY}'
+     * 
+     * WHY: The nested quotes can cause font name matching to fail.
+     * LibreOffice might look for a font literally named "'Khmer Mondulkiri'"
+     * instead of "Khmer Mondulkiri", and won't find it.
+     */
     const attrs: string[] = [
-      `fo:font-family="${KHMER_FONT_FAMILY}"`,
+      `fo:font-family="${KHMER_FONT_FAMILY}"`,              // ✅ No extra quotes
       `style:font-name="${KHMER_FONT_FACE_NAME}"`,
-      `style:font-name-complex="${KHMER_FONT_FACE_NAME}"`,
+      `style:font-name-complex="${KHMER_FONT_FACE_NAME}"`, // For complex scripts like Khmer
     ]
 
     parts.forEach((part) => {
       if (part === "bold") {
+        // REMEMBER: fo:font-weight (hyphenated), NOT fo:fontWeight
         attrs.push(`fo:font-weight="bold" style:font-weight-complex="bold"`)
       }
       if (part === "italic") {
+        // REMEMBER: fo:font-style (hyphenated), NOT fo:fontStyle
         attrs.push(`fo:font-style="italic" style:font-style-complex="italic"`)
       }
       if (part === "underline") {
@@ -269,6 +370,7 @@ function generateContentXml(paragraphs: Paragraph[]): string {
       if (part.startsWith("size")) {
         const sizeNum = part.replace("size", "")
         const size = fontSizeMap[sizeNum] || "12pt"
+        // REMEMBER: fo:font-size (hyphenated), NOT fo:fontSize
         attrs.push(`fo:font-size="${size}" style:font-size-complex="${size}"`)
       }
     })
@@ -285,6 +387,12 @@ function generateContentXml(paragraphs: Paragraph[]): string {
     else if (alignment === "right") alignAttr = 'fo:text-align="end"'
     else if (alignment === "justify") alignAttr = 'fo:text-align="justify"'
 
+    /**
+     * PARAGRAPH STYLES: Same rules apply here
+     * - Use hyphenated attributes (fo:font-family, fo:font-size)
+     * - No extra quotes around font family
+     * - Include both style:font-name and style:font-name-complex
+     */
     automaticStyles += `    <style:style style:name="${styleName}" style:family="paragraph" style:parent-style-name="Text_20_body">
       ${alignAttr ? `<style:paragraph-properties ${alignAttr}/>` : ""}
       <style:text-properties 
@@ -322,6 +430,14 @@ function generateContentXml(paragraphs: Paragraph[]): string {
     else bodyContent += `</text:p>`
   })
 
+  /**
+   * FONT-FACE DECLARATION IN content.xml
+   * -------------------------------------
+   * This declares the font for use in automatic styles.
+   * MUST use:
+   * - style:name="${KHMER_FONT_FACE_NAME}" (with "1")
+   * - svg:font-family="${KHMER_FONT_FAMILY}" (no "1", no extra quotes, HYPHENATED)
+   */
   return `<?xml version="1.0" encoding="UTF-8"?>
 <office:document-content 
     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" 
@@ -359,6 +475,15 @@ ${bodyContent}
 }
 
 function generateStylesXml(): string {
+  /**
+   * styles.xml - Document-wide Style Definitions
+   * ==============================================
+   * Same rules apply here as in content.xml:
+   * 1. Use hyphenated attributes (fo:font-family, fo:font-size, fo:font-weight, fo:font-style)
+   * 2. No extra quotes around font family values
+   * 3. Include both style:font-name and style:font-name-complex
+   * 4. Font face name must have "1" suffix
+   */
   return `<?xml version="1.0" encoding="UTF-8"?>
 <office:document-styles 
     xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" 
@@ -489,3 +614,47 @@ export async function exportToOdtFromLexical(editorElement: HTMLElement, filenam
 
   debugLog("ODT Export Lexical - Export complete")
 }
+
+/**
+ * ============================================================================
+ * QUICK REFERENCE: ODT FONT DEBUGGING CHECKLIST
+ * ============================================================================
+ * 
+ * If fonts aren't displaying correctly in exported ODT files, check these:
+ * 
+ * □ 1. Font constants are correct:
+ *      - KHMER_FONT_FACE_NAME = "Khmer Mondulkiri1" (WITH "1")
+ *      - KHMER_FONT_FAMILY = "Khmer Mondulkiri" (WITHOUT "1")
+ * 
+ * □ 2. All ODF attributes are HYPHENATED (not camelCase):
+ *      Search entire file for these WRONG patterns:
+ *      - "fo:fontFamily"  ← Should be "fo:font-family"
+ *      - "fo:fontSize"    ← Should be "fo:font-size"
+ *      - "fo:fontWeight"  ← Should be "fo:font-weight"
+ *      - "fo:fontStyle"   ← Should be "fo:font-style"
+ *      - "svg:fontFamily" ← Should be "svg:font-family"
+ * 
+ * □ 3. No extra quotes in font family values:
+ *      ❌ WRONG: fo:font-family="'Khmer Mondulkiri'"
+ *      ✅ RIGHT: fo:font-family="Khmer Mondulkiri"
+ * 
+ * □ 4. Complex script support is included:
+ *      Every font declaration should have:
+ *      - style:font-name-complex="${KHMER_FONT_FACE_NAME}"
+ *      - style:font-size-complex="..."
+ *      - style:font-weight-complex="..." (for bold)
+ *      - style:font-style-complex="..." (for italic)
+ * 
+ * □ 5. Test the exported file:
+ *      - Unzip the .odt file
+ *      - Open content.xml and styles.xml in a text editor
+ *      - Search for "fontFamily" or "fontSize" (camelCase)
+ *      - If you find ANY, the font WON'T work
+ *      - All font attributes MUST be hyphenated
+ * 
+ * □ 6. Verify in LibreOffice:
+ *      - Open the exported ODT in LibreOffice
+ *      - Click on text and check Format → Character
+ *      - Font should show "Khmer Mondulkiri"
+ *      - If it shows a different font, check steps 1-5 above
+ */

@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Mic, MicOff, Loader2 } from "lucide-react"
 import { useScribe } from "@elevenlabs/react"
-import { MicSelector } from "@/components/mic-selector"
+import { MicSelector, type SttProvider } from "@/components/mic-selector"
 import { usePreferences } from "@/hooks/use-preferences"
+import { useWebSpeechRecognition } from "@/hooks/use-web-speech-recognition"
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void
@@ -38,12 +39,16 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
   const [selectedMicId, setSelectedMicId] = useState<string | null>(null)
   const [vadSilenceThreshold, setVadSilenceThreshold] = useState<number>(DEFAULT_VAD_SILENCE)
   const [vadSensitivity, setVadSensitivity] = useState<number>(DEFAULT_VAD_SENSITIVITY)
+  const [sttProvider, setSttProvider] = useState<SttProvider>("elevenlabs")
 
   useEffect(() => {
     if (!prefsLoading && preferences) {
       setSelectedMicId(preferences.preferred_mic_device_id)
       setVadSilenceThreshold(Number(preferences.vad_silence_threshold) || DEFAULT_VAD_SILENCE)
       setVadSensitivity(Number(preferences.vad_threshold) || DEFAULT_VAD_SENSITIVITY)
+      if (preferences.stt_provider) {
+        setSttProvider(preferences.stt_provider as SttProvider)
+      }
     }
   }, [preferences, prefsLoading])
 
@@ -71,6 +76,14 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     [updatePreference],
   )
 
+  const handleSttProviderChange = useCallback(
+    (provider: SttProvider) => {
+      setSttProvider(provider)
+      updatePreference("stt_provider", provider)
+    },
+    [updatePreference],
+  )
+
   const processTranscript = useCallback(
     (text: string): string => {
       if (!text.trim()) return text
@@ -86,6 +99,35 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     [applyReplacements],
   )
 
+  const webSpeech = useWebSpeechRecognition({
+    lang: "km-KH",
+    onPartialTranscript: useCallback(
+      (text: string) => {
+        if (isDisconnectingRef.current) return
+        console.log("[v0] WebSpeech partial:", text)
+        lastPartialRef.current = text
+        onPartialTranscript?.(processTranscript(text))
+      },
+      [onPartialTranscript, processTranscript],
+    ),
+    onCommittedTranscript: useCallback(
+      (text: string) => {
+        if (isDisconnectingRef.current) return
+        console.log("[v0] WebSpeech COMMITTED:", text)
+        if (text.trim()) {
+          onTranscript(processTranscript(text))
+          lastPartialRef.current = ""
+        }
+      },
+      [onTranscript, processTranscript],
+    ),
+    onError: useCallback((err: string) => {
+      setError(err)
+      setTimeout(() => setError(null), 3000)
+    }, []),
+  })
+
+  // ElevenLabs Scribe hook
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
     languageCode: "km",
@@ -134,11 +176,33 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     },
   })
 
+  const isActive = sttProvider === "elevenlabs" ? scribe.isConnected : webSpeech.listening
+
   useEffect(() => {
-    onVoiceStateChange?.(scribe.isConnected)
-  }, [scribe.isConnected, onVoiceStateChange])
+    onVoiceStateChange?.(isActive)
+  }, [isActive, onVoiceStateChange])
 
   const handleToggle = useCallback(async () => {
+    if (sttProvider === "browser") {
+      // Web Speech toggle
+      if (webSpeech.listening) {
+        if (lastPartialRef.current.trim()) {
+          console.log("[v0] Inserting last partial on manual stop:", lastPartialRef.current)
+          onTranscript(processTranscript(lastPartialRef.current))
+          lastPartialRef.current = ""
+        }
+        isDisconnectingRef.current = true
+        webSpeech.stop()
+        return
+      }
+
+      isDisconnectingRef.current = false
+      setError(null)
+      webSpeech.start()
+      return
+    }
+
+    // ElevenLabs toggle (existing logic)
     if (scribe.isConnected) {
       if (lastPartialRef.current.trim()) {
         console.log("[v0] Inserting last partial on manual stop:", lastPartialRef.current)
@@ -194,18 +258,26 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     } finally {
       setIsConnecting(false)
     }
-  }, [scribe, selectedMicId, onTranscript, vadSilenceThreshold, vadSensitivity, processTranscript])
+  }, [
+    sttProvider,
+    scribe,
+    webSpeech,
+    selectedMicId,
+    onTranscript,
+    vadSilenceThreshold,
+    vadSensitivity,
+    processTranscript,
+  ])
 
-  const isActive = scribe.isConnected
   const showLoader = isConnecting
 
   useImperativeHandle(
     ref,
     () => ({
       toggle: handleToggle,
-      isActive: scribe.isConnected,
+      isActive,
     }),
-    [handleToggle, scribe.isConnected],
+    [handleToggle, isActive],
   )
 
   useEffect(() => {
@@ -232,6 +304,9 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
           onVadSilenceThresholdChange={handleVadSilenceChange}
           vadSensitivity={vadSensitivity ?? DEFAULT_VAD_SENSITIVITY}
           onVadSensitivityChange={handleVadSensitivityChange}
+          sttProvider={sttProvider}
+          onSttProviderChange={handleSttProviderChange}
+          webSpeechSupported={webSpeech.supported ?? false}
         />
 
         <Tooltip>

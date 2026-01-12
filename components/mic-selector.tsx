@@ -12,16 +12,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
-import { Settings2, Mic, AlertCircle, RefreshCw } from "lucide-react"
+import { Settings2, Mic, AlertCircle, RefreshCw, Globe, Zap } from "lucide-react"
 import { Slider } from "@/components/ui/slider"
+
+export type SttProvider = "elevenlabs" | "browser"
 
 interface MicSelectorProps {
   selectedDeviceId: string | null
   onDeviceChange: (deviceId: string | null) => void
-  vadSilenceThreshold?: number // Make optional for safety
+  vadSilenceThreshold?: number
   onVadSilenceThresholdChange: (value: number) => void
-  vadSensitivity?: number // Make optional for safety
+  vadSensitivity?: number
   onVadSensitivityChange: (value: number) => void
+  sttProvider?: SttProvider
+  onSttProviderChange?: (provider: SttProvider) => void
+  webSpeechSupported?: boolean
 }
 
 interface AudioDevice {
@@ -36,6 +41,9 @@ export function MicSelector({
   onVadSilenceThresholdChange,
   vadSensitivity,
   onVadSensitivityChange,
+  sttProvider = "elevenlabs",
+  onSttProviderChange,
+  webSpeechSupported = false,
 }: MicSelectorProps) {
   const safeVadSilenceThreshold = vadSilenceThreshold ?? 1.0
   const safeVadSensitivity = vadSensitivity ?? 0.4
@@ -170,6 +178,38 @@ export function MicSelector({
         </Tooltip>
         <DropdownMenuContent align="start" className="w-[280px]">
           <DropdownMenuLabel className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            Voice Recognition Provider
+          </DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={sttProvider}
+            onValueChange={(value) => onSttProviderChange?.(value as SttProvider)}
+          >
+            <DropdownMenuRadioItem value="elevenlabs" className="text-sm cursor-pointer">
+              <div className="flex items-center gap-2">
+                <Zap className="h-3.5 w-3.5 text-amber-500" />
+                <div>
+                  <span>ElevenLabs</span>
+                  <p className="text-[10px] text-muted-foreground">High accuracy, requires internet</p>
+                </div>
+              </div>
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="browser" className="text-sm cursor-pointer" disabled={!webSpeechSupported}>
+              <div className="flex items-center gap-2">
+                <Globe className="h-3.5 w-3.5 text-blue-500" />
+                <div>
+                  <span>Browser (Google)</span>
+                  <p className="text-[10px] text-muted-foreground">
+                    {webSpeechSupported ? "Free, runs in browser" : "Not supported in this browser"}
+                  </p>
+                </div>
+              </div>
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuLabel className="flex items-center gap-2">
             <Mic className="h-4 w-4" />
             Select Microphone
           </DropdownMenuLabel>
@@ -217,51 +257,55 @@ export function MicSelector({
             {hasPermission ? "Refresh devices" : "Grant microphone access"}
           </Button>
 
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="flex items-center gap-2 text-xs">
-            <Settings2 className="h-3.5 w-3.5" />
-            Voice Detection Settings
-          </DropdownMenuLabel>
+          {sttProvider === "elevenlabs" && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="flex items-center gap-2 text-xs">
+                <Settings2 className="h-3.5 w-3.5" />
+                Voice Detection Settings
+              </DropdownMenuLabel>
 
-          <div className="px-3 py-2 space-y-4">
-            {/* Silence threshold slider */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-muted-foreground">Pause before commit</label>
-                <span className="text-xs font-medium tabular-nums">{safeVadSilenceThreshold.toFixed(1)}s</span>
-              </div>
-              <Slider
-                value={[safeVadSilenceThreshold]}
-                onValueChange={([value]) => onVadSilenceThresholdChange(value)}
-                min={0.5}
-                max={3.0}
-                step={0.1}
-                className="w-full"
-              />
-              <p className="text-[10px] text-muted-foreground/70">
-                How long to wait after you stop speaking before committing text
-              </p>
-            </div>
+              <div className="px-3 py-2 space-y-4">
+                {/* Silence threshold slider */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-muted-foreground">Pause before commit</label>
+                    <span className="text-xs font-medium tabular-nums">{safeVadSilenceThreshold.toFixed(1)}s</span>
+                  </div>
+                  <Slider
+                    value={[safeVadSilenceThreshold]}
+                    onValueChange={([value]) => onVadSilenceThresholdChange(value)}
+                    min={0.5}
+                    max={3.0}
+                    step={0.1}
+                    className="w-full"
+                  />
+                  <p className="text-[10px] text-muted-foreground/70">
+                    How long to wait after you stop speaking before committing text
+                  </p>
+                </div>
 
-            {/* Sensitivity threshold slider */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-muted-foreground">Voice sensitivity</label>
-                <span className="text-xs font-medium tabular-nums">{Math.round(safeVadSensitivity * 100)}%</span>
+                {/* Sensitivity threshold slider */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-muted-foreground">Voice sensitivity</label>
+                    <span className="text-xs font-medium tabular-nums">{Math.round(safeVadSensitivity * 100)}%</span>
+                  </div>
+                  <Slider
+                    value={[safeVadSensitivity]}
+                    onValueChange={([value]) => onVadSensitivityChange(value)}
+                    min={0.1}
+                    max={0.9}
+                    step={0.05}
+                    className="w-full"
+                  />
+                  <p className="text-[10px] text-muted-foreground/70">
+                    Lower = more sensitive (picks up quiet speech), Higher = less sensitive (ignores background noise)
+                  </p>
+                </div>
               </div>
-              <Slider
-                value={[safeVadSensitivity]}
-                onValueChange={([value]) => onVadSensitivityChange(value)}
-                min={0.1}
-                max={0.9}
-                step={0.05}
-                className="w-full"
-              />
-              <p className="text-[10px] text-muted-foreground/70">
-                Lower = more sensitive (picks up quiet speech), Higher = less sensitive (ignores background noise)
-              </p>
-            </div>
-          </div>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </TooltipProvider>
