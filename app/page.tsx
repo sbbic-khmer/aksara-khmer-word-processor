@@ -111,7 +111,7 @@ export default function LandingPage() {
                 </span>
               </span>
 
-              <span className="block text-3xl sm:text-5xl font-bold text-foreground tracking-tight">
+              <span className="block text-3xl sm:text-5xl text-foreground tracking-tight">
                 The Modern Khmer Word Processor
               </span>
             </h1>
@@ -119,7 +119,7 @@ export default function LandingPage() {
             {/* Subheadline */}
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
               Write beautiful Khmer documents with automatic word segmentation, voice-to-text input, and professional
-              formatting. Export to ODT with perfect word breaks for LibreOffice.
+              formatting. Export to ODT with proper line-breaking for LibreOffice.
             </p>
 
             {/* CTA buttons */}
