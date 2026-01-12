@@ -72,7 +72,6 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
 
     recognition.onerror = (e: any) => {
       const errorCode = e?.error ?? "unknown_error"
-      console.error("[v0] WebSpeech error:", errorCode)
 
       let friendlyMessage = "Voice recognition error"
 
@@ -90,7 +89,7 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
           shouldBeListeningRef.current = false
           break
         case "network":
-          friendlyMessage = "Network error. Please check your internet connection and try again."
+          friendlyMessage = "Speech service unavailable. This feature works when the app is deployed to production."
           shouldBeListeningRef.current = false
           break
         case "no-speech":
@@ -132,13 +131,11 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
 
       // Handle interim (partial) transcript
       if (interimText.trim()) {
-        console.log("[v0] WebSpeech partial:", interimText)
         onPartialTranscript?.(interimText.trim())
       }
 
       // Handle final (committed) transcript
       if (finalText.trim()) {
-        console.log("[v0] WebSpeech FINAL:", finalText)
         onCommittedTranscript?.(finalText.trim())
         lastFinalTextRef.current = finalText.trim()
       }
