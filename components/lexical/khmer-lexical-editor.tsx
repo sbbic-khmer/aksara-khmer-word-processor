@@ -43,6 +43,7 @@ import {
   setWordBreakerDebugEnabled,
   isWordBreakerDebugEnabled,
 } from "@/lib/debug"
+import { Loader2 } from "lucide-react"
 
 const LAST_DOCUMENT_KEY = "aksara-last-document-id"
 
@@ -435,31 +436,40 @@ function EditorContent({
 
       <div className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
         <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative">
-          <RichTextPlugin
-            contentEditable={
-              <ContentEditable
-                className={cn(
-                  "min-h-[1056px] p-12 outline-none",
-                  "font-khmer text-lg leading-relaxed",
-                  "focus:outline-none",
-                )}
-                style={{
-                  fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                }}
-              />
-            }
-            placeholder={
-              <div
-                className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
-                style={{
-                  fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                }}
-              >
-                វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
+          {documentState.id ? (
+            <RichTextPlugin
+              contentEditable={
+                <ContentEditable
+                  className={cn(
+                    "min-h-[1056px] p-12 outline-none",
+                    "font-khmer text-lg leading-relaxed",
+                    "focus:outline-none",
+                  )}
+                  style={{
+                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                  }}
+                />
+              }
+              placeholder={
+                <div
+                  className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
+                  style={{
+                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                  }}
+                >
+                  វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
+                </div>
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                <span className="text-sm text-gray-500 dark:text-gray-400">Loading document...</span>
               </div>
-            }
-            ErrorBoundary={LexicalErrorBoundary}
-          />
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -507,6 +517,7 @@ function EditorWrapper({
   const [openDialogOpen, setOpenDialogOpen] = useState(false)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [isSaveAs, setIsSaveAs] = useState(false)
+  const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const initialLoadRef = useRef(false)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -553,6 +564,11 @@ function EditorWrapper({
           // Document was deleted or doesn't exist, clear localStorage
           localStorage.removeItem(LAST_DOCUMENT_KEY)
         })
+        .finally(() => {
+          setIsLoadingDocument(false)
+        })
+    } else {
+      setIsLoadingDocument(false)
     }
   }, [editor, setDocumentState])
 
@@ -810,42 +826,50 @@ function EditorWrapper({
 
   return (
     <>
-      <EditorContent
-        breaker={breaker}
-        showBreaks={showBreaks}
-        setShowBreaks={setShowBreaks}
-        onActiveFormatsChange={onActiveFormatsChange}
-        onTextChange={onTextChange}
-        voiceInputRef={voiceInputRef}
-        applyReplacements={applyReplacements}
-        onExportOdt={onExportOdt}
-        debugMode={debugMode}
-        setDebugMode={setDebugMode}
-        wordBreakerDebugMode={wordBreakerDebugMode}
-        setWordBreakerDebugMode={setWordBreakerDebugMode}
-        onVoiceStateChange={onVoiceStateChange}
-        onPartialTranscriptChange={onPartialTranscriptChange}
-        documentState={documentState}
-        onNew={handleNew}
-        onOpenDialog={() => setOpenDialogOpen(true)}
-        onSave={handleSave}
-        onSaveAs={handleSaveAs}
-        onContentChange={handleContentChange}
-      />
+      {isLoadingDocument ? (
+        <div className="flex justify-center items-center flex-1">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      ) : (
+        <>
+          <EditorContent
+            breaker={breaker}
+            showBreaks={showBreaks}
+            setShowBreaks={setShowBreaks}
+            onActiveFormatsChange={onActiveFormatsChange}
+            onTextChange={onTextChange}
+            voiceInputRef={voiceInputRef}
+            applyReplacements={applyReplacements}
+            onExportOdt={onExportOdt}
+            debugMode={debugMode}
+            setDebugMode={setDebugMode}
+            wordBreakerDebugMode={wordBreakerDebugMode}
+            setWordBreakerDebugMode={setWordBreakerDebugMode}
+            onVoiceStateChange={onVoiceStateChange}
+            onPartialTranscriptChange={onPartialTranscriptChange}
+            documentState={documentState}
+            onNew={handleNew}
+            onOpenDialog={() => setOpenDialogOpen(true)}
+            onSave={handleSave}
+            onSaveAs={handleSaveAs}
+            onContentChange={handleContentChange}
+          />
 
-      <DocumentsDialog
-        open={openDialogOpen}
-        onOpenChange={setOpenDialogOpen}
-        onOpen={handleOpenDocument}
-        onDelete={handleDeleteDocument}
-      />
+          <DocumentsDialog
+            open={openDialogOpen}
+            onOpenChange={setOpenDialogOpen}
+            onOpen={handleOpenDocument}
+            onDelete={handleDeleteDocument}
+          />
 
-      <SaveDialog
-        open={saveDialogOpen}
-        onOpenChange={setSaveDialogOpen}
-        onSave={handleSaveWithTitle}
-        defaultTitle={isSaveAs ? documentState.title : ""}
-      />
+          <SaveDialog
+            open={saveDialogOpen}
+            onOpenChange={setSaveDialogOpen}
+            onSave={handleSaveWithTitle}
+            defaultTitle={isSaveAs ? documentState.title : ""}
+          />
+        </>
+      )}
     </>
   )
 }

@@ -35,6 +35,7 @@ const CLOSING_PUNCTUATION = new Set([
   ":", // colon
   ";", // semicolon
   "៚", // Khmer sign koomuut
+  "'", // ASCII apostrophe (U+0027) - used in contractions like "don't"
 ])
 
 // Opening punctuation stays with NEXT segment
