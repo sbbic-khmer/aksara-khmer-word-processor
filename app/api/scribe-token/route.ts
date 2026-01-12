@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
-import { isAuthenticated } from "@/lib/auth"
+import { isDev } from "@/lib/auth"
 
 export async function GET() {
-  const authenticated = await isAuthenticated()
-  if (!authenticated) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const devOrAdmin = await isDev()
+  if (!devOrAdmin) {
+    return NextResponse.json({ error: "Forbidden - ElevenLabs is only available to dev/admin users" }, { status: 403 })
   }
 
   const apiKey = process.env.ELEVENLABS_API_KEY

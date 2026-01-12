@@ -109,4 +109,10 @@ export async function isAdmin(): Promise<boolean> {
   return user?.role === "admin"
 }
 
+// Check if current user is dev (or admin, since admin has all privileges)
+export async function isDev(): Promise<boolean> {
+  const user = await getCurrentUser()
+  return user?.role === "admin" || user?.role === "dev"
+}
+
 export { SESSION_COOKIE_NAME }

@@ -1,37 +1,62 @@
 // Debug logging utility
 // In development: logging is ALWAYS enabled (ignores localStorage)
 // In production: logging is disabled by default, but can be enabled via File menu
+//
+// WORDBREAKER DEBUG MODE:
+// Separate toggle for verbose word breaker logging (very noisy)
+// - In dev AND prod: disabled by default, can be enabled via File menu
+// - Uses separate localStorage key: "aksara-wordbreaker-debug-enabled"
 
-const isDev = process.env.NODE_ENV === "development"
-
-// Global debug state (only used for production)
-let debugEnabled = false
+// Check if we're in development mode (only client-safe checks)
+function isDev(): boolean {
+  return (
+    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+    (typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" ||
+        window.location.hostname.includes("v0.app") ||
+        window.location.hostname.includes("vusercontent.net")))
+  )
+}
 
 export function isDebugEnabled(): boolean {
-  if (isDev) {
-    return true
+  // Check localStorage in both dev and production
+  let storedValue: string | null = null
+  if (typeof window !== "undefined") {
+    storedValue = localStorage.getItem("aksara-debug-enabled")
   }
 
-  // In production, check localStorage for user preference
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("aksara-debug-enabled")
-    if (stored !== null) {
-      return stored === "true"
-    }
-  }
-  return debugEnabled
+  return isDev() || storedValue === "true"
 }
 
 export function setDebugEnabled(enabled: boolean): void {
-  debugEnabled = enabled
   if (typeof window !== "undefined") {
     localStorage.setItem("aksara-debug-enabled", String(enabled))
+  }
+}
+
+export function isWordBreakerDebugEnabled(): boolean {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("aksara-wordbreaker-debug-enabled")
+    return stored === "true"
+  }
+  return false
+}
+
+export function setWordBreakerDebugEnabled(enabled: boolean): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("aksara-wordbreaker-debug-enabled", String(enabled))
   }
 }
 
 export function debugLog(...args: unknown[]): void {
   if (isDebugEnabled()) {
     console.log("[v0]", ...args)
+  }
+}
+
+export function wordBreakerDebugLog(...args: unknown[]): void {
+  if (isWordBreakerDebugEnabled()) {
+    console.log("[v0:wb]", ...args)
   }
 }
 

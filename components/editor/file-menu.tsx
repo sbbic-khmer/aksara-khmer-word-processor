@@ -19,6 +19,8 @@ interface FileMenuProps {
   onExportOdt: () => void
   debugMode: boolean
   onToggleDebug: () => void
+  wordBreakerDebugMode: boolean
+  onToggleWordBreakerDebug: () => void
   hasUnsavedChanges?: boolean
   currentDocTitle?: string
 }
@@ -32,6 +34,8 @@ export function FileMenu({
   onExportOdt,
   debugMode,
   onToggleDebug,
+  wordBreakerDebugMode,
+  onToggleWordBreakerDebug,
   hasUnsavedChanges,
   currentDocTitle,
 }: FileMenuProps) {
@@ -75,6 +79,10 @@ export function FileMenu({
         <DropdownMenuItem onClick={onToggleDebug}>
           {debugMode ? <BugOff className="h-4 w-4 mr-2" /> : <Bug className="h-4 w-4 mr-2" />}
           {debugMode ? "Disable Debug Mode" : "Enable Debug Mode"}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onToggleWordBreakerDebug}>
+          {wordBreakerDebugMode ? <BugOff className="h-4 w-4 mr-2" /> : <Bug className="h-4 w-4 mr-2" />}
+          {wordBreakerDebugMode ? "Disable Word Breaker Debug" : "Enable Word Breaker Debug"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

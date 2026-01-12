@@ -10,7 +10,7 @@
  * CRITICAL RULE: You can NEVER break after a COENG (្, U+17D2).
  */
 
-import { isDebugEnabled } from "./debug"
+import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
 
 const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
@@ -93,6 +93,8 @@ class KhmerTrie {
     let lastMatch: { word: string; frequency: number } | null = null
     let currentWord = ""
 
+    const debugMatches: string[] = []
+
     for (let i = startIndex; i < text.length; i++) {
       const char = text[i]
 
@@ -108,7 +110,14 @@ class KhmerTrie {
           word: currentWord,
           frequency: node.frequency,
         }
+        debugMatches.push(`"${currentWord}" (freq: ${node.frequency})`)
       }
+    }
+
+    if (isWordBreakerDebugEnabled()) {
+      console.log(
+        `[v0] findLongestMatch at pos ${startIndex} in "${text.substring(startIndex, startIndex + 10)}...": found matches: [${debugMatches.join(", ")}], returning: ${lastMatch ? `"${lastMatch.word}"` : "null"}`,
+      )
     }
 
     return lastMatch
@@ -241,11 +250,58 @@ class KhmerCharSets {
     const before = text[index - 1]
     const after = text[index]
 
-    if (this.isCoeng(before)) return false
-    if (this.isCoeng(after)) return false
-    if (this.isCombiningMark(after) && !this.isBase(after)) return false
+    const beforeCode = before.codePointAt(0)?.toString(16)
+    const afterCode = after.codePointAt(0)?.toString(16)
 
+    if (this.isCoeng(before)) {
+      if (isWordBreakerDebugEnabled()) {
+        console.log(
+          `[v0] canBreakAt(${index}): FALSE - before is Coeng. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode})`,
+        )
+      }
+      return false
+    }
+    if (this.isCoeng(after)) {
+      if (isWordBreakerDebugEnabled()) {
+        console.log(
+          `[v0] canBreakAt(${index}): FALSE - after is Coeng. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode})`,
+        )
+      }
+      return false
+    }
+    if (this.isCombiningMark(after) && !this.isBase(after)) {
+      if (isWordBreakerDebugEnabled()) {
+        console.log(
+          `[v0] canBreakAt(${index}): FALSE - after is combining mark but not base. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode}), isCombiningMark=${this.isCombiningMark(after)}, isBase=${this.isBase(after)}`,
+        )
+      }
+      return false
+    }
+
+    if (isWordBreakerDebugEnabled()) {
+      console.log(
+        `[v0] canBreakAt(${index}): TRUE. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode})`,
+      )
+    }
     return true
+  }
+
+  /**
+   * Count syllables in a word
+   */
+  countSyllables(word: string): number {
+    let count = 0
+    let pos = 0
+    while (pos < word.length) {
+      if (this.isKhmerChar(word[pos])) {
+        const end = this.findSyllableEnd(word, pos)
+        count++
+        pos = end
+      } else {
+        pos++
+      }
+    }
+    return count || 1
   }
 }
 
@@ -274,13 +330,17 @@ export class KhmerBreaker {
   }
 
   loadDictionary(dictionaryData: DictionaryEntry[]) {
-    console.log("[v0] Loading dictionary with", dictionaryData.length, "entries")
+    if (isDebugEnabled()) {
+      console.log("[v0] Loading dictionary with", dictionaryData.length, "entries")
+    }
     for (const entry of dictionaryData) {
       if (entry.word && entry.word.length > 0) {
         this.trie.insert(entry.word, entry.frequency || 1)
       }
     }
-    console.log("[v0] Loaded", this.trie.wordCount, "words into trie")
+    if (isDebugEnabled()) {
+      console.log("[v0] Loaded", this.trie.wordCount, "words into trie")
+    }
   }
 
   /**
@@ -450,7 +510,7 @@ export class KhmerBreaker {
    */
   private splitByWJ(text: string): Array<{ text: string; isJoined: boolean }> {
     const hasWJ = text.includes(WJ)
-    if (isDebugEnabled()) {
+    if (isWordBreakerDebugEnabled()) {
       console.log(`[v0] splitByWJ - input: "${text}" (length: ${text.length}, hasWJ: ${hasWJ})`)
     }
 
@@ -458,7 +518,7 @@ export class KhmerBreaker {
       return [{ text, isJoined: false }]
     }
 
-    if (isDebugEnabled()) {
+    if (isWordBreakerDebugEnabled()) {
       console.log(`[v0] splitByWJ - WJ detected, processing joined regions`)
     }
 
@@ -473,7 +533,7 @@ export class KhmerBreaker {
         if (pos < text.length) {
           const remaining = text.substring(pos)
           if (remaining) {
-            if (isDebugEnabled()) {
+            if (isWordBreakerDebugEnabled()) {
               console.log(`[v0] splitByWJ - non-joined remainder: "${remaining}"`)
             }
             regions.push({ text: remaining, isJoined: false })
@@ -485,7 +545,7 @@ export class KhmerBreaker {
       // Add non-joined text before this WJ
       if (wjStart > pos) {
         const beforeText = text.substring(pos, wjStart)
-        if (isDebugEnabled()) {
+        if (isWordBreakerDebugEnabled()) {
           console.log(`[v0] splitByWJ - non-joined before: "${beforeText}"`)
         }
         regions.push({ text: beforeText, isJoined: false })
@@ -497,7 +557,7 @@ export class KhmerBreaker {
       if (wjEnd === -1) {
         // No closing WJ - treat rest as joined (backwards compatibility)
         const joinedText = text.substring(wjStart)
-        if (isDebugEnabled()) {
+        if (isWordBreakerDebugEnabled()) {
           console.log(`[v0] splitByWJ - joined (no end marker): "${joinedText}"`)
         }
         regions.push({ text: joinedText, isJoined: true })
@@ -506,7 +566,7 @@ export class KhmerBreaker {
 
       // Extract the joined region (including the WJ bookends for preservation)
       const joinedText = text.substring(wjStart, wjEnd + 1)
-      if (isDebugEnabled()) {
+      if (isWordBreakerDebugEnabled()) {
         console.log(`[v0] splitByWJ - joined region: "${joinedText}"`)
       }
       regions.push({ text: joinedText, isJoined: true })
@@ -601,8 +661,8 @@ export class KhmerBreaker {
     } else if (forward.length > backward.length) {
       return backward
     } else {
-      const forwardSingleChars = forward.filter((w) => this.countSyllables(w) === 1).length
-      const backwardSingleChars = backward.filter((w) => this.countSyllables(w) === 1).length
+      const forwardSingleChars = forward.filter((w) => this.charSets.countSyllables(w) === 1).length
+      const backwardSingleChars = backward.filter((w) => this.charSets.countSyllables(w) === 1).length
 
       if (forwardSingleChars < backwardSingleChars) {
         return forward
@@ -619,6 +679,10 @@ export class KhmerBreaker {
     const segments: string[] = []
     let pos = 0
 
+    if (isWordBreakerDebugEnabled()) {
+      console.log(`[v0] forwardMaximumMatch starting for: "${text}"`)
+    }
+
     while (pos < text.length) {
       // Try dictionary match first
       const match = this.trie.findLongestMatch(text, pos)
@@ -626,7 +690,13 @@ export class KhmerBreaker {
       if (match && match.word.length > 0) {
         // Verify the match ends at a valid break point
         const endPos = pos + match.word.length
-        if (endPos >= text.length || this.charSets.canBreakAt(text, endPos)) {
+        const canBreak = endPos >= text.length || this.charSets.canBreakAt(text, endPos)
+
+        if (isWordBreakerDebugEnabled()) {
+          console.log(`[v0] forwardMM pos=${pos}: found "${match.word}", endPos=${endPos}, canBreakAt=${canBreak}`)
+        }
+
+        if (canBreak) {
           segments.push(match.word)
           pos = endPos
           continue
@@ -635,6 +705,11 @@ export class KhmerBreaker {
 
       // No dictionary match - take one syllable
       const syllableEnd = this.charSets.findSyllableEnd(text, pos)
+      if (isWordBreakerDebugEnabled()) {
+        console.log(
+          `[v0] forwardMM pos=${pos}: no valid dict match, taking syllable to ${syllableEnd}: "${text.substring(pos, syllableEnd)}"`,
+        )
+      }
       if (syllableEnd > pos) {
         segments.push(text.substring(pos, syllableEnd))
         pos = syllableEnd
@@ -643,6 +718,10 @@ export class KhmerBreaker {
         segments.push(text[pos])
         pos++
       }
+    }
+
+    if (isWordBreakerDebugEnabled()) {
+      console.log(`[v0] forwardMaximumMatch result: [${segments.map((s) => `"${s}"`).join(", ")}]`)
     }
 
     return segments
@@ -703,46 +782,6 @@ export class KhmerBreaker {
   }
 
   /**
-   * Count syllables in a word
-   */
-  private countSyllables(word: string): number {
-    let count = 0
-    let pos = 0
-    while (pos < word.length) {
-      if (this.charSets.isKhmerChar(word[pos])) {
-        const end = this.charSets.findSyllableEnd(word, pos)
-        count++
-        pos = end
-      } else {
-        pos++
-      }
-    }
-    return count || 1
-  }
-
-  findWordBreaks(text: string): number[] {
-    const segments = this.getSegments(text)
-    const breaks: number[] = []
-    let pos = 0
-
-    for (const segment of segments) {
-      const idx = text.indexOf(segment, pos)
-      if (idx !== -1) {
-        pos = idx + segment.length
-        if (pos < text.length) {
-          breaks.push(pos)
-        }
-      }
-    }
-
-    return breaks
-  }
-
-  findLineBreaks(text: string): number[] {
-    return this.findWordBreaks(text).filter((pos) => this.charSets.canBreakAt(text, pos))
-  }
-
-  /**
    * Insert ZWSP between words, but avoid duplicating existing ZWSP.
    * Preserve spaces - don't add ZWSP around whitespace
    */
@@ -794,6 +833,28 @@ export class KhmerBreaker {
 
     const core = text.substring(start, end)
     return { leading, core, trailing }
+  }
+
+  findWordBreaks(text: string): number[] {
+    const segments = this.getSegments(text)
+    const breaks: number[] = []
+    let pos = 0
+
+    for (const segment of segments) {
+      const idx = text.indexOf(segment, pos)
+      if (idx !== -1) {
+        pos = idx + segment.length
+        if (pos < text.length) {
+          breaks.push(pos)
+        }
+      }
+    }
+
+    return breaks
+  }
+
+  findLineBreaks(text: string): number[] {
+    return this.findWordBreaks(text).filter((pos) => this.charSets.canBreakAt(text, pos))
   }
 }
 

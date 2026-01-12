@@ -36,6 +36,13 @@ import { SaveDialog } from "@/components/editor/save-dialog"
 import { useReplacements } from "@/hooks/use-replacements"
 import { exportToOdtFromLexical } from "@/lib/odt-export-lexical"
 import { cn } from "@/lib/utils"
+import {
+  setDebugEnabled,
+  debugLog,
+  isDebugEnabled,
+  setWordBreakerDebugEnabled,
+  isWordBreakerDebugEnabled,
+} from "@/lib/debug"
 
 const LAST_DOCUMENT_KEY = "aksara-last-document-id"
 
@@ -253,6 +260,8 @@ function EditorContent({
   onExportOdt,
   debugMode,
   setDebugMode,
+  wordBreakerDebugMode,
+  setWordBreakerDebugMode,
   onVoiceStateChange,
   onPartialTranscriptChange,
   documentState,
@@ -272,6 +281,8 @@ function EditorContent({
   onExportOdt: () => void
   debugMode: boolean
   setDebugMode: (debug: boolean) => void
+  wordBreakerDebugMode: boolean
+  setWordBreakerDebugMode: (debug: boolean) => void
   onVoiceStateChange: (active: boolean) => void
   onPartialTranscriptChange: (text: string) => void
   documentState: DocumentState
@@ -359,6 +370,20 @@ function EditorContent({
     return () => document.removeEventListener("copy", handleCopy)
   }, [editor])
 
+  const handleToggleDebug = useCallback(() => {
+    const newValue = !debugMode
+    setDebugMode(newValue)
+    setDebugEnabled(newValue)
+    debugLog("Debug mode", newValue ? "enabled" : "disabled")
+  }, [debugMode, setDebugMode])
+
+  const handleToggleWordBreakerDebug = useCallback(() => {
+    const newValue = !wordBreakerDebugMode
+    setWordBreakerDebugMode(newValue)
+    setWordBreakerDebugEnabled(newValue)
+    debugLog("Word Breaker Debug mode", newValue ? "enabled" : "disabled")
+  }, [wordBreakerDebugMode, setWordBreakerDebugMode])
+
   return (
     <>
       <ToolbarPlugin onFormatsChange={handleFormatsChange} />
@@ -377,7 +402,9 @@ function EditorContent({
           onCopyWithBreaks={handleCopyWithBreaks}
           onExportOdt={onExportOdt}
           debugMode={debugMode}
-          onToggleDebug={() => setDebugMode(!debugMode)}
+          onToggleDebug={handleToggleDebug}
+          wordBreakerDebugMode={wordBreakerDebugMode}
+          onToggleWordBreakerDebug={handleToggleWordBreakerDebug}
           hasUnsavedChanges={documentState.hasUnsavedChanges}
           currentDocTitle={documentState.title}
         />
@@ -450,6 +477,8 @@ function EditorWrapper({
   onExportOdt,
   debugMode,
   setDebugMode,
+  wordBreakerDebugMode,
+  setWordBreakerDebugMode,
   onVoiceStateChange,
   onPartialTranscriptChange,
   documentState,
@@ -466,6 +495,8 @@ function EditorWrapper({
   onExportOdt: () => void
   debugMode: boolean
   setDebugMode: (debug: boolean) => void
+  wordBreakerDebugMode: boolean
+  setWordBreakerDebugMode: (debug: boolean) => void
   onVoiceStateChange: (active: boolean) => void
   onPartialTranscriptChange: (text: string) => void
   documentState: DocumentState
@@ -790,6 +821,8 @@ function EditorWrapper({
         onExportOdt={onExportOdt}
         debugMode={debugMode}
         setDebugMode={setDebugMode}
+        wordBreakerDebugMode={wordBreakerDebugMode}
+        setWordBreakerDebugMode={setWordBreakerDebugMode}
         onVoiceStateChange={onVoiceStateChange}
         onPartialTranscriptChange={onPartialTranscriptChange}
         documentState={documentState}
@@ -824,7 +857,8 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     const [wordCount, setWordCount] = useState(0)
     const [charCount, setCharCount] = useState(0)
     const [currentText, setCurrentText] = useState("")
-    const [debugMode, setDebugMode] = useState(false)
+    const [debugMode, setDebugMode] = useState(isDebugEnabled())
+    const [wordBreakerDebugMode, setWordBreakerDebugMode] = useState(isWordBreakerDebugEnabled())
     const [mounted, setMounted] = useState(false)
     const [isVoiceActive, setIsVoiceActive] = useState(false)
     const [partialTranscript, setPartialTranscript] = useState("")
@@ -973,6 +1007,8 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
             onExportOdt={handleExportOdt}
             debugMode={debugMode}
             setDebugMode={setDebugMode}
+            wordBreakerDebugMode={wordBreakerDebugMode}
+            setWordBreakerDebugMode={setWordBreakerDebugMode}
             onVoiceStateChange={handleVoiceStateChange}
             onPartialTranscriptChange={setPartialTranscript}
             documentState={documentState}

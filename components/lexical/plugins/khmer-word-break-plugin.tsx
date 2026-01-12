@@ -10,12 +10,17 @@ import {
   COMMAND_PRIORITY_LOW,
   $getRoot,
   $isTextNode,
+  $isParagraphNode,
+  type LexicalNode,
+  type ElementNode,
 } from "lexical"
 import { useEffect, useRef } from "react"
-import { $createKhmerBreakNode, $isKhmerBreakNode, type KhmerBreakNode } from "../nodes/khmer-break-node"
+import { $createKhmerBreakNode, $isKhmerBreakNode } from "../nodes/khmer-break-node"
 import type { KhmerBreaker } from "@/lib/khmer-breaker"
+import { isWordBreakerDebugEnabled } from "@/lib/debug"
 
 const ZWSP = "\u200B"
+const SPACE = " "
 
 const isWhitespaceOnly = (str: string): boolean => /^\s+$/.test(str)
 
@@ -26,95 +31,183 @@ interface KhmerWordBreakPluginProps {
 
 export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPluginProps) {
   const [editor] = useLexicalComposerContext()
-  const processedNodesRef = useRef(new WeakSet<TextNode>())
+  const processingParagraphRef = useRef(false)
+  const processedNodesRef = useRef(new WeakSet<TextNode>()) // Track processed TextNodes instead of paragraphs
 
   useEffect(() => {
-    const processTextWithExistingZWSP = (textNode: TextNode): TextNode | KhmerBreakNode | null => {
-      const text = textNode.getTextContent()
+    const collectParagraphText = (paragraph: ElementNode): { text: string; hasBreakNodes: boolean } => {
+      let text = ""
+      let hasBreakNodes = false
+      const children = paragraph.getChildren()
 
-      // Split by ZWSP - keep all segments including empty ones to track positions
-      const segments = text.split(ZWSP)
-
-      // Filter out only truly empty segments (from consecutive ZWSPs)
-      const validSegments = segments.filter((s) => s.length > 0)
-
-      // If only one segment or no segments, nothing to do
-      if (validSegments.length <= 1) return null
-
-      // Get the parent to insert nodes
-      const parent = textNode.getParent()
-      if (!parent) return null
-
-      // Get formatting from original node
-      const format = textNode.getFormat()
-      const style = textNode.getStyle()
-
-      // Build replacement: text segments with break nodes between them
-      const newNodes: (TextNode | KhmerBreakNode)[] = []
-      let lastTextNode: TextNode | null = null
-
-      validSegments.forEach((segment, i) => {
-        const newTextNode = $createTextNode(segment)
-        newTextNode.setFormat(format)
-        newTextNode.setStyle(style)
-        processedNodesRef.current.add(newTextNode)
-        newNodes.push(newTextNode)
-        lastTextNode = newTextNode
-
-        // Real spaces are already word boundaries, so no need for break markers
-        if (showBreaks && i < validSegments.length - 1) {
-          const nextSegment = validSegments[i + 1]
-          // Don't add break marker if current or next segment is whitespace-only
-          if (!isWhitespaceOnly(segment) && !isWhitespaceOnly(nextSegment)) {
-            const breakNode = $createKhmerBreakNode()
-            newNodes.push(breakNode)
-          }
+      for (const child of children) {
+        if ($isTextNode(child)) {
+          text += child.getTextContent()
+        } else if ($isKhmerBreakNode(child)) {
+          hasBreakNodes = true
+          // Don't add anything - we're reconstructing without breaks
         }
-      })
-
-      // Replace the original text node
-      if (newNodes.length > 0) {
-        textNode.replace(newNodes[0])
-        let prevNode = newNodes[0]
-        for (let i = 1; i < newNodes.length; i++) {
-          prevNode.insertAfter(newNodes[i])
-          prevNode = newNodes[i]
-        }
-        return lastTextNode
       }
-      return null
+
+      return { text, hasBreakNodes }
     }
 
-    const processTextNode = (textNode: TextNode): TextNode | KhmerBreakNode | null => {
-      const text = textNode.getTextContent()
+    const resegmentParagraph = (paragraph: ElementNode, cursorOffset: number | null): void => {
+      if (processingParagraphRef.current) return
 
-      // Skip if no text
-      if (!text || text.length === 0) return null
+      processingParagraphRef.current = true
 
-      if (text.includes(ZWSP)) {
-        return processTextWithExistingZWSP(textNode)
+      try {
+        const { text, hasBreakNodes } = collectParagraphText(paragraph)
+
+        // Skip empty paragraphs
+        if (!text || text.length === 0) return
+
+        // If text contains ZWSP, it's pre-segmented - convert to break nodes
+        if (text.includes(ZWSP)) {
+          resegmentWithExistingZWSP(paragraph, text, cursorOffset)
+          return
+        }
+
+        // Regular spaces are explicit word boundaries
+        const spaceSegments = text.split(SPACE)
+        const allSegments: string[] = []
+
+        spaceSegments.forEach((spaceSegment, index) => {
+          if (spaceSegment.length === 0) {
+            // Empty segment means consecutive spaces - preserve as single space
+            if (index > 0) {
+              allSegments.push(SPACE)
+            }
+          } else {
+            // Apply word breaking to this space-separated segment
+            const wordSegments = breaker.getSegments(spaceSegment)
+
+            if (isWordBreakerDebugEnabled()) {
+              console.log(
+                `[v0:wb] SPACE-SEGMENT getSegments("${spaceSegment}") => [${wordSegments.map((s) => `"${s}"`).join(", ")}]`,
+              )
+            }
+
+            allSegments.push(...wordSegments)
+          }
+
+          // Add space back between segments (except after last)
+          if (index < spaceSegments.length - 1 && spaceSegment.length > 0) {
+            allSegments.push(SPACE)
+          }
+        })
+
+        const segments = allSegments
+
+        if (isWordBreakerDebugEnabled()) {
+          console.log(`[v0:wb] FINAL SEGMENTS for "${text}" => [${segments.map((s) => `"${s}"`).join(", ")}]`)
+        }
+
+        // If only one segment and no existing break nodes, nothing to do
+        if (segments.length <= 1 && !hasBreakNodes) return
+
+        // Check if current segmentation matches what we need
+        const currentSegments = getCurrentSegments(paragraph)
+        if (segmentsMatch(currentSegments, segments) && hasBreakNodes === showBreaks) {
+          return // Already correctly segmented
+        }
+
+        // Get formatting from first text node
+        let format = 0
+        let style = ""
+        const firstTextNode = paragraph.getChildren().find($isTextNode)
+        if (firstTextNode) {
+          format = firstTextNode.getFormat()
+          style = firstTextNode.getStyle()
+        }
+
+        // Build new nodes
+        const newNodes: LexicalNode[] = []
+
+        segments.forEach((segment, i) => {
+          const newTextNode = $createTextNode(segment)
+          newTextNode.setFormat(format)
+          newTextNode.setStyle(style)
+          processedNodesRef.current.add(newTextNode)
+          newNodes.push(newTextNode)
+
+          // Add break markers between non-whitespace segments
+          if (showBreaks && i < segments.length - 1) {
+            const nextSegment = segments[i + 1]
+            if (
+              !isWhitespaceOnly(segment) &&
+              !isWhitespaceOnly(nextSegment) &&
+              segment !== SPACE &&
+              nextSegment !== SPACE
+            ) {
+              newNodes.push($createKhmerBreakNode())
+            }
+          }
+        })
+
+        // Clear paragraph and add new nodes
+        paragraph.clear()
+        newNodes.forEach((node) => paragraph.append(node))
+
+        // Restore cursor position
+        if (cursorOffset !== null) {
+          // Find which text node the cursor should be in
+          let charCount = 0
+          for (const node of newNodes) {
+            if ($isTextNode(node)) {
+              const nodeLength = node.getTextContentSize()
+              if (charCount + nodeLength >= cursorOffset) {
+                const offsetInNode = cursorOffset - charCount
+                node.select(offsetInNode, offsetInNode)
+                break
+              }
+              charCount += nodeLength
+            }
+          }
+        }
+
+        // Mark paragraph as processed
+        processedNodesRef.current.add(paragraph as TextNode)
+      } finally {
+        processingParagraphRef.current = false
+      }
+    }
+
+    const getCurrentSegments = (paragraph: ElementNode): string[] => {
+      const segments: string[] = []
+      const children = paragraph.getChildren()
+
+      for (const child of children) {
+        if ($isTextNode(child)) {
+          segments.push(child.getTextContent())
+        }
       }
 
-      // Check if this node already has break nodes as siblings
-      const nextSibling = textNode.getNextSibling()
-      if (nextSibling && $isKhmerBreakNode(nextSibling)) return null
+      return segments
+    }
 
-      // Get word segments using our Khmer breaker
-      const segments = breaker.getSegments(text)
+    const segmentsMatch = (a: string[], b: string[]): boolean => {
+      if (a.length !== b.length) return false
+      return a.every((seg, i) => seg === b[i])
+    }
 
-      // If only one segment, no breaks needed
-      if (segments.length <= 1) return null
+    const resegmentWithExistingZWSP = (paragraph: ElementNode, text: string, cursorOffset: number | null): void => {
+      const segments = text.split(ZWSP).filter((s) => s.length > 0)
 
-      // Get the parent to insert nodes
-      const parent = textNode.getParent()
-      if (!parent) return null
+      if (segments.length <= 1) return
 
-      // Get formatting from original node
-      const format = textNode.getFormat()
-      const style = textNode.getStyle()
+      // Get formatting from first text node
+      let format = 0
+      let style = ""
+      const firstTextNode = paragraph.getChildren().find($isTextNode)
+      if (firstTextNode) {
+        format = firstTextNode.getFormat()
+        style = firstTextNode.getStyle()
+      }
 
-      // Build replacement: text segments with optional break nodes between them
-      const newNodes: (TextNode | KhmerBreakNode)[] = []
+      // Build new nodes
+      const newNodes: LexicalNode[] = []
 
       segments.forEach((segment, i) => {
         const newTextNode = $createTextNode(segment)
@@ -123,167 +216,140 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         processedNodesRef.current.add(newTextNode)
         newNodes.push(newTextNode)
 
-        // Real spaces are already word boundaries, so no need for break markers
         if (showBreaks && i < segments.length - 1) {
           const nextSegment = segments[i + 1]
-          // Don't add break marker if current or next segment is whitespace-only
           if (!isWhitespaceOnly(segment) && !isWhitespaceOnly(nextSegment)) {
             newNodes.push($createKhmerBreakNode())
           }
         }
       })
 
-      // Replace the original text node
-      if (newNodes.length > 0) {
-        textNode.replace(newNodes[0])
-        let prevNode = newNodes[0]
-        for (let i = 1; i < newNodes.length; i++) {
-          prevNode.insertAfter(newNodes[i])
-          prevNode = newNodes[i]
-        }
-        for (let i = newNodes.length - 1; i >= 0; i--) {
-          if ($isTextNode(newNodes[i])) {
-            return newNodes[i] as TextNode
-          }
+      // Clear paragraph and add new nodes
+      paragraph.clear()
+      newNodes.forEach((node) => paragraph.append(node))
+
+      // Restore cursor at end
+      if (cursorOffset !== null) {
+        const lastTextNode = newNodes.filter($isTextNode).pop() as TextNode | undefined
+        if (lastTextNode) {
+          const len = lastTextNode.getTextContentSize()
+          lastTextNode.select(len, len)
         }
       }
-      return null
     }
 
     // Register a node transform that runs whenever text nodes change
     const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
-      if (processedNodesRef.current.has(textNode)) {
-        return
-      }
+      if (processedNodesRef.current.has(textNode)) return
 
-      processedNodesRef.current.add(textNode)
+      if (processingParagraphRef.current) return
 
+      const parent = textNode.getParent()
+      if (!parent || !$isParagraphNode(parent)) return
+
+      // Get cursor position relative to full paragraph text
+      let cursorOffset: number | null = null
       const selection = $getSelection()
-      let cursorWasAtEnd = false
-
       if ($isRangeSelection(selection)) {
         const anchorNode = selection.anchor.getNode()
-        if (anchorNode === textNode) {
-          const textLength = textNode.getTextContentSize()
-          cursorWasAtEnd = selection.anchor.offset === textLength
+        if ($isTextNode(anchorNode)) {
+          // Calculate cursor offset in full paragraph
+          let offset = 0
+          const children = parent.getChildren()
+          for (const child of children) {
+            if (child === anchorNode) {
+              cursorOffset = offset + selection.anchor.offset
+              break
+            }
+            if ($isTextNode(child)) {
+              offset += child.getTextContentSize()
+            }
+          }
         }
       }
 
-      const lastProcessedNode = processTextNode(textNode)
-
-      if (lastProcessedNode && cursorWasAtEnd && $isTextNode(lastProcessedNode)) {
-        const textLength = lastProcessedNode.getTextContentSize()
-        lastProcessedNode.select(textLength, textLength)
-      }
+      // Re-segment the entire paragraph
+      resegmentParagraph(parent, cursorOffset)
     })
 
     const removePasteCommand = editor.registerCommand(
       PASTE_COMMAND,
       (event) => {
+        processedNodesRef.current = new WeakSet()
+
         const clipboardEvent = event as ClipboardEvent
         if (clipboardEvent && clipboardEvent.clipboardData) {
           const pastedText = clipboardEvent.clipboardData.getData("text/plain")
 
           // If the pasted text contains ZWSP, handle it specially
           if (pastedText && pastedText.includes(ZWSP)) {
-            // Prevent default paste
             event.preventDefault()
 
             editor.update(() => {
               const selection = $getSelection()
               if (!$isRangeSelection(selection)) return
-
-              // Insert the text with ZWSP preserved
               selection.insertRawText(pastedText)
             })
 
-            // Process the pasted text after insertion
             setTimeout(() => {
               editor.update(() => {
-                processedNodesRef.current = new WeakSet()
+                processingParagraphRef.current = false
 
                 const root = $getRoot()
-                const allTextNodes: TextNode[] = []
+                const paragraphs: ElementNode[] = []
 
-                const collectTextNodes = (node: any) => {
-                  if ($isTextNode(node)) {
-                    allTextNodes.push(node)
+                root.getChildren().forEach((child) => {
+                  if ($isParagraphNode(child)) {
+                    paragraphs.push(child)
                   }
-                  if (node.getChildren) {
-                    node.getChildren().forEach(collectTextNodes)
-                  }
+                })
+
+                for (const para of paragraphs) {
+                  resegmentParagraph(para, null)
                 }
 
-                collectTextNodes(root)
-
-                for (const textNode of allTextNodes) {
-                  const text = textNode.getTextContent()
-                  if (text.includes(ZWSP)) {
-                    processTextWithExistingZWSP(textNode)
+                // Place cursor at end
+                const lastPara = paragraphs[paragraphs.length - 1]
+                if (lastPara) {
+                  const lastTextNode = lastPara.getChildren().filter($isTextNode).pop() as TextNode | undefined
+                  if (lastTextNode) {
+                    const len = lastTextNode.getTextContentSize()
+                    lastTextNode.select(len, len)
                   }
-                }
-
-                const finalTextNodes: TextNode[] = []
-                const collectFinalTextNodes = (node: any) => {
-                  if ($isTextNode(node)) {
-                    finalTextNodes.push(node)
-                  }
-                  if (node.getChildren) {
-                    node.getChildren().forEach(collectFinalTextNodes)
-                  }
-                }
-                collectFinalTextNodes(root)
-
-                if (finalTextNodes.length > 0) {
-                  const lastTextNode = finalTextNodes[finalTextNodes.length - 1]
-                  const textLength = lastTextNode.getTextContentSize()
-                  lastTextNode.select(textLength, textLength)
                 }
               })
             }, 0)
 
-            return true // Handled
+            return true
           }
         }
 
         // For text without ZWSP, let default paste happen then process
         setTimeout(() => {
           editor.update(() => {
-            processedNodesRef.current = new WeakSet()
+            processingParagraphRef.current = false
 
             const root = $getRoot()
-            const allTextNodes: TextNode[] = []
+            const paragraphs: ElementNode[] = []
 
-            const collectTextNodes = (node: any) => {
-              if ($isTextNode(node)) {
-                allTextNodes.push(node)
+            root.getChildren().forEach((child) => {
+              if ($isParagraphNode(child)) {
+                paragraphs.push(child)
               }
-              if (node.getChildren) {
-                node.getChildren().forEach(collectTextNodes)
-              }
+            })
+
+            for (const para of paragraphs) {
+              resegmentParagraph(para, null)
             }
 
-            collectTextNodes(root)
-
-            for (const textNode of allTextNodes) {
-              processTextNode(textNode)
-            }
-
-            const finalTextNodes: TextNode[] = []
-            const collectFinalTextNodes = (node: any) => {
-              if ($isTextNode(node)) {
-                finalTextNodes.push(node)
+            // Place cursor at end
+            const lastPara = paragraphs[paragraphs.length - 1]
+            if (lastPara) {
+              const lastTextNode = lastPara.getChildren().filter($isTextNode).pop() as TextNode | undefined
+              if (lastTextNode) {
+                const len = lastTextNode.getTextContentSize()
+                lastTextNode.select(len, len)
               }
-              if (node.getChildren) {
-                node.getChildren().forEach(collectFinalTextNodes)
-              }
-            }
-            collectFinalTextNodes(root)
-
-            if (finalTextNodes.length > 0) {
-              const lastTextNode = finalTextNodes[finalTextNodes.length - 1]
-              const textLength = lastTextNode.getTextContentSize()
-              lastTextNode.select(textLength, textLength)
             }
           })
         }, 0)

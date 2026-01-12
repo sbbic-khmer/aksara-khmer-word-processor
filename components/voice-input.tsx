@@ -9,6 +9,7 @@ import { MicSelector, type SttProvider } from "@/components/mic-selector"
 import { usePreferences } from "@/hooks/use-preferences"
 import { useWebSpeechRecognition } from "@/hooks/use-web-speech-recognition"
 import { applyVoiceTextRules } from "@/lib/voice-text-rules"
+import { useAuth } from "@/components/auth-provider"
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void
@@ -30,6 +31,9 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
   { onTranscript, onPartialTranscript, onVoiceStateChange, disabled, applyReplacements },
   ref,
 ) {
+  const { isDev, isAdmin } = useAuth()
+  const canUseElevenLabs = isDev || isAdmin
+
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isWaitingForFinal, setIsWaitingForFinal] = useState(false)
@@ -44,7 +48,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
   const [selectedMicId, setSelectedMicId] = useState<string | null>(null)
   const [vadSilenceThreshold, setVadSilenceThreshold] = useState<number>(DEFAULT_VAD_SILENCE)
   const [vadSensitivity, setVadSensitivity] = useState<number>(DEFAULT_VAD_SENSITIVITY)
-  const [sttProvider, setSttProvider] = useState<SttProvider>("elevenlabs")
+  const [sttProvider, setSttProvider] = useState<SttProvider>("browser")
 
   useEffect(() => {
     if (!prefsLoading && preferences) {
@@ -52,10 +56,17 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       setVadSilenceThreshold(Number(preferences.vad_silence_threshold) || DEFAULT_VAD_SILENCE)
       setVadSensitivity(Number(preferences.vad_threshold) || DEFAULT_VAD_SENSITIVITY)
       if (preferences.stt_provider) {
-        setSttProvider(preferences.stt_provider as SttProvider)
+        const savedProvider = preferences.stt_provider as SttProvider
+        if (savedProvider === "elevenlabs" && !canUseElevenLabs) {
+          setSttProvider("browser")
+        } else {
+          setSttProvider(savedProvider)
+        }
+      } else {
+        setSttProvider(canUseElevenLabs ? "elevenlabs" : "browser")
       }
     }
-  }, [preferences, prefsLoading])
+  }, [preferences, prefsLoading, canUseElevenLabs])
 
   const handleMicChange = useCallback(
     (deviceId: string | null) => {
@@ -151,7 +162,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     ),
   })
 
-  // ElevenLabs Scribe hook
   const scribe = useScribe({
     modelId: "scribe_v2_realtime",
     languageCode: "km",
@@ -171,7 +181,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       if (waitingForCommitRef.current && onCommitReceivedRef.current) {
         onCommitReceivedRef.current(data.text)
         cleanupWaitingState()
-        // Now actually disconnect
         scribe.disconnect()
         return
       }
@@ -216,13 +225,11 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
 
   const handleToggle = useCallback(async () => {
     if (sttProvider === "browser") {
-      // Web Speech toggle
       if (webSpeech.listening) {
         if (lastPartialRef.current.trim()) {
           setIsWaitingForFinal(true)
           waitingForCommitRef.current = true
 
-          // Set up callback for when commit arrives
           onCommitReceivedRef.current = (text: string) => {
             if (text.trim()) {
               onTranscript(processTranscript(text))
@@ -230,9 +237,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
             lastPartialRef.current = ""
           }
 
-          // Set timeout in case no commit comes (5 seconds)
           commitTimeoutRef.current = setTimeout(() => {
-            // Fallback to partial if no commit received
             if (lastPartialRef.current.trim()) {
               onTranscript(processTranscript(lastPartialRef.current))
               lastPartialRef.current = ""
@@ -241,8 +246,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
             webSpeech.stop()
           }, 5000)
 
-          // Stop recording but keep waiting for final result
-          // Web Speech will send final result when stopped
           webSpeech.stop()
         } else {
           isDisconnectingRef.current = true
@@ -257,13 +260,11 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       return
     }
 
-    // ElevenLabs toggle
     if (scribe.isConnected) {
       if (lastPartialRef.current.trim()) {
         setIsWaitingForFinal(true)
         waitingForCommitRef.current = true
 
-        // Set up callback for when commit arrives
         onCommitReceivedRef.current = (text: string) => {
           if (text.trim()) {
             onTranscript(processTranscript(text))
@@ -271,9 +272,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
           lastPartialRef.current = ""
         }
 
-        // Set timeout in case no commit comes (5 seconds)
         commitTimeoutRef.current = setTimeout(() => {
-          // Fallback to partial if no commit received
           if (lastPartialRef.current.trim()) {
             onTranscript(processTranscript(lastPartialRef.current))
             lastPartialRef.current = ""
@@ -283,8 +282,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
           scribe.disconnect()
         }, 5000)
 
-        // Don't disconnect yet - wait for final commit
-        // The API will process remaining audio and send committed transcript
         return
       }
 
@@ -387,6 +384,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
           sttProvider={sttProvider}
           onSttProviderChange={handleSttProviderChange}
           webSpeechSupported={webSpeech.supported ?? false}
+          showElevenLabs={canUseElevenLabs}
         />
 
         <Tooltip>

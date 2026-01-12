@@ -17,6 +17,11 @@ import { Slider } from "@/components/ui/slider"
 
 export type SttProvider = "elevenlabs" | "browser"
 
+interface AudioDevice {
+  deviceId: string
+  label: string
+}
+
 interface MicSelectorProps {
   selectedDeviceId: string | null
   onDeviceChange: (deviceId: string | null) => void
@@ -27,11 +32,7 @@ interface MicSelectorProps {
   sttProvider?: SttProvider
   onSttProviderChange?: (provider: SttProvider) => void
   webSpeechSupported?: boolean
-}
-
-interface AudioDevice {
-  deviceId: string
-  label: string
+  showElevenLabs?: boolean
 }
 
 export function MicSelector({
@@ -44,6 +45,7 @@ export function MicSelector({
   sttProvider = "elevenlabs",
   onSttProviderChange,
   webSpeechSupported = false,
+  showElevenLabs = true,
 }: MicSelectorProps) {
   const safeVadSilenceThreshold = vadSilenceThreshold ?? 1.0
   const safeVadSensitivity = vadSensitivity ?? 0.4
@@ -185,15 +187,17 @@ export function MicSelector({
             value={sttProvider}
             onValueChange={(value) => onSttProviderChange?.(value as SttProvider)}
           >
-            <DropdownMenuRadioItem value="elevenlabs" className="text-sm cursor-pointer">
-              <div className="flex items-center gap-2">
-                <Zap className="h-3.5 w-3.5 text-amber-500" />
-                <div>
-                  <span>ElevenLabs</span>
-                  <p className="text-[10px] text-muted-foreground">High accuracy, requires internet</p>
+            {showElevenLabs && (
+              <DropdownMenuRadioItem value="elevenlabs" className="text-sm cursor-pointer">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-3.5 w-3.5 text-amber-500" />
+                  <div>
+                    <span>ElevenLabs</span>
+                    <p className="text-[10px] text-muted-foreground">High accuracy, requires internet</p>
+                  </div>
                 </div>
-              </div>
-            </DropdownMenuRadioItem>
+              </DropdownMenuRadioItem>
+            )}
             <DropdownMenuRadioItem value="browser" className="text-sm cursor-pointer" disabled={!webSpeechSupported}>
               <div className="flex items-center gap-2">
                 <Globe className="h-3.5 w-3.5 text-blue-500" />
