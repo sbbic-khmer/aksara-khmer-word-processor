@@ -434,6 +434,7 @@ export class KhmerBreaker {
    * Extract punctuation before segmentation to prevent it from
    * interfering with dictionary lookups, then reattach after.
    * Handle WJ-joined regions as unsplittable units
+   * Split by script first - don't break non-Khmer text like English
    */
   private segmentChunk(text: string): string[] {
     const parts = text.split(/(\s+)/)
@@ -446,58 +447,69 @@ export class KhmerBreaker {
         continue
       }
 
-      const hasKhmer = [...part].some((c) => this.charSets.isKhmerChar(c))
-      if (!hasKhmer) {
-        segments.push(part)
-        continue
-      }
+      const scriptRuns = splitByScript(part)
 
-      const { leading, core, trailing } = this.extractPunctuation(part)
+      for (const run of scriptRuns) {
+        // Non-Khmer runs (like English) should not be word-broken
+        if (!run.isKhmer) {
+          segments.push(run.text)
+          continue
+        }
 
-      if (!core) {
-        // Only punctuation
-        if (leading) segments.push(leading)
-        if (trailing) segments.push(trailing)
-        continue
-      }
+        // Check if this Khmer run has any actual Khmer characters
+        const hasKhmer = [...run.text].some((c) => this.charSets.isKhmerChar(c))
+        if (!hasKhmer) {
+          segments.push(run.text)
+          continue
+        }
 
-      const joinedRegions = this.splitByWJ(core)
-      const coreSegments: string[] = []
+        const { leading, core, trailing } = this.extractPunctuation(run.text)
 
-      for (const region of joinedRegions) {
-        if (region.isJoined) {
-          // WJ characters will be preserved in the text for future segmentations
-          coreSegments.push(region.text)
-        } else {
-          // This region has no WJ - segment it normally
-          const dictSegments = this.bidirectionalSegment(region.text)
+        if (!core) {
+          // Only punctuation
+          if (leading) segments.push(leading)
+          if (trailing) segments.push(trailing)
+          continue
+        }
 
-          // If Intl.Segmenter is available, use it to validate/improve our result
-          let finalSegments = dictSegments
-          if (this.useIntlSegmenter) {
-            try {
-              const intlSegments = this.segmentWithIntl(region.text)
-              finalSegments = this.improveWithIntlHints(dictSegments, intlSegments, region.text)
-            } catch {
-              // Fall through to dictionary result
+        const joinedRegions = this.splitByWJ(core)
+        const coreSegments: string[] = []
+
+        for (const region of joinedRegions) {
+          if (region.isJoined) {
+            // WJ characters will be preserved in the text for future segmentations
+            coreSegments.push(region.text)
+          } else {
+            // This region has no WJ - segment it normally
+            const dictSegments = this.bidirectionalSegment(region.text)
+
+            // If Intl.Segmenter is available, use it to validate/improve our result
+            let finalSegments = dictSegments
+            if (this.useIntlSegmenter) {
+              try {
+                const intlSegments = this.segmentWithIntl(region.text)
+                finalSegments = this.improveWithIntlHints(dictSegments, intlSegments, region.text)
+              } catch {
+                // Fall through to dictionary result
+              }
             }
+            coreSegments.push(...finalSegments)
           }
-          coreSegments.push(...finalSegments)
         }
-      }
 
-      if (coreSegments.length > 0) {
-        if (leading) {
-          coreSegments[0] = leading + coreSegments[0]
+        if (coreSegments.length > 0) {
+          if (leading) {
+            coreSegments[0] = leading + coreSegments[0]
+          }
+          if (trailing) {
+            coreSegments[coreSegments.length - 1] += trailing
+          }
+          segments.push(...coreSegments)
+        } else {
+          // No segments - just add punctuation
+          if (leading) segments.push(leading)
+          if (trailing) segments.push(trailing)
         }
-        if (trailing) {
-          coreSegments[coreSegments.length - 1] += trailing
-        }
-        segments.push(...coreSegments)
-      } else {
-        // No segments - just add punctuation
-        if (leading) segments.push(leading)
-        if (trailing) segments.push(trailing)
       }
     }
 
@@ -703,18 +715,21 @@ export class KhmerBreaker {
         }
       }
 
-      // No dictionary match - take one syllable
-      const syllableEnd = this.charSets.findSyllableEnd(text, pos)
+      // instead of breaking into individual syllables/characters
+      const unknownEnd = this.findNextBreakPoint(text, pos)
+      const unknownSegment = text.substring(pos, unknownEnd)
+
       if (isWordBreakerDebugEnabled()) {
         console.log(
-          `[v0] forwardMM pos=${pos}: no valid dict match, taking syllable to ${syllableEnd}: "${text.substring(pos, syllableEnd)}"`,
+          `[v0] forwardMM pos=${pos}: no valid dict match, taking unknown segment to ${unknownEnd}: "${unknownSegment}"`,
         )
       }
-      if (syllableEnd > pos) {
-        segments.push(text.substring(pos, syllableEnd))
-        pos = syllableEnd
+
+      if (unknownEnd > pos) {
+        segments.push(unknownSegment)
+        pos = unknownEnd
       } else {
-        // Fallback: take one character
+        // Fallback: take one character (should rarely happen)
         segments.push(text[pos])
         pos++
       }
@@ -725,6 +740,60 @@ export class KhmerBreaker {
     }
 
     return segments
+  }
+
+  /**
+   * Find the next natural break point from the given position.
+   * This looks for: end of text, whitespace, punctuation, or start of a known dictionary word.
+   * Used to keep unknown words together instead of breaking into individual syllables.
+   */
+  private findNextBreakPoint(text: string, startPos: number): number {
+    let pos = startPos
+
+    // Always advance at least one syllable
+    const firstSyllableEnd = this.charSets.findSyllableEnd(text, pos)
+    if (firstSyllableEnd > pos) {
+      pos = firstSyllableEnd
+    } else {
+      pos++ // at minimum advance one character
+    }
+
+    // Now scan forward looking for a natural break point
+    while (pos < text.length) {
+      const char = text[pos]
+
+      // Stop at whitespace
+      if (/\s/.test(char)) {
+        break
+      }
+
+      // Stop at punctuation
+      if (isPunctuation(char)) {
+        break
+      }
+
+      // Stop if we can break here AND there's a dictionary word starting here
+      if (this.charSets.canBreakAt(text, pos)) {
+        const match = this.trie.findLongestMatch(text, pos)
+        if (match && match.word.length > 0) {
+          // Verify this match would end at a valid break point
+          const matchEnd = pos + match.word.length
+          if (matchEnd >= text.length || this.charSets.canBreakAt(text, matchEnd)) {
+            break // Found a known word, stop here
+          }
+        }
+      }
+
+      // Continue to next syllable
+      const nextSyllableEnd = this.charSets.findSyllableEnd(text, pos)
+      if (nextSyllableEnd > pos) {
+        pos = nextSyllableEnd
+      } else {
+        pos++
+      }
+    }
+
+    return pos
   }
 
   /**
@@ -755,21 +824,12 @@ export class KhmerBreaker {
       }
 
       if (!found) {
-        // No dictionary match - take one syllable backwards
-        // Find the start of the current syllable
-        let syllableStart = pos - 1
+        const unknownStart = this.findPreviousBreakPoint(text, pos)
+        const unknownSegment = text.substring(unknownStart, pos)
 
-        // Move back to find syllable start
-        while (syllableStart > 0) {
-          if (this.charSets.canBreakAt(text, syllableStart)) {
-            break
-          }
-          syllableStart--
-        }
-
-        if (syllableStart < pos) {
-          segments.unshift(text.substring(syllableStart, pos))
-          pos = syllableStart
+        if (unknownStart < pos) {
+          segments.unshift(unknownSegment)
+          pos = unknownStart
         } else {
           // Fallback: take one character
           segments.unshift(text[pos - 1])
@@ -779,6 +839,61 @@ export class KhmerBreaker {
     }
 
     return segments
+  }
+
+  /**
+   * Find the previous natural break point from the given position (scanning backwards).
+   * This looks for: start of text, whitespace, punctuation, or end of a known dictionary word.
+   * Used to keep unknown words together instead of breaking into individual syllables.
+   */
+  private findPreviousBreakPoint(text: string, endPos: number): number {
+    let pos = endPos
+
+    // Always go back at least one syllable
+    let syllableStart = pos - 1
+    while (syllableStart > 0 && !this.charSets.canBreakAt(text, syllableStart)) {
+      syllableStart--
+    }
+    pos = syllableStart
+
+    // Now scan backward looking for a natural break point
+    while (pos > 0) {
+      const charBefore = text[pos - 1]
+
+      // Stop after whitespace
+      if (/\s/.test(charBefore)) {
+        break
+      }
+
+      // Stop after punctuation
+      if (isPunctuation(charBefore)) {
+        break
+      }
+
+      // Stop if there's a dictionary word ending just before pos
+      if (this.charSets.canBreakAt(text, pos)) {
+        // Check if there's a known word ending here by looking backwards
+        const maxLen = Math.min(pos, this.trie.maxWordLength)
+        for (let len = maxLen; len >= 1; len--) {
+          const candidate = text.substring(pos - len, pos)
+          if (this.trie.hasWord(candidate)) {
+            const candidateStart = pos - len
+            if (candidateStart === 0 || this.charSets.canBreakAt(text, candidateStart)) {
+              return pos // Found a known word ending here, stop
+            }
+          }
+        }
+      }
+
+      // Continue to previous syllable
+      syllableStart = pos - 1
+      while (syllableStart > 0 && !this.charSets.canBreakAt(text, syllableStart)) {
+        syllableStart--
+      }
+      pos = syllableStart
+    }
+
+    return pos
   }
 
   /**
@@ -859,3 +974,74 @@ export class KhmerBreaker {
 }
 
 export default KhmerBreaker
+
+const KHMER_RANGE_START = 0x1780
+const KHMER_RANGE_END = 0x17ff
+
+function isKhmerCodePoint(codePoint: number): boolean {
+  return codePoint >= KHMER_RANGE_START && codePoint <= KHMER_RANGE_END
+}
+
+function isNonBreakableScript(char: string): boolean {
+  const cp = char.codePointAt(0) || 0
+  // Latin, numbers, and other non-Khmer scripts shouldn't be word-broken
+  // This includes: Basic Latin (0-127), Latin Extended, numbers, etc.
+  // Exclude spaces and common punctuation which ARE breakable
+  if (char === " " || OPENING_PUNCTUATION.has(char) || CLOSING_PUNCTUATION.has(char)) {
+    return false
+  }
+  // If it's not Khmer and not whitespace/punctuation, it's a non-breakable script character
+  return !isKhmerCodePoint(cp) && !/\s/.test(char)
+}
+
+/**
+ * Split text into runs of Khmer vs non-Khmer (Latin/etc) characters.
+ * Non-Khmer runs should not be word-broken.
+ * Punctuation and spaces are treated as boundaries.
+ */
+function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> {
+  if (!text) return []
+
+  const runs: Array<{ text: string; isKhmer: boolean }> = []
+  let currentRun = ""
+  let currentIsKhmer: boolean | null = null
+
+  for (const char of text) {
+    const cp = char.codePointAt(0) || 0
+    const charIsKhmer = isKhmerCodePoint(cp)
+    const isBreakPoint =
+      char === " " || /\s/.test(char) || OPENING_PUNCTUATION.has(char) || CLOSING_PUNCTUATION.has(char)
+
+    if (isBreakPoint) {
+      // Flush current run
+      if (currentRun) {
+        runs.push({ text: currentRun, isKhmer: currentIsKhmer ?? false })
+        currentRun = ""
+        currentIsKhmer = null
+      }
+      // Add the break character as its own run (treat as Khmer so it goes through normal processing)
+      runs.push({ text: char, isKhmer: true })
+    } else if (currentIsKhmer === null) {
+      // Start new run
+      currentRun = char
+      currentIsKhmer = charIsKhmer
+    } else if (charIsKhmer === currentIsKhmer) {
+      // Continue current run
+      currentRun += char
+    } else {
+      // Script changed - flush and start new run
+      if (currentRun) {
+        runs.push({ text: currentRun, isKhmer: currentIsKhmer })
+      }
+      currentRun = char
+      currentIsKhmer = charIsKhmer
+    }
+  }
+
+  // Flush final run
+  if (currentRun) {
+    runs.push({ text: currentRun, isKhmer: currentIsKhmer ?? false })
+  }
+
+  return runs
+}
