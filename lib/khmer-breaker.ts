@@ -26,10 +26,10 @@ const CLOSING_PUNCTUATION = new Set([
   "]", // closing bracket
   "}", // closing brace
   "»", // closing guillemet
-  '"', // closing double quote
-  "'", // closing single quote
+  "'", // closing single quote (U+2019)
   "›", // closing single guillemet
-  '"', // ASCII double quote (when closing)
+  '"', // ASCII double quote (U+0022)
+  "\u201D", // right double quotation mark (U+201D)
   ",", // comma
   ".", // period
   ":", // colon
@@ -43,9 +43,10 @@ const OPENING_PUNCTUATION = new Set([
   "[", // opening bracket
   "{", // opening brace
   "«", // opening guillemet
-  '"', // opening double quote
-  "'", // opening single quote
+  "'", // opening single quote (U+2018)
   "‹", // opening single guillemet
+  '"', // ASCII double quote (U+0022)
+  "\u201C", // left double quotation mark (U+201C)
 ])
 
 class TrieNode {
@@ -318,6 +319,12 @@ export class KhmerBreaker {
   private trie: KhmerTrie
   private charSets: KhmerCharSets
   private useIntlSegmenter: boolean
+
+  // Short dictionary matches (1-2 chars) with low frequency are likely
+  // just particles/letters, not real words worth breaking at.
+  // This prevents breaking up transliterated foreign names like "វ៉កគ័រ" (Walker)
+  private MIN_FREQUENCY_FOR_SINGLE_CHAR = 3000
+  private MIN_FREQUENCY_FOR_TWO_CHAR = 1000
 
   constructor(dictionaryData: DictionaryEntry[] | null = null) {
     this.trie = new KhmerTrie()
@@ -699,13 +706,17 @@ export class KhmerBreaker {
       // Try dictionary match first
       const match = this.trie.findLongestMatch(text, pos)
 
-      if (match && match.word.length > 0) {
+      const isValidMatch = match && match.word.length > 0 && this.isSignificantWord(match)
+
+      if (isValidMatch) {
         // Verify the match ends at a valid break point
         const endPos = pos + match.word.length
         const canBreak = endPos >= text.length || this.charSets.canBreakAt(text, endPos)
 
         if (isWordBreakerDebugEnabled()) {
-          console.log(`[v0] forwardMM pos=${pos}: found "${match.word}", endPos=${endPos}, canBreakAt=${canBreak}`)
+          console.log(
+            `[v0] forwardMM pos=${pos}: found "${match.word}" (freq: ${match.frequency}), endPos=${endPos}, canBreakAt=${canBreak}`,
+          )
         }
 
         if (canBreak) {
@@ -713,8 +724,13 @@ export class KhmerBreaker {
           pos = endPos
           continue
         }
+      } else if (match && isWordBreakerDebugEnabled()) {
+        console.log(
+          `[v0] forwardMM pos=${pos}: skipping low-freq short match "${match.word}" (freq: ${match.frequency})`,
+        )
       }
 
+      // No valid dictionary match - find next natural break point
       // instead of breaking into individual syllables/characters
       const unknownEnd = this.findNextBreakPoint(text, pos)
       const unknownSegment = text.substring(pos, unknownEnd)
@@ -772,14 +788,14 @@ export class KhmerBreaker {
         break
       }
 
-      // Stop if we can break here AND there's a dictionary word starting here
+      // Stop if we can break here AND there's a significant dictionary word starting here
       if (this.charSets.canBreakAt(text, pos)) {
         const match = this.trie.findLongestMatch(text, pos)
-        if (match && match.word.length > 0) {
+        if (match && match.word.length > 0 && this.isSignificantWord(match)) {
           // Verify this match would end at a valid break point
           const matchEnd = pos + match.word.length
           if (matchEnd >= text.length || this.charSets.canBreakAt(text, matchEnd)) {
-            break // Found a known word, stop here
+            break // Found a significant known word, stop here
           }
         }
       }
@@ -812,8 +828,8 @@ export class KhmerBreaker {
         const startPos = pos - len
         const candidate = text.substring(startPos, pos)
 
-        // Check if it's a valid word and starts at valid break point
-        if (this.trie.hasWord(candidate)) {
+        const match = this.trie.findLongestMatch(text, startPos)
+        if (match && match.word === candidate && this.isSignificantWord(match)) {
           if (startPos === 0 || this.charSets.canBreakAt(text, startPos)) {
             segments.unshift(candidate)
             pos = startPos
@@ -870,16 +886,18 @@ export class KhmerBreaker {
         break
       }
 
-      // Stop if there's a dictionary word ending just before pos
+      // Stop if there's a SIGNIFICANT dictionary word ending just before pos
       if (this.charSets.canBreakAt(text, pos)) {
         // Check if there's a known word ending here by looking backwards
         const maxLen = Math.min(pos, this.trie.maxWordLength)
         for (let len = maxLen; len >= 1; len--) {
-          const candidate = text.substring(pos - len, pos)
-          if (this.trie.hasWord(candidate)) {
-            const candidateStart = pos - len
+          const candidateStart = pos - len
+          const candidate = text.substring(candidateStart, pos)
+
+          const match = this.trie.findLongestMatch(text, candidateStart)
+          if (match && match.word === candidate && this.isSignificantWord(match)) {
             if (candidateStart === 0 || this.charSets.canBreakAt(text, candidateStart)) {
-              return pos // Found a known word ending here, stop
+              return pos // Found a significant known word ending here, stop
             }
           }
         }
@@ -970,6 +988,27 @@ export class KhmerBreaker {
 
   findLineBreaks(text: string): number[] {
     return this.findWordBreaks(text).filter((pos) => this.charSets.canBreakAt(text, pos))
+  }
+
+  /**
+   * Check if a dictionary match is significant enough to be treated as a word.
+   * Short matches (1-2 chars) need high frequency to be considered real words.
+   * This prevents low-frequency single-character matches from breaking up
+   * transliterated foreign names like "វ៉កគ័រ" (Walker).
+   */
+  private isSignificantWord(match: { word: string; frequency: number }): boolean {
+    // Long words (3+ chars) are always significant
+    if (match.word.length >= 3) {
+      return true
+    }
+
+    // Most single Khmer characters are consonants/vowels, not standalone words
+    if (match.word.length === 1) {
+      return match.frequency >= this.MIN_FREQUENCY_FOR_SINGLE_CHAR
+    }
+
+    // Two-character words need moderately high frequency
+    return match.frequency >= this.MIN_FREQUENCY_FOR_TWO_CHAR
   }
 }
 
