@@ -1,14 +1,18 @@
 // Debug logging utility
-// In development: logging is enabled by default
+// In development: logging is ALWAYS enabled (ignores localStorage)
 // In production: logging is disabled by default, but can be enabled via File menu
 
 const isDev = process.env.NODE_ENV === "development"
 
-// Global debug state
-let debugEnabled = isDev
+// Global debug state (only used for production)
+let debugEnabled = false
 
 export function isDebugEnabled(): boolean {
-  // Check localStorage override in browser
+  if (isDev) {
+    return true
+  }
+
+  // In production, check localStorage for user preference
   if (typeof window !== "undefined") {
     const stored = localStorage.getItem("aksara-debug-enabled")
     if (stored !== null) {

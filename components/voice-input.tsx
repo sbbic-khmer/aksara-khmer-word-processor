@@ -8,6 +8,7 @@ import { useScribe } from "@elevenlabs/react"
 import { MicSelector, type SttProvider } from "@/components/mic-selector"
 import { usePreferences } from "@/hooks/use-preferences"
 import { useWebSpeechRecognition } from "@/hooks/use-web-speech-recognition"
+import { applyVoiceTextRules } from "@/lib/voice-text-rules"
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void
@@ -91,11 +92,14 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
   const processTranscript = useCallback(
     (text: string): string => {
       if (!text.trim()) return text
+
+      let processed = applyVoiceTextRules(text)
+
       if (applyReplacements) {
-        const processed = applyReplacements(text)
-        return processed
+        processed = applyReplacements(processed)
       }
-      return text
+
+      return processed
     },
     [applyReplacements],
   )

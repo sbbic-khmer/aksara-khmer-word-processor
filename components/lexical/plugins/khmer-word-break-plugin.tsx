@@ -26,7 +26,7 @@ interface KhmerWordBreakPluginProps {
 
 export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPluginProps) {
   const [editor] = useLexicalComposerContext()
-  const isProcessingRef = useRef(false)
+  const processedNodesRef = useRef(new WeakSet<TextNode>())
 
   useEffect(() => {
     const processTextWithExistingZWSP = (textNode: TextNode): TextNode | KhmerBreakNode | null => {
@@ -57,6 +57,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         const newTextNode = $createTextNode(segment)
         newTextNode.setFormat(format)
         newTextNode.setStyle(style)
+        processedNodesRef.current.add(newTextNode)
         newNodes.push(newTextNode)
         lastTextNode = newTextNode
 
@@ -119,6 +120,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         const newTextNode = $createTextNode(segment)
         newTextNode.setFormat(format)
         newTextNode.setStyle(style)
+        processedNodesRef.current.add(newTextNode)
         newNodes.push(newTextNode)
 
         // Real spaces are already word boundaries, so no need for break markers
@@ -150,30 +152,28 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
 
     // Register a node transform that runs whenever text nodes change
     const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
-      // Prevent infinite loops
-      if (isProcessingRef.current) return
+      if (processedNodesRef.current.has(textNode)) {
+        return
+      }
 
-      isProcessingRef.current = true
-      try {
-        const selection = $getSelection()
-        let cursorWasAtEnd = false
+      processedNodesRef.current.add(textNode)
 
-        if ($isRangeSelection(selection)) {
-          const anchorNode = selection.anchor.getNode()
-          if (anchorNode === textNode) {
-            const textLength = textNode.getTextContentSize()
-            cursorWasAtEnd = selection.anchor.offset === textLength
-          }
+      const selection = $getSelection()
+      let cursorWasAtEnd = false
+
+      if ($isRangeSelection(selection)) {
+        const anchorNode = selection.anchor.getNode()
+        if (anchorNode === textNode) {
+          const textLength = textNode.getTextContentSize()
+          cursorWasAtEnd = selection.anchor.offset === textLength
         }
+      }
 
-        const lastProcessedNode = processTextNode(textNode)
+      const lastProcessedNode = processTextNode(textNode)
 
-        if (lastProcessedNode && cursorWasAtEnd && $isTextNode(lastProcessedNode)) {
-          const textLength = lastProcessedNode.getTextContentSize()
-          lastProcessedNode.select(textLength, textLength)
-        }
-      } finally {
-        isProcessingRef.current = false
+      if (lastProcessedNode && cursorWasAtEnd && $isTextNode(lastProcessedNode)) {
+        const textLength = lastProcessedNode.getTextContentSize()
+        lastProcessedNode.select(textLength, textLength)
       }
     })
 
@@ -200,48 +200,44 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
             // Process the pasted text after insertion
             setTimeout(() => {
               editor.update(() => {
-                if (isProcessingRef.current) return
-                isProcessingRef.current = true
-                try {
-                  const root = $getRoot()
-                  const allTextNodes: TextNode[] = []
+                processedNodesRef.current = new WeakSet()
 
-                  const collectTextNodes = (node: any) => {
-                    if ($isTextNode(node)) {
-                      allTextNodes.push(node)
-                    }
-                    if (node.getChildren) {
-                      node.getChildren().forEach(collectTextNodes)
-                    }
+                const root = $getRoot()
+                const allTextNodes: TextNode[] = []
+
+                const collectTextNodes = (node: any) => {
+                  if ($isTextNode(node)) {
+                    allTextNodes.push(node)
                   }
-
-                  collectTextNodes(root)
-
-                  for (const textNode of allTextNodes) {
-                    const text = textNode.getTextContent()
-                    if (text.includes(ZWSP)) {
-                      processTextWithExistingZWSP(textNode)
-                    }
+                  if (node.getChildren) {
+                    node.getChildren().forEach(collectTextNodes)
                   }
+                }
 
-                  const finalTextNodes: TextNode[] = []
-                  const collectFinalTextNodes = (node: any) => {
-                    if ($isTextNode(node)) {
-                      finalTextNodes.push(node)
-                    }
-                    if (node.getChildren) {
-                      node.getChildren().forEach(collectFinalTextNodes)
-                    }
-                  }
-                  collectFinalTextNodes(root)
+                collectTextNodes(root)
 
-                  if (finalTextNodes.length > 0) {
-                    const lastTextNode = finalTextNodes[finalTextNodes.length - 1]
-                    const textLength = lastTextNode.getTextContentSize()
-                    lastTextNode.select(textLength, textLength)
+                for (const textNode of allTextNodes) {
+                  const text = textNode.getTextContent()
+                  if (text.includes(ZWSP)) {
+                    processTextWithExistingZWSP(textNode)
                   }
-                } finally {
-                  isProcessingRef.current = false
+                }
+
+                const finalTextNodes: TextNode[] = []
+                const collectFinalTextNodes = (node: any) => {
+                  if ($isTextNode(node)) {
+                    finalTextNodes.push(node)
+                  }
+                  if (node.getChildren) {
+                    node.getChildren().forEach(collectFinalTextNodes)
+                  }
+                }
+                collectFinalTextNodes(root)
+
+                if (finalTextNodes.length > 0) {
+                  const lastTextNode = finalTextNodes[finalTextNodes.length - 1]
+                  const textLength = lastTextNode.getTextContentSize()
+                  lastTextNode.select(textLength, textLength)
                 }
               })
             }, 0)
@@ -253,45 +249,41 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         // For text without ZWSP, let default paste happen then process
         setTimeout(() => {
           editor.update(() => {
-            if (isProcessingRef.current) return
-            isProcessingRef.current = true
-            try {
-              const root = $getRoot()
-              const allTextNodes: TextNode[] = []
+            processedNodesRef.current = new WeakSet()
 
-              const collectTextNodes = (node: any) => {
-                if ($isTextNode(node)) {
-                  allTextNodes.push(node)
-                }
-                if (node.getChildren) {
-                  node.getChildren().forEach(collectTextNodes)
-                }
+            const root = $getRoot()
+            const allTextNodes: TextNode[] = []
+
+            const collectTextNodes = (node: any) => {
+              if ($isTextNode(node)) {
+                allTextNodes.push(node)
               }
-
-              collectTextNodes(root)
-
-              for (const textNode of allTextNodes) {
-                processTextNode(textNode)
+              if (node.getChildren) {
+                node.getChildren().forEach(collectTextNodes)
               }
+            }
 
-              const finalTextNodes: TextNode[] = []
-              const collectFinalTextNodes = (node: any) => {
-                if ($isTextNode(node)) {
-                  finalTextNodes.push(node)
-                }
-                if (node.getChildren) {
-                  node.getChildren().forEach(collectFinalTextNodes)
-                }
-              }
-              collectFinalTextNodes(root)
+            collectTextNodes(root)
 
-              if (finalTextNodes.length > 0) {
-                const lastTextNode = finalTextNodes[finalTextNodes.length - 1]
-                const textLength = lastTextNode.getTextContentSize()
-                lastTextNode.select(textLength, textLength)
+            for (const textNode of allTextNodes) {
+              processTextNode(textNode)
+            }
+
+            const finalTextNodes: TextNode[] = []
+            const collectFinalTextNodes = (node: any) => {
+              if ($isTextNode(node)) {
+                finalTextNodes.push(node)
               }
-            } finally {
-              isProcessingRef.current = false
+              if (node.getChildren) {
+                node.getChildren().forEach(collectFinalTextNodes)
+              }
+            }
+            collectFinalTextNodes(root)
+
+            if (finalTextNodes.length > 0) {
+              const lastTextNode = finalTextNodes[finalTextNodes.length - 1]
+              const textLength = lastTextNode.getTextContentSize()
+              lastTextNode.select(textLength, textLength)
             }
           })
         }, 0)
