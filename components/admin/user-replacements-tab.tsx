@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { ArrowUp, Loader2, Check } from "lucide-react"
+import { ArrowUp, Loader2, Check, Search } from "lucide-react"
 
 interface UserReplacement {
   id: string
@@ -25,6 +26,20 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json())
 export function UserReplacementsTab() {
   const { data, error, isLoading, mutate } = useSWR<UserReplacement[]>("/api/admin/user-replacements", fetcher)
   const [promotingId, setPromotingId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+
+  const filteredData = useMemo(() => {
+    if (!data || !searchQuery.trim()) return data
+    const query = searchQuery.toLowerCase().trim()
+    return data.filter(
+      (item) =>
+        item.incorrect_word.toLowerCase().includes(query) ||
+        item.correct_word.toLowerCase().includes(query) ||
+        (item.notes && item.notes.toLowerCase().includes(query)) ||
+        item.user_email.toLowerCase().includes(query) ||
+        (item.user_name && item.user_name.toLowerCase().includes(query)),
+    )
+  }, [data, searchQuery])
 
   const handlePromote = async (id: string) => {
     setPromotingId(id)
@@ -65,7 +80,25 @@ export function UserReplacementsTab() {
         <p className="text-sm text-gray-500">Review and promote user submissions to the master table</p>
       </CardHeader>
       <CardContent>
-        {data && data.length > 0 ? (
+        {data && data.length > 0 && (
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search words, notes, or users..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            {searchQuery && (
+              <p className="text-sm text-gray-500 mt-2">
+                Showing {filteredData?.length || 0} of {data.length} submissions
+              </p>
+            )}
+          </div>
+        )}
+        {filteredData && filteredData.length > 0 ? (
           <Table>
             <TableHeader>
               <TableRow>
@@ -78,7 +111,7 @@ export function UserReplacementsTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((item) => (
+              {filteredData.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     <div>
@@ -121,6 +154,8 @@ export function UserReplacementsTab() {
               ))}
             </TableBody>
           </Table>
+        ) : searchQuery ? (
+          <div className="text-center py-8 text-gray-500">No submissions found matching "{searchQuery}"</div>
         ) : (
           <div className="text-center py-8 text-gray-500">No user submissions yet.</div>
         )}
