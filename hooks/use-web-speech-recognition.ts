@@ -9,6 +9,14 @@ interface UseWebSpeechRecognitionOptions {
   onError?: (error: string) => void
 }
 
+function isChromeBrowser(): boolean {
+  if (typeof window === "undefined") return false
+  const userAgent = navigator.userAgent
+  // Chrome includes "Chrome" but Edge also includes "Chrome", so check for "Edg" to exclude Edge
+  const isChrome = /Chrome/.test(userAgent) && !/Edg/.test(userAgent)
+  return isChrome
+}
+
 export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions) {
   const lang = options?.lang ?? "km-KH"
   const onPartialTranscript = options?.onPartialTranscript
@@ -18,19 +26,18 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
   const recognitionRef = useRef<any>(null)
   const shouldBeListeningRef = useRef(false)
   const lastFinalTextRef = useRef("")
-  const consecutiveErrorsRef = useRef(0)
   const startTimestampRef = useRef(0)
-  const maxConsecutiveErrors = 3
 
   const [supported, setSupported] = useState<boolean | null>(null)
   const [listening, setListening] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Check support on mount (client-side only)
   useEffect(() => {
     if (typeof window === "undefined") return
     const Ctor = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
-    setSupported(!!Ctor)
+    // Web Speech API works reliably only in Chrome
+    const hasSupport = !!Ctor && isChromeBrowser()
+    setSupported(hasSupport)
   }, [])
 
   const setupRecognition = useCallback(() => {
@@ -46,25 +53,22 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
     recognition.interimResults = true
 
     recognition.onstart = () => {
-      console.log("[v0] WebSpeech: started")
       setError(null)
       setListening(true)
-      consecutiveErrorsRef.current = 0
     }
 
     recognition.onend = () => {
-      console.log("[v0] WebSpeech: ended, shouldBe:", shouldBeListeningRef.current)
       setListening(false)
       // Chrome frequently ends after pauses; restart if user expects continuous dictation
-      if (shouldBeListeningRef.current && consecutiveErrorsRef.current < maxConsecutiveErrors) {
+      if (shouldBeListeningRef.current) {
         setTimeout(() => {
           try {
             if (shouldBeListeningRef.current && recognitionRef.current) {
-              console.log("[v0] WebSpeech: auto-restarting")
               recognitionRef.current.start()
             }
           } catch (e) {
-            console.warn("[v0] WebSpeech: restart failed:", e)
+            // Restart failed, stop trying
+            shouldBeListeningRef.current = false
           }
         }, 100)
       }
@@ -89,7 +93,7 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
           shouldBeListeningRef.current = false
           break
         case "network":
-          friendlyMessage = "Speech service unavailable. This feature works when the app is deployed to production."
+          friendlyMessage = "Speech service unavailable. Please check your internet connection."
           shouldBeListeningRef.current = false
           break
         case "no-speech":
@@ -113,8 +117,6 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
     }
 
     recognition.onresult = (event: any) => {
-      consecutiveErrorsRef.current = 0
-
       let interimText = ""
       let finalText = ""
 
@@ -146,14 +148,17 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
 
   const start = useCallback(() => {
     if (!supported) {
-      setError("Web Speech not supported in this browser")
+      const msg = isChromeBrowser()
+        ? "Web Speech not supported in this browser"
+        : "Browser Speech only works in Chrome. Please use ElevenLabs or switch to Chrome."
+      setError(msg)
+      onErrorCallback?.(msg)
       return
     }
 
     shouldBeListeningRef.current = true
     setError(null)
     lastFinalTextRef.current = ""
-    consecutiveErrorsRef.current = 0
     startTimestampRef.current = Date.now()
 
     // Create fresh recognition instance each time
@@ -172,16 +177,13 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
     recognitionRef.current = recognition
 
     try {
-      console.log("[v0] WebSpeech: starting with lang:", lang)
       recognition.start()
     } catch (e) {
-      console.error("[v0] WebSpeech start failed:", e)
       setError("Failed to start voice recognition")
     }
-  }, [supported, setupRecognition, lang])
+  }, [supported, setupRecognition, onErrorCallback])
 
   const stop = useCallback(() => {
-    console.log("[v0] WebSpeech: stop called")
     shouldBeListeningRef.current = false
     if (recognitionRef.current) {
       try {
@@ -195,7 +197,6 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
   const reset = useCallback(() => {
     setError(null)
     lastFinalTextRef.current = ""
-    consecutiveErrorsRef.current = 0
   }, [])
 
   // Cleanup on unmount
