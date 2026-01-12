@@ -1,7 +1,9 @@
 import { neon } from "@neondatabase/serverless"
 
 // Create a SQL client using the DATABASE_URL environment variable
-export const sql = neon(process.env.DATABASE_URL!)
+export const sql = neon(process.env.DATABASE_URL!, {
+  disableWarningInBrowsers: true,
+})
 
 // Types for database entities
 export interface User {

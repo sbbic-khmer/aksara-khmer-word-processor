@@ -10,6 +10,8 @@
  * CRITICAL RULE: You can NEVER break after a COENG (្, U+17D2).
  */
 
+import { isDebugEnabled } from "./debug"
+
 const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
 
@@ -448,13 +450,17 @@ export class KhmerBreaker {
    */
   private splitByWJ(text: string): Array<{ text: string; isJoined: boolean }> {
     const hasWJ = text.includes(WJ)
-    console.log(`[v0] splitByWJ - input: "${text}" (length: ${text.length}, hasWJ: ${hasWJ})`)
+    if (isDebugEnabled()) {
+      console.log(`[v0] splitByWJ - input: "${text}" (length: ${text.length}, hasWJ: ${hasWJ})`)
+    }
 
     if (!hasWJ) {
       return [{ text, isJoined: false }]
     }
 
-    console.log(`[v0] splitByWJ - WJ detected, processing joined regions`)
+    if (isDebugEnabled()) {
+      console.log(`[v0] splitByWJ - WJ detected, processing joined regions`)
+    }
 
     const regions: Array<{ text: string; isJoined: boolean }> = []
     let pos = 0
@@ -467,7 +473,9 @@ export class KhmerBreaker {
         if (pos < text.length) {
           const remaining = text.substring(pos)
           if (remaining) {
-            console.log(`[v0] splitByWJ - non-joined remainder: "${remaining}"`)
+            if (isDebugEnabled()) {
+              console.log(`[v0] splitByWJ - non-joined remainder: "${remaining}"`)
+            }
             regions.push({ text: remaining, isJoined: false })
           }
         }
@@ -477,7 +485,9 @@ export class KhmerBreaker {
       // Add non-joined text before this WJ
       if (wjStart > pos) {
         const beforeText = text.substring(pos, wjStart)
-        console.log(`[v0] splitByWJ - non-joined before: "${beforeText}"`)
+        if (isDebugEnabled()) {
+          console.log(`[v0] splitByWJ - non-joined before: "${beforeText}"`)
+        }
         regions.push({ text: beforeText, isJoined: false })
       }
 
@@ -487,14 +497,18 @@ export class KhmerBreaker {
       if (wjEnd === -1) {
         // No closing WJ - treat rest as joined (backwards compatibility)
         const joinedText = text.substring(wjStart)
-        console.log(`[v0] splitByWJ - joined (no end marker): "${joinedText}"`)
+        if (isDebugEnabled()) {
+          console.log(`[v0] splitByWJ - joined (no end marker): "${joinedText}"`)
+        }
         regions.push({ text: joinedText, isJoined: true })
         break
       }
 
       // Extract the joined region (including the WJ bookends for preservation)
       const joinedText = text.substring(wjStart, wjEnd + 1)
-      console.log(`[v0] splitByWJ - joined region: "${joinedText}"`)
+      if (isDebugEnabled()) {
+        console.log(`[v0] splitByWJ - joined region: "${joinedText}"`)
+      }
       regions.push({ text: joinedText, isJoined: true })
 
       pos = wjEnd + 1
