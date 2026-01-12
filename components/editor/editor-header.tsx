@@ -169,7 +169,7 @@ export function EditorHeader({
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
                 <div className="absolute inset-[1px] rounded-[14px] border border-white/20" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-white text-2xl sm:text-[26px] font-bold leading-none translate-y-[-1.5px]">
+                  <span className="text-white text-2xl sm:text-[26px] font-bold leading-none translate-y-[-2px] translate-x-[1px]">
                     អ
                   </span>
                 </div>
