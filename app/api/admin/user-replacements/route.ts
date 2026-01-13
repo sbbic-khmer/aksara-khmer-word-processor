@@ -13,7 +13,7 @@ export async function GET() {
     const result = await sql`
       SELECT ur.*, u.email as user_email, u.name as user_name
       FROM user_replacements ur
-      JOIN users u ON ur.user_id = u.id
+      JOIN users u ON ur.user_id::text = u.id::text
       ORDER BY ur.created_at DESC
     `
     return NextResponse.json(result)
