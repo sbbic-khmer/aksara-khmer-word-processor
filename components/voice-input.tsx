@@ -49,6 +49,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
   const [vadSilenceThreshold, setVadSilenceThreshold] = useState<number>(DEFAULT_VAD_SILENCE)
   const [vadSensitivity, setVadSensitivity] = useState<number>(DEFAULT_VAD_SENSITIVITY)
   const [sttProvider, setSttProvider] = useState<SttProvider>("browser")
+  const [prefsInitialized, setPrefsInitialized] = useState(false)
 
   useEffect(() => {
     if (!prefsLoading && preferences) {
@@ -65,15 +66,18 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       } else {
         setSttProvider(canUseElevenLabs ? "elevenlabs" : "browser")
       }
+      setPrefsInitialized(true)
     }
   }, [preferences, prefsLoading, canUseElevenLabs])
 
   const handleMicChange = useCallback(
     (deviceId: string | null) => {
       setSelectedMicId(deviceId)
-      updatePreference("preferred_mic_device_id", deviceId)
+      if (prefsInitialized) {
+        updatePreference("preferred_mic_device_id", deviceId)
+      }
     },
-    [updatePreference],
+    [updatePreference, prefsInitialized],
   )
 
   const handleVadSilenceChange = useCallback(
@@ -385,6 +389,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
           onSttProviderChange={handleSttProviderChange}
           webSpeechSupported={webSpeech.supported ?? false}
           showElevenLabs={canUseElevenLabs}
+          isLoadingPreferences={prefsLoading}
         />
 
         <Tooltip>

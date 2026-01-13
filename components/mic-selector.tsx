@@ -33,6 +33,7 @@ interface MicSelectorProps {
   onSttProviderChange?: (provider: SttProvider) => void
   webSpeechSupported?: boolean
   showElevenLabs?: boolean
+  isLoadingPreferences?: boolean
 }
 
 export function MicSelector({
@@ -46,6 +47,7 @@ export function MicSelector({
   onSttProviderChange,
   webSpeechSupported = false,
   showElevenLabs = true,
+  isLoadingPreferences = false,
 }: MicSelectorProps) {
   const safeVadSilenceThreshold = vadSilenceThreshold ?? 1.0
   const safeVadSensitivity = vadSensitivity ?? 0.4
@@ -84,7 +86,7 @@ export function MicSelector({
       console.log("[v0] Audio inputs found:", audioInputs)
       setDevices(audioInputs)
 
-      if (!selectedDeviceId && audioInputs.length > 0) {
+      if (!selectedDeviceId && !isLoadingPreferences && audioInputs.length > 0) {
         const defaultDevice = audioInputs.find((d) => d.deviceId === "default") || audioInputs[0]
         console.log("[v0] Auto-selecting device:", defaultDevice)
         onDeviceChange(defaultDevice.deviceId)

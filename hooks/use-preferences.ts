@@ -9,6 +9,7 @@ export interface UserPreferences {
   preferred_mic_device_id: string | null
   show_breaks: boolean
   theme: string
+  stt_provider: string | null
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -17,6 +18,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   preferred_mic_device_id: null,
   show_breaks: true,
   theme: "light",
+  stt_provider: null,
 }
 
 const fetcher = async (url: string) => {

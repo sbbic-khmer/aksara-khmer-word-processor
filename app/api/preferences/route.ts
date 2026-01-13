@@ -38,17 +38,18 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { vad_silence_threshold, vad_threshold, preferred_mic_device_id, show_breaks, theme } = body
+    const { vad_silence_threshold, vad_threshold, preferred_mic_device_id, show_breaks, theme, stt_provider } = body
 
     const result = await sql`
-      INSERT INTO user_preferences (user_id, vad_silence_threshold, vad_threshold, preferred_mic_device_id, show_breaks, theme)
-      VALUES (${user.id}, ${vad_silence_threshold ?? 1.0}, ${vad_threshold ?? 0.4}, ${preferred_mic_device_id ?? null}, ${show_breaks ?? true}, ${theme ?? "light"})
+      INSERT INTO user_preferences (user_id, vad_silence_threshold, vad_threshold, preferred_mic_device_id, show_breaks, theme, stt_provider)
+      VALUES (${user.id}, ${vad_silence_threshold ?? 1.0}, ${vad_threshold ?? 0.4}, ${preferred_mic_device_id ?? null}, ${show_breaks ?? true}, ${theme ?? "light"}, ${stt_provider ?? "browser"})
       ON CONFLICT (user_id) DO UPDATE SET
         vad_silence_threshold = COALESCE(${vad_silence_threshold}, user_preferences.vad_silence_threshold),
         vad_threshold = COALESCE(${vad_threshold}, user_preferences.vad_threshold),
         preferred_mic_device_id = COALESCE(${preferred_mic_device_id}, user_preferences.preferred_mic_device_id),
         show_breaks = COALESCE(${show_breaks}, user_preferences.show_breaks),
-        theme = COALESCE(${theme}, user_preferences.theme)
+        theme = COALESCE(${theme}, user_preferences.theme),
+        stt_provider = COALESCE(${stt_provider}, user_preferences.stt_provider)
       RETURNING *
     `
 
