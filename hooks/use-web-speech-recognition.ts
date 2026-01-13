@@ -12,9 +12,29 @@ interface UseWebSpeechRecognitionOptions {
 function isChromeBrowser(): boolean {
   if (typeof window === "undefined") return false
   const userAgent = navigator.userAgent
-  // Chrome includes "Chrome" but Edge also includes "Chrome", so check for "Edg" to exclude Edge
-  const isChrome = /Chrome/.test(userAgent) && !/Edg/.test(userAgent)
-  return isChrome
+
+  // - Desktop Chrome: Has "Chrome" but not "Edg" (Edge)
+  // - Android Chrome: Has "Chrome" and "Android" but not "Edg"
+  // - iOS Chrome (CriOS): Does NOT support Web Speech API - iOS uses WebKit which doesn't expose it
+  // - Samsung Internet: Has "SamsungBrowser" and supports Web Speech API on Android
+
+  const isIOS = /iPhone|iPad|iPod/.test(userAgent)
+
+  // iOS browsers (including Chrome/CriOS) don't support Web Speech API - only Safari has partial support
+  if (isIOS) {
+    return false
+  }
+
+  // Desktop Chrome (excludes Edge which also has "Chrome" in UA)
+  const isDesktopChrome = /Chrome/.test(userAgent) && !/Edg/.test(userAgent) && !/Android/.test(userAgent)
+
+  // Android Chrome
+  const isAndroidChrome = /Android/.test(userAgent) && /Chrome/.test(userAgent) && !/Edg/.test(userAgent)
+
+  // Samsung Internet browser on Android also supports Web Speech API
+  const isSamsungBrowser = /SamsungBrowser/.test(userAgent)
+
+  return isDesktopChrome || isAndroidChrome || isSamsungBrowser
 }
 
 export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions) {
