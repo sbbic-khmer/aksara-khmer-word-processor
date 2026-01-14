@@ -40,7 +40,32 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params
-    const { title, content, editorState } = await request.json()
+    const { title, content, editorState, lastSavedAt, forceOverwrite } = await request.json()
+
+    // If lastSavedAt is provided and we're not forcing overwrite, check for conflicts
+    if (lastSavedAt && !forceOverwrite) {
+      const currentDoc = await sql`
+        SELECT updated_at FROM documents
+        WHERE id = ${id}::uuid AND user_id = ${user.id}::uuid
+      `
+
+      if (currentDoc.length > 0) {
+        const serverUpdatedAt = new Date(currentDoc[0].updated_at).getTime()
+        const clientLastSavedAt = new Date(lastSavedAt).getTime()
+
+        // If server version is newer (with 1 second tolerance for timing issues)
+        if (serverUpdatedAt > clientLastSavedAt + 1000) {
+          return NextResponse.json(
+            {
+              error: "Conflict detected",
+              conflict: true,
+              serverUpdatedAt: currentDoc[0].updated_at,
+            },
+            { status: 409 },
+          )
+        }
+      }
+    }
 
     const result = await sql`
       UPDATE documents

@@ -10,6 +10,7 @@ export interface UserPreferences {
   show_breaks: boolean
   theme: string
   stt_provider: string | null
+  last_opened_document_id: string | null
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -19,6 +20,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   show_breaks: true,
   theme: "light",
   stt_provider: null,
+  last_opened_document_id: null,
 }
 
 const fetcher = async (url: string) => {
