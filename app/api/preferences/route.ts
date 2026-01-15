@@ -19,7 +19,16 @@ export async function GET() {
 
     // Then always SELECT to get the current preferences
     const result = await sql`
-      SELECT * FROM user_preferences WHERE user_id = ${user.id}
+      SELECT 
+        user_id,
+        vad_silence_threshold,
+        vad_threshold,
+        preferred_mic_device_id,
+        show_breaks,
+        theme,
+        stt_provider,
+        last_opened_document_id::text as last_opened_document_id
+      FROM user_preferences WHERE user_id = ${user.id}
     `
 
     return NextResponse.json(result[0])

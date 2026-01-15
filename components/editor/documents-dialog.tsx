@@ -19,7 +19,7 @@ interface Document {
 interface DocumentsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onOpen: (doc: Document) => void
+  onOpen: (docId: string) => void
   onDelete: (id: string) => void
 }
 
@@ -97,7 +97,7 @@ export function DocumentsDialog({ open, onOpenChange, onOpen, onDelete }: Docume
                 <button
                   key={doc.id}
                   onClick={() => {
-                    onOpen(doc)
+                    onOpen(doc.id)
                     onOpenChange(false)
                   }}
                   className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left group"

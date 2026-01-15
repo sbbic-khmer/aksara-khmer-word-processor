@@ -47,8 +47,6 @@ import {
 } from "@/lib/debug"
 import { Loader2 } from "lucide-react"
 
-// const LAST_DOCUMENT_KEY = "aksara-last-document-id"
-
 interface DocumentState {
   id: string | null
   title: string
@@ -544,8 +542,10 @@ function EditorWrapper({
   }, [documentState])
 
   useEffect(() => {
+    console.log("[v0] EditorWrapper mounted - starting 10s global timeout")
     // Set a 10 second timeout to stop loading spinner if something goes wrong
     loadingTimeoutRef.current = setTimeout(() => {
+      console.log("[v0] Global timeout triggered - isLoadingDocument:", isLoadingDocument)
       if (isLoadingDocument) {
         console.log("[v0] Document loading timeout - falling back to new document")
         setIsLoadingDocument(false)
@@ -560,11 +560,32 @@ function EditorWrapper({
   }, []) // Only run once on mount
 
   useEffect(() => {
-    if (lastDocLoadedRef.current) return
+    console.log(
+      "[v0] Document load effect - lastDocLoadedRef:",
+      lastDocLoadedRef.current,
+      "isLoadingPreferences:",
+      isLoadingPreferences,
+      "lastOpenedDocumentId:",
+      lastOpenedDocumentId,
+      "type:",
+      typeof lastOpenedDocumentId,
+    )
+
+    if (lastDocLoadedRef.current) {
+      console.log("[v0] Already loaded doc, skipping")
+      return
+    }
 
     if (isLoadingPreferences) {
+      console.log("[v0] Preferences still loading - waiting (with 5s timeout)")
       // Give preferences 5 seconds to load, then proceed anyway
       const prefsTimeout = setTimeout(() => {
+        console.log(
+          "[v0] Preferences timeout check - isLoadingPreferences:",
+          isLoadingPreferences,
+          "lastDocLoadedRef:",
+          lastDocLoadedRef.current,
+        )
         if (isLoadingPreferences && !lastDocLoadedRef.current) {
           console.log("[v0] Preferences loading timeout - proceeding with new document")
           lastDocLoadedRef.current = true
@@ -574,20 +595,30 @@ function EditorWrapper({
       return () => clearTimeout(prefsTimeout)
     }
 
+    console.log("[v0] Preferences loaded, proceeding with document load")
     lastDocLoadedRef.current = true
 
-    if (lastOpenedDocumentId) {
+    const validDocId = extractValidUUID(lastOpenedDocumentId)
+    console.log("[v0] extractValidUUID result:", validDocId, "from input:", lastOpenedDocumentId)
+
+    if (validDocId) {
+      console.log("[v0] Valid doc ID found, fetching document:", validDocId)
       const controller = new AbortController()
-      const fetchTimeout = setTimeout(() => controller.abort(), 8000)
+      const fetchTimeout = setTimeout(() => {
+        console.log("[v0] Fetch timeout triggered - aborting request")
+        controller.abort()
+      }, 8000)
 
       // Load the last document from preferences
-      fetch(`/api/documents/${lastOpenedDocumentId}`, { signal: controller.signal })
+      fetch(`/api/documents/${validDocId}`, { signal: controller.signal })
         .then((res) => {
+          console.log("[v0] Fetch response:", res.status, res.ok)
           clearTimeout(fetchTimeout)
           if (res.ok) return res.json()
           throw new Error("Document not found")
         })
         .then((doc) => {
+          console.log("[v0] Document loaded successfully:", doc.id, doc.title)
           try {
             if (doc.editor_state) {
               const state = editor.parseEditorState(doc.editor_state)
@@ -607,6 +638,7 @@ function EditorWrapper({
           }
         })
         .catch((error) => {
+          console.log("[v0] Fetch error:", error.name, error.message)
           clearTimeout(fetchTimeout)
           // Document was deleted, doesn't exist, or request timed out
           if (error.name === "AbortError") {
@@ -615,12 +647,14 @@ function EditorWrapper({
           updateLastOpenedDocumentId(null)
         })
         .finally(() => {
+          console.log("[v0] Fetch finally - clearing loading state")
           if (loadingTimeoutRef.current) {
             clearTimeout(loadingTimeoutRef.current)
           }
           setIsLoadingDocument(false)
         })
     } else {
+      console.log("[v0] No valid doc ID - showing new document")
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current)
       }
@@ -1165,7 +1199,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
             await fetch(`/api/documents/${documentState.id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ title: newTitle }),
+              body: JSON.JSON.stringify({ title: newTitle }),
             })
             setDocumentState((prev) => ({ ...prev, saveStatus: "saved", hasUnsavedChanges: false }))
           } else {
@@ -1272,3 +1306,24 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     )
   },
 )
+
+function extractValidUUID(value: unknown): string | null {
+  // If it's an object, try to extract string value
+  let str: unknown = value
+  if (value && typeof value === "object") {
+    // Some database drivers return UUID as {value: "uuid-string"} or similar
+    const obj = value as Record<string, unknown>
+    if ("value" in obj) str = obj.value
+    else if ("id" in obj)
+      str = obj.id // Try common 'id' property
+    else if ("toString" in obj && typeof obj.toString === "function") {
+      const stringified = obj.toString()
+      // Only use toString if it's not the default "[object Object]"
+      if (stringified !== "[object Object]") str = stringified
+    }
+  }
+
+  if (typeof str !== "string") return null
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str) ? str : null
+}
