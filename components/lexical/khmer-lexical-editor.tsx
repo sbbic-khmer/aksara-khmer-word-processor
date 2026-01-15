@@ -532,6 +532,7 @@ function EditorWrapper({
   const initialLoadRef = useRef(false)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastDocLoadedRef = useRef(false)
   const documentStateRef = useRef(documentState)
   const skipNextContentChangeRef = useRef(false)
@@ -541,13 +542,46 @@ function EditorWrapper({
   }, [documentState])
 
   useEffect(() => {
-    if (lastDocLoadedRef.current || isLoadingPreferences) return
+    // Set a 10 second timeout to stop loading spinner if something goes wrong
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (isLoadingDocument) {
+        console.log("[v0] Document loading timeout - falling back to new document")
+        setIsLoadingDocument(false)
+      }
+    }, 10000)
+
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current)
+      }
+    }
+  }, []) // Only run once on mount
+
+  useEffect(() => {
+    if (lastDocLoadedRef.current) return
+
+    if (isLoadingPreferences) {
+      // Give preferences 5 seconds to load, then proceed anyway
+      const prefsTimeout = setTimeout(() => {
+        if (isLoadingPreferences && !lastDocLoadedRef.current) {
+          console.log("[v0] Preferences loading timeout - proceeding with new document")
+          lastDocLoadedRef.current = true
+          setIsLoadingDocument(false)
+        }
+      }, 5000)
+      return () => clearTimeout(prefsTimeout)
+    }
+
     lastDocLoadedRef.current = true
 
     if (lastOpenedDocumentId) {
+      const controller = new AbortController()
+      const fetchTimeout = setTimeout(() => controller.abort(), 8000)
+
       // Load the last document from preferences
-      fetch(`/api/documents/${lastOpenedDocumentId}`)
+      fetch(`/api/documents/${lastOpenedDocumentId}`, { signal: controller.signal })
         .then((res) => {
+          clearTimeout(fetchTimeout)
           if (res.ok) return res.json()
           throw new Error("Document not found")
         })
@@ -570,29 +604,27 @@ function EditorWrapper({
             updateLastOpenedDocumentId(null)
           }
         })
-        .catch(() => {
-          // Document was deleted or doesn't exist, clear preference
+        .catch((error) => {
+          clearTimeout(fetchTimeout)
+          // Document was deleted, doesn't exist, or request timed out
+          if (error.name === "AbortError") {
+            console.log("[v0] Document fetch timed out, starting fresh")
+          }
           updateLastOpenedDocumentId(null)
         })
         .finally(() => {
+          if (loadingTimeoutRef.current) {
+            clearTimeout(loadingTimeoutRef.current)
+          }
           setIsLoadingDocument(false)
         })
     } else {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current)
+      }
       setIsLoadingDocument(false)
     }
   }, [editor, setDocumentState, lastOpenedDocumentId, updateLastOpenedDocumentId, isLoadingPreferences])
-
-  useEffect(() => {
-    if (initialEditorState && !initialLoadRef.current) {
-      initialLoadRef.current = true
-      try {
-        const state = editor.parseEditorState(initialEditorState)
-        editor.setEditorState(state)
-      } catch (error) {
-        console.error("[v0] Error loading editor state:", error)
-      }
-    }
-  }, [editor, initialEditorState])
 
   useEffect(() => {
     return () => {
