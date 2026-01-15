@@ -274,6 +274,7 @@ function EditorContent({
   onSave,
   onSaveAs,
   onContentChange,
+  isLoadingDocument,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -295,6 +296,7 @@ function EditorContent({
   onSave: () => void
   onSaveAs: () => void
   onContentChange: () => void
+  isLoadingDocument: boolean
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
@@ -439,7 +441,14 @@ function EditorContent({
 
       <div className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
         <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative">
-          {documentState.id ? (
+          {isLoadingDocument ? (
+            <div className="flex items-start justify-center pt-32">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                <span className="text-sm text-gray-500 dark:text-gray-400">Loading document...</span>
+              </div>
+            </div>
+          ) : (
             <RichTextPlugin
               contentEditable={
                 <ContentEditable
@@ -465,13 +474,6 @@ function EditorContent({
               }
               ErrorBoundary={LexicalErrorBoundary}
             />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Loading document...</span>
-              </div>
-            </div>
           )}
         </div>
       </div>
@@ -1049,6 +1051,7 @@ function EditorWrapper({
             onSave={handleSave}
             onSaveAs={handleSaveAs}
             onContentChange={handleContentChange}
+            isLoadingDocument={isLoadingDocument}
           />
 
           <DocumentsDialog
