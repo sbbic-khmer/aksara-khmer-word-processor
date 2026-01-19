@@ -161,10 +161,17 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
     }
 
     const resegmentWithUserBreaks = (paragraph: ElementNode, text: string, cursorOffset: number | null): void => {
-      // Split on any user break character (ZWSP, ZWJ, ZWNJ) while preserving what was used
-      const segments = text.split(USER_BREAK_REGEX).filter((s) => s.length > 0)
-
-      if (segments.length <= 1) return
+      // Find positions of all user break characters - we'll preserve them in the output
+      const userBreakPositions: number[] = []
+      for (let i = 0; i < text.length; i++) {
+        if (USER_BREAK_REGEX.test(text[i])) {
+          userBreakPositions.push(i)
+        }
+      }
+      
+      if (isWordBreakerDebugEnabled()) {
+        console.log(`[v0:wb] resegmentWithUserBreaks - text length: ${text.length}, user breaks at: ${userBreakPositions.join(',')}`)
+      }
 
       let format = 0
       let style = ""
@@ -174,76 +181,100 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         style = firstTextNode.getStyle()
       }
 
-      const newNodes: LexicalNode[] = []
-
-      segments.forEach((segment, i) => {
-        const newTextNode = $createTextNode(segment)
-        newTextNode.setFormat(format)
-        newTextNode.setStyle(style)
-        processedNodesRef.current.add(newTextNode)
-        newNodes.push(newTextNode)
-
-        if (showBreaks && i < segments.length - 1) {
-          const nextSegment = segments[i + 1]
-          if (!isWhitespaceOnly(segment) && !isWhitespaceOnly(nextSegment)) {
-            newNodes.push($createKhmerBreakNode())
+      // First, get auto word breaks for the text WITHOUT user break chars
+      const textWithoutUserBreaks = text.replace(USER_BREAK_REGEX, '')
+      const autoSegments = breaker.getSegments(textWithoutUserBreaks)
+      
+      // Calculate auto break positions (cumulative character positions)
+      const autoBreakPositions: number[] = []
+      let pos = 0
+      for (let i = 0; i < autoSegments.length - 1; i++) {
+        pos += autoSegments[i].length
+        autoBreakPositions.push(pos)
+      }
+      
+      // Now we need to map auto break positions back to original text positions
+      // (accounting for user break chars that were removed)
+      const adjustedAutoBreakPositions = autoBreakPositions.map(autoPos => {
+        let adjustedPos = autoPos
+        for (const userBreakPos of userBreakPositions) {
+          // Count how many user breaks are before this auto position in original text
+          const originalPosBeforeUserBreak = userBreakPos - userBreakPositions.filter(p => p < userBreakPos).length
+          if (originalPosBeforeUserBreak < autoPos) {
+            adjustedPos++
           }
         }
+        return adjustedPos
       })
+      
+      // Combine user break positions and adjusted auto break positions, sort, and deduplicate
+      const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
+      
+      if (isWordBreakerDebugEnabled()) {
+        console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All: ${allBreakPositions.join(',')}`)
+      }
+      
+      // Now create text nodes, splitting at all break positions
+      const newNodes: LexicalNode[] = []
+      let lastPos = 0
+      
+      for (let i = 0; i <= allBreakPositions.length; i++) {
+        const endPos = i < allBreakPositions.length ? allBreakPositions[i] : text.length
+        const segment = text.slice(lastPos, endPos)
+        
+        if (segment.length > 0) {
+          const newTextNode = $createTextNode(segment)
+          newTextNode.setFormat(format)
+          newTextNode.setStyle(style)
+          processedNodesRef.current.add(newTextNode)
+          newNodes.push(newTextNode)
+          
+          // Add break node after this segment if there's more content and showBreaks is on
+          if (showBreaks && i < allBreakPositions.length) {
+            const nextEndPos = i + 1 < allBreakPositions.length ? allBreakPositions[i + 1] : text.length
+            const nextSegment = text.slice(endPos, nextEndPos)
+            
+            // Skip break if current or next segment is whitespace only
+            const skipBreak =
+              isWhitespaceOnly(segment.replace(USER_BREAK_REGEX, '')) ||
+              isWhitespaceOnly(nextSegment.replace(USER_BREAK_REGEX, '')) ||
+              containsWhitespace(segment.replace(USER_BREAK_REGEX, '').slice(-1)) ||
+              containsWhitespace(nextSegment.replace(USER_BREAK_REGEX, '').slice(0, 1))
+            
+            if (!skipBreak) {
+              newNodes.push($createKhmerBreakNode())
+            }
+          }
+        }
+        
+        lastPos = endPos
+      }
+
+      if (newNodes.length === 0) return
 
       paragraph.clear()
       newNodes.forEach((node) => paragraph.append(node))
 
-      // Restore cursor position properly - account for removed break characters
+      // Restore cursor position - characters are preserved so offset should map directly
       if (cursorOffset !== null) {
-        // Calculate position in the original text (with break chars)
-        // We need to find where that maps to in the new segments
-        let originalCharCount = 0
-        let targetNode: TextNode | null = null
-        let targetOffset = 0
-
-        // Walk through original text to find where cursor was
-        // Use the same regex we used for splitting
-        const originalParts = text.split(USER_BREAK_REGEX)
-        for (let i = 0; i < originalParts.length; i++) {
-          const part = originalParts[i]
-          const partEnd = originalCharCount + part.length + (i < originalParts.length - 1 ? 1 : 0) // +1 for break char
-
-          if (cursorOffset <= partEnd) {
-            // Cursor is in this part
-            const offsetInPart = Math.min(cursorOffset - originalCharCount, part.length)
-            // Find corresponding text node (skip empty parts that were filtered out)
-            let nodeIndex = 0
-            let partIndex = 0
-            for (const node of newNodes) {
-              if ($isTextNode(node)) {
-                // Find the part index that corresponds to this node
-                while (partIndex < originalParts.length && originalParts[partIndex].length === 0) {
-                  partIndex++
-                }
-                if (partIndex === i) {
-                  targetNode = node
-                  targetOffset = offsetInPart
-                  break
-                }
-                nodeIndex++
-                partIndex++
-              }
+        let charCount = 0
+        for (const node of newNodes) {
+          if ($isTextNode(node)) {
+            const nodeLength = node.getTextContentSize()
+            if (charCount + nodeLength >= cursorOffset) {
+              const offsetInNode = cursorOffset - charCount
+              node.select(offsetInNode, offsetInNode)
+              return
             }
-            break
+            charCount += nodeLength
           }
-          originalCharCount = partEnd
         }
-
-        if (targetNode) {
-          targetNode.select(targetOffset, targetOffset)
-        } else {
-          // Fallback: position at end
-          const lastTextNode = newNodes.filter($isTextNode).pop() as TextNode | undefined
-          if (lastTextNode) {
-            const len = lastTextNode.getTextContentSize()
-            lastTextNode.select(len, len)
-          }
+        
+        // Fallback: position at end
+        const lastTextNode = newNodes.filter($isTextNode).pop() as TextNode | undefined
+        if (lastTextNode) {
+          const len = lastTextNode.getTextContentSize()
+          lastTextNode.select(len, len)
         }
       }
     }
