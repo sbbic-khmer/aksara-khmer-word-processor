@@ -560,34 +560,14 @@ function EditorWrapper({
   }, []) // Only run once on mount
 
   useEffect(() => {
-    console.log(
-      "[v0] Document load effect - lastDocLoadedRef:",
-      lastDocLoadedRef.current,
-      "isLoadingPreferences:",
-      isLoadingPreferences,
-      "lastOpenedDocumentId:",
-      lastOpenedDocumentId,
-      "type:",
-      typeof lastOpenedDocumentId,
-    )
-
     if (lastDocLoadedRef.current) {
-      console.log("[v0] Already loaded doc, skipping")
       return
     }
 
     if (isLoadingPreferences) {
-      console.log("[v0] Preferences still loading - waiting (with 5s timeout)")
       // Give preferences 5 seconds to load, then proceed anyway
       const prefsTimeout = setTimeout(() => {
-        console.log(
-          "[v0] Preferences timeout check - isLoadingPreferences:",
-          isLoadingPreferences,
-          "lastDocLoadedRef:",
-          lastDocLoadedRef.current,
-        )
         if (isLoadingPreferences && !lastDocLoadedRef.current) {
-          console.log("[v0] Preferences loading timeout - proceeding with new document")
           lastDocLoadedRef.current = true
           setIsLoadingDocument(false)
         }
@@ -595,30 +575,24 @@ function EditorWrapper({
       return () => clearTimeout(prefsTimeout)
     }
 
-    console.log("[v0] Preferences loaded, proceeding with document load")
     lastDocLoadedRef.current = true
 
     const validDocId = extractValidUUID(lastOpenedDocumentId)
-    console.log("[v0] extractValidUUID result:", validDocId, "from input:", lastOpenedDocumentId)
 
     if (validDocId) {
-      console.log("[v0] Valid doc ID found, fetching document:", validDocId)
       const controller = new AbortController()
       const fetchTimeout = setTimeout(() => {
-        console.log("[v0] Fetch timeout triggered - aborting request")
         controller.abort()
       }, 8000)
 
       // Load the last document from preferences
       fetch(`/api/documents/${validDocId}`, { signal: controller.signal })
         .then((res) => {
-          console.log("[v0] Fetch response:", res.status, res.ok)
           clearTimeout(fetchTimeout)
           if (res.ok) return res.json()
           throw new Error("Document not found")
         })
         .then((doc) => {
-          console.log("[v0] Document loaded successfully:", doc.id, doc.title)
           try {
             if (doc.editor_state) {
               const state = editor.parseEditorState(doc.editor_state)
@@ -631,30 +605,23 @@ function EditorWrapper({
               saveStatus: "idle",
               lastSavedAt: doc.updated_at,
             })
-          } catch (error) {
-            console.error("[v0] Error parsing editor state, starting fresh:", error)
+          } catch {
             // Clear the corrupted document reference
             updateLastOpenedDocumentId(null)
           }
         })
         .catch((error) => {
-          console.log("[v0] Fetch error:", error.name, error.message)
           clearTimeout(fetchTimeout)
           // Document was deleted, doesn't exist, or request timed out
-          if (error.name === "AbortError") {
-            console.log("[v0] Document fetch timed out, starting fresh")
-          }
           updateLastOpenedDocumentId(null)
         })
         .finally(() => {
-          console.log("[v0] Fetch finally - clearing loading state")
           if (loadingTimeoutRef.current) {
             clearTimeout(loadingTimeoutRef.current)
           }
           setIsLoadingDocument(false)
         })
     } else {
-      console.log("[v0] No valid doc ID - showing new document")
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current)
       }

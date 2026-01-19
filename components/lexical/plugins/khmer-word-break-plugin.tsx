@@ -21,9 +21,16 @@ import type { KhmerBreaker } from "@/lib/khmer-breaker"
 import { isWordBreakerDebugEnabled } from "@/lib/debug"
 
 const ZWSP = "\u200B"
+const ZWJ = "\u200D"  // Zero-width joiner
+const ZWNJ = "\u200C" // Zero-width non-joiner
+
+// All zero-width characters that indicate user-defined breaks
+const USER_BREAK_CHARS = [ZWSP, ZWJ, ZWNJ]
+const USER_BREAK_REGEX = /[\u200B\u200C\u200D]/
 
 const containsWhitespace = (str: string): boolean => /\s/.test(str)
 const isWhitespaceOnly = (str: string): boolean => /^\s+$/.test(str)
+const containsUserBreaks = (str: string): boolean => USER_BREAK_REGEX.test(str)
 
 interface KhmerWordBreakPluginProps {
   breaker: KhmerBreaker
@@ -100,11 +107,12 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
 
         if (!text || text.length === 0) return
 
-        if (text.includes(ZWSP)) {
+        // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
+        if (containsUserBreaks(text)) {
           if (isWordBreakerDebugEnabled()) {
-            console.log(`[v0:wb] Text contains ZWSP, using resegmentWithExistingZWSP`)
+            console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
           }
-          resegmentWithExistingZWSP(paragraph, text, cursorOffset)
+          resegmentWithUserBreaks(paragraph, text, cursorOffset)
           return
         }
 
@@ -152,8 +160,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       }
     }
 
-    const resegmentWithExistingZWSP = (paragraph: ElementNode, text: string, cursorOffset: number | null): void => {
-      const segments = text.split(ZWSP).filter((s) => s.length > 0)
+    const resegmentWithUserBreaks = (paragraph: ElementNode, text: string, cursorOffset: number | null): void => {
+      // Split on any user break character (ZWSP, ZWJ, ZWNJ) while preserving what was used
+      const segments = text.split(USER_BREAK_REGEX).filter((s) => s.length > 0)
 
       if (segments.length <= 1) return
 
@@ -185,11 +194,56 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       paragraph.clear()
       newNodes.forEach((node) => paragraph.append(node))
 
+      // Restore cursor position properly - account for removed break characters
       if (cursorOffset !== null) {
-        const lastTextNode = newNodes.filter($isTextNode).pop() as TextNode | undefined
-        if (lastTextNode) {
-          const len = lastTextNode.getTextContentSize()
-          lastTextNode.select(len, len)
+        // Calculate position in the original text (with break chars)
+        // We need to find where that maps to in the new segments
+        let originalCharCount = 0
+        let targetNode: TextNode | null = null
+        let targetOffset = 0
+
+        // Walk through original text to find where cursor was
+        // Use the same regex we used for splitting
+        const originalParts = text.split(USER_BREAK_REGEX)
+        for (let i = 0; i < originalParts.length; i++) {
+          const part = originalParts[i]
+          const partEnd = originalCharCount + part.length + (i < originalParts.length - 1 ? 1 : 0) // +1 for break char
+
+          if (cursorOffset <= partEnd) {
+            // Cursor is in this part
+            const offsetInPart = Math.min(cursorOffset - originalCharCount, part.length)
+            // Find corresponding text node (skip empty parts that were filtered out)
+            let nodeIndex = 0
+            let partIndex = 0
+            for (const node of newNodes) {
+              if ($isTextNode(node)) {
+                // Find the part index that corresponds to this node
+                while (partIndex < originalParts.length && originalParts[partIndex].length === 0) {
+                  partIndex++
+                }
+                if (partIndex === i) {
+                  targetNode = node
+                  targetOffset = offsetInPart
+                  break
+                }
+                nodeIndex++
+                partIndex++
+              }
+            }
+            break
+          }
+          originalCharCount = partEnd
+        }
+
+        if (targetNode) {
+          targetNode.select(targetOffset, targetOffset)
+        } else {
+          // Fallback: position at end
+          const lastTextNode = newNodes.filter($isTextNode).pop() as TextNode | undefined
+          if (lastTextNode) {
+            const len = lastTextNode.getTextContentSize()
+            lastTextNode.select(len, len)
+          }
         }
       }
     }
@@ -206,13 +260,40 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         return
       }
 
+      // Get current text content
+      const textContent = textNode.getTextContent()
+      
+      // Skip if the text node is just whitespace - don't re-segment for space typing
+      if (isWhitespaceOnly(textContent)) {
+        processedNodesRef.current.add(textNode)
+        return
+      }
+      
+      // Check if paragraph already has proper segmentation with break nodes
+      const children = parent.getChildren()
+      const hasBreakNodes = children.some($isKhmerBreakNode)
+      
+      // If paragraph has break nodes and text doesn't contain ZWSP that needs processing,
+      // we may not need to re-segment on every keystroke
+      const { text } = collectParagraphText(parent)
+      
+      // If the text only contains characters that don't need Khmer word breaking, skip
+      const hasKhmerChars = [...text].some(c => {
+        const code = c.charCodeAt(0)
+        return code >= 0x1780 && code <= 0x17FF
+      })
+      
+      if (!hasKhmerChars && !containsUserBreaks(text)) {
+        processedNodesRef.current.add(textNode)
+        return
+      }
+
       let cursorOffset: number | null = null
       const selection = $getSelection()
       if ($isRangeSelection(selection)) {
         const anchorNode = selection.anchor.getNode()
         if ($isTextNode(anchorNode)) {
           let offset = 0
-          const children = parent.getChildren()
           for (const child of children) {
             if (child === anchorNode) {
               cursorOffset = offset + selection.anchor.offset
