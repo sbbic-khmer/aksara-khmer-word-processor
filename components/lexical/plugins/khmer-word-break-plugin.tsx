@@ -44,20 +44,52 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const processedParagraphKeysRef = useRef(new Set<string>())
 
   useEffect(() => {
-    const collectParagraphText = (paragraph: ElementNode): { text: string; hasBreakNodes: boolean } => {
+    // Store format info for each character position
+    interface FormatRange {
+      start: number
+      end: number
+      format: number
+      style: string
+    }
+
+    const collectParagraphText = (paragraph: ElementNode): { text: string; hasBreakNodes: boolean; formatRanges: FormatRange[] } => {
       let text = ""
       let hasBreakNodes = false
+      const formatRanges: FormatRange[] = []
       const children = paragraph.getChildren()
 
       for (const child of children) {
         if ($isTextNode(child)) {
-          text += child.getTextContent()
+          const content = child.getTextContent()
+          const start = text.length
+          text += content
+          formatRanges.push({
+            start,
+            end: text.length,
+            format: child.getFormat(),
+            style: child.getStyle(),
+          })
         } else if ($isKhmerBreakNode(child)) {
           hasBreakNodes = true
         }
       }
 
-      return { text, hasBreakNodes }
+      return { text, hasBreakNodes, formatRanges }
+    }
+
+    // Get format and style for a given character position
+    const getFormatAtPosition = (formatRanges: FormatRange[], position: number): { format: number; style: string } => {
+      for (const range of formatRanges) {
+        if (position >= range.start && position < range.end) {
+          return { format: range.format, style: range.style }
+        }
+      }
+      // Fallback to last format range if position is at the end
+      if (formatRanges.length > 0) {
+        const lastRange = formatRanges[formatRanges.length - 1]
+        return { format: lastRange.format, style: lastRange.style }
+      }
+      return { format: 0, style: "" }
     }
 
     const createSegmentedNodes = (text: string, format: number, style: string): LexicalNode[] => {
@@ -103,7 +135,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       processedParagraphKeysRef.current.add(paragraphKey)
 
       try {
-        const { text, hasBreakNodes } = collectParagraphText(paragraph)
+        const { text, hasBreakNodes, formatRanges } = collectParagraphText(paragraph)
 
         if (!text || text.length === 0) return
 
@@ -112,7 +144,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           if (isWordBreakerDebugEnabled()) {
             console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
           }
-          resegmentWithUserBreaks(paragraph, text, cursorOffset)
+          resegmentWithUserBreaks(paragraph, text, cursorOffset, formatRanges)
           return
         }
 
@@ -125,15 +157,36 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           return
         }
 
-        let format = 0
-        let style = ""
-        const firstTextNode = paragraph.getChildren().find($isTextNode)
-        if (firstTextNode) {
-          format = firstTextNode.getFormat()
-          style = firstTextNode.getStyle()
-        }
+        // Create nodes with proper formatting for each segment
+        const newNodes: LexicalNode[] = []
+        let charPos = 0
+        
+        segments.forEach((segment, i) => {
+          // Get format at the start of this segment
+          const { format, style } = getFormatAtPosition(formatRanges, charPos)
+          
+          const newTextNode = $createTextNode(segment)
+          newTextNode.setFormat(format)
+          newTextNode.setStyle(style)
+          processedNodesRef.current.add(newTextNode)
+          newNodes.push(newTextNode)
+          
+          charPos += segment.length
 
-        const newNodes = createSegmentedNodes(text, format, style)
+          if (showBreaks && i < segments.length - 1) {
+            const nextSegment = segments[i + 1]
+
+            const skipBreak =
+              isWhitespaceOnly(segment) ||
+              isWhitespaceOnly(nextSegment) ||
+              containsWhitespace(segment.slice(-1)) ||
+              containsWhitespace(nextSegment.slice(0, 1))
+
+            if (!skipBreak) {
+              newNodes.push($createKhmerBreakNode())
+            }
+          }
+        })
 
         paragraph.clear()
         newNodes.forEach((node) => paragraph.append(node))
@@ -160,7 +213,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       }
     }
 
-    const resegmentWithUserBreaks = (paragraph: ElementNode, text: string, cursorOffset: number | null): void => {
+    const resegmentWithUserBreaks = (paragraph: ElementNode, text: string, cursorOffset: number | null, formatRanges: FormatRange[]): void => {
       // Find positions of all user break characters - we'll preserve them in the output
       const userBreakPositions: number[] = []
       for (let i = 0; i < text.length; i++) {
@@ -171,14 +224,6 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       
       if (isWordBreakerDebugEnabled()) {
         console.log(`[v0:wb] resegmentWithUserBreaks - text length: ${text.length}, user breaks at: ${userBreakPositions.join(',')}`)
-      }
-
-      let format = 0
-      let style = ""
-      const firstTextNode = paragraph.getChildren().find($isTextNode)
-      if (firstTextNode) {
-        format = firstTextNode.getFormat()
-        style = firstTextNode.getStyle()
       }
 
       // First, get auto word breaks for the text WITHOUT user break chars
@@ -223,6 +268,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         const segment = text.slice(lastPos, endPos)
         
         if (segment.length > 0) {
+          // Get format at the start of this segment
+          const { format, style } = getFormatAtPosition(formatRanges, lastPos)
+          
           const newTextNode = $createTextNode(segment)
           newTextNode.setFormat(format)
           newTextNode.setStyle(style)

@@ -16,8 +16,12 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 export function useReplacements() {
   const { data, error, isLoading, mutate } = useSWR<ReplacementsData>("/api/replacements", fetcher, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
+    // Revalidate on focus so that when user adds replacements in settings and comes back,
+    // the editor will pick up the new replacements
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+    // Keep the data fresh but don't refetch too often
+    dedupingInterval: 5000,
   })
 
   // Apply replacements to text

@@ -151,15 +151,26 @@ export function useWebSpeechRecognition(options?: UseWebSpeechRecognitionOptions
         }
       }
 
-      // Handle interim (partial) transcript
-      if (interimText.trim()) {
-        onPartialTranscript?.(interimText.trim())
+      // Handle final (committed) transcript FIRST
+      // This ensures we commit before clearing interim state
+      if (finalText.trim()) {
+        // Prevent duplicate commits of the same text
+        if (finalText.trim() !== lastFinalTextRef.current) {
+          lastFinalTextRef.current = finalText.trim()
+          // Clear partial transcript since this text is now committed
+          onPartialTranscript?.("")
+          onCommittedTranscript?.(finalText.trim())
+        }
+        return // Don't process interim if we just committed final
       }
 
-      // Handle final (committed) transcript
-      if (finalText.trim()) {
-        onCommittedTranscript?.(finalText.trim())
-        lastFinalTextRef.current = finalText.trim()
+      // Handle interim (partial) transcript only if no final text
+      if (interimText.trim()) {
+        // Don't show interim if it matches what was just committed
+        // (Chrome sometimes sends interim after final with same text)
+        if (interimText.trim() !== lastFinalTextRef.current) {
+          onPartialTranscript?.(interimText.trim())
+        }
       }
     }
 

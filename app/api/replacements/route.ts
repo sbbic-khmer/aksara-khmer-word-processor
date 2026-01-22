@@ -26,12 +26,15 @@ export async function GET() {
     `
 
     // Combine into a lookup map (user replacements override master)
+    // Order: master first, then user - so user's values override master's
     const replacementMap: Record<string, { correct_word: string; source: string }> = {}
 
+    // Add master replacements first
     for (const r of masterReplacements) {
       replacementMap[r.incorrect_word] = { correct_word: r.correct_word, source: "master" }
     }
 
+    // Add user replacements second - they will override master if same key exists
     for (const r of userReplacements) {
       replacementMap[r.incorrect_word] = { correct_word: r.correct_word, source: "user" }
     }
