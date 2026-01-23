@@ -108,10 +108,16 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     (text: string): string => {
       if (!text.trim()) return text
 
+      console.log("[v0] processTranscript input:", text)
       let processed = applyVoiceTextRules(text)
+      console.log("[v0] after applyVoiceTextRules:", processed)
 
       if (applyReplacements) {
+        console.log("[v0] calling applyReplacements...")
         processed = applyReplacements(processed)
+        console.log("[v0] after applyReplacements:", processed)
+      } else {
+        console.log("[v0] applyReplacements is not defined!")
       }
 
       return processed

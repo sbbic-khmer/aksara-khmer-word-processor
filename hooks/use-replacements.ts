@@ -27,7 +27,15 @@ export function useReplacements() {
   // Apply replacements to text
   const applyReplacements = useCallback(
     (text: string): string => {
+      console.log("[v0] applyReplacements called with:", { 
+        text, 
+        hasData: !!data?.combined,
+        replacementCount: data?.combined ? Object.keys(data.combined).length : 0,
+        replacementKeys: data?.combined ? Object.keys(data.combined).slice(0, 5) : []
+      })
+      
       if (!data?.combined || Object.keys(data.combined).length === 0) {
+        console.log("[v0] No replacements available")
         return text
       }
 
@@ -41,7 +49,15 @@ export function useReplacements() {
         // Use word boundary-aware replacement for Khmer
         // Since Khmer doesn't use spaces between words, we do simple replacement
         const regex = new RegExp(escapeRegex(incorrect), "g")
+        const before = result
         result = result.replace(regex, correct_word)
+        if (before !== result) {
+          console.log(`[v0] Replaced "${incorrect}" → "${correct_word}"`)
+        }
+      }
+
+      if (text !== result) {
+        console.log("[v0] applyReplacements result:", { input: text, output: result })
       }
 
       return result
