@@ -46,9 +46,20 @@ export function useReplacements() {
 
       for (const incorrect of sortedIncorrect) {
         const { correct_word } = data.combined[incorrect]
-        // Use word boundary-aware replacement for Khmer
-        // Since Khmer doesn't use spaces between words, we do simple replacement
-        const regex = new RegExp(escapeRegex(incorrect), "g")
+        
+        // Build a smart regex that avoids double-replacement
+        // If correct_word extends incorrect (e.g., ព្រះយេស៊ូ → ព្រះយេស៊ូវ),
+        // use negative lookahead to skip if the suffix is already there
+        let pattern = escapeRegex(incorrect)
+        
+        if (correct_word.startsWith(incorrect) && correct_word.length > incorrect.length) {
+          // The correct word is the incorrect word + a suffix
+          // Use negative lookahead to not match if suffix already present
+          const suffix = correct_word.slice(incorrect.length)
+          pattern = escapeRegex(incorrect) + `(?!${escapeRegex(suffix)})`
+        }
+        
+        const regex = new RegExp(pattern, "g")
         const before = result
         result = result.replace(regex, correct_word)
         if (before !== result) {
