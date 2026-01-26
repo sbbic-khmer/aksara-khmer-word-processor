@@ -236,34 +236,34 @@ export function KhmerSpellCheckPlugin() {
                 return;
             }
 
-            // Clean the word (remove invisible characters, punctuation, etc.)
-            const cleanWord = cleanKhmerWord(text);
-            if (!cleanWord) {
-                span.classList.remove(MISSPELLED_CLASS);
-                return;
-            }
-
             let isMisspelled = false;
 
-            // For Khmer text, we may have multiple words separated by spaces or ZWSP
-            // Split by spaces or zero-width characters (ZWSP, ZWJ, ZWNJ) and check each word
-            if (containsKhmer(cleanWord)) {
-                const words = cleanWord.split(/[\s\u200B\u200C\u200D]+/).filter(w => w.length > 0);
+            // For Khmer text, split by ZWSP/spaces FIRST (before cleaning), then check each word
+            if (containsKhmer(text)) {
+                // Split by spaces or zero-width characters (ZWSP, ZWJ, ZWNJ) BEFORE cleaning
+                const words = text.split(/[\s\u200B\u200C\u200D]+/).filter(w => w.length > 0);
                 for (const word of words) {
+                    // Now clean each individual word segment
                     const cleanedWord = cleanKhmerWord(word);
                     if (cleanedWord && !typo.check(cleanedWord)) {
                         isMisspelled = true;
+                        if (debugMode) {
+                            console.log('[SpellCheck] Misspelled Khmer word:', cleanedWord, 'from segment:', word);
+                        }
                         break;
                     }
                 }
             } else {
-                // For non-Khmer, check individual words
-                const words = cleanWord.match(/\b[\w]+\b/g);
-                if (words) {
-                    for (const word of words) {
-                        if (!typo.check(word)) {
-                            isMisspelled = true;
-                            break;
+                // For non-Khmer, clean first then check individual words
+                const cleanWord = cleanKhmerWord(text);
+                if (cleanWord) {
+                    const words = cleanWord.match(/\b[\w]+\b/g);
+                    if (words) {
+                        for (const word of words) {
+                            if (!typo.check(word)) {
+                                isMisspelled = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -271,9 +271,6 @@ export function KhmerSpellCheckPlugin() {
 
             if (isMisspelled) {
                 span.classList.add(MISSPELLED_CLASS);
-                if (debugMode) {
-                    console.log('[SpellCheck] Misspelled word:', cleanWord);
-                }
             } else {
                 span.classList.remove(MISSPELLED_CLASS);
             }
