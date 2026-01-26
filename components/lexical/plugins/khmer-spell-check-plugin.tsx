@@ -239,32 +239,23 @@ export function KhmerSpellCheckPlugin() {
 
             let isMisspelled = false;
 
-            // For Khmer text, split by spaces and ZWSP (explicit word boundaries only)
-            // We do NOT use KhmerBreaker here for visual marking because:
-            // - When text is in a single span, we can only mark the entire span
-            // - Using auto-detection would mark the whole span if ANY sub-word is misspelled
-            // - Instead, we only check explicitly-segmented words (by space or ZWSP)
+            // For Khmer text, we can only visually mark the ENTIRE span as misspelled.
+            // This only makes sense when the span contains a SINGLE word.
+            // When a span contains multiple words (has spaces or ZWSP), we should NOT
+            // mark it visually - the user needs to use auto-word-break for visual spell check.
             if (containsKhmer(text)) {
-                // Split by spaces OR zero-width characters (ZWSP, ZWJ, ZWNJ)
-                // This respects user's manual word breaks
-                const hasZWSP = /[\u200B\u200C\u200D]/.test(text);
-                const segments = text.split(/[\s\u200B\u200C\u200D]+/).filter(s => s.length > 0);
-                console.log('[v0] SpellCheck span:', text.length, 'chars, hasZWSP:', hasZWSP, 'segments:', segments.length);
+                // Check if span contains multiple words (spaces or ZWSP)
+                const hasMultipleWords = /[\s\u200B\u200C\u200D]/.test(text);
                 
-                for (const segment of segments) {
-                    // Clean the segment
-                    const cleanedWord = cleanKhmerWord(segment);
-                    if (!cleanedWord) continue;
-                    
-                    // Only check segments that look like single words (reasonable length)
-                    // Long unsegmented text should not be marked - user needs to segment it first
-                    // A typical Khmer word is 2-15 characters
-                    const inDict = typo.check(cleanedWord);
-                    console.log('[v0] SpellCheck segment:', cleanedWord, 'len:', cleanedWord.length, 'inDict:', inDict);
-                    if (cleanedWord.length <= 20 && !inDict) {
-                        isMisspelled = true;
-                        console.log('[v0] SpellCheck MISSPELLED:', cleanedWord);
-                        break;
+                if (hasMultipleWords) {
+                    // Multi-word span: do NOT mark visually
+                    // Right-click will still work via detectWordAtCursor + KhmerBreaker
+                    isMisspelled = false;
+                } else {
+                    // Single word span: check if it's misspelled
+                    const cleanedWord = cleanKhmerWord(text);
+                    if (cleanedWord && cleanedWord.length <= 20) {
+                        isMisspelled = !typo.check(cleanedWord);
                     }
                 }
             } else {
