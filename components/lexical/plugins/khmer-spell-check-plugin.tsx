@@ -365,18 +365,12 @@ export function KhmerSpellCheckPlugin() {
             }
             
             if (!isCorrect) {
-                const suggestStart = debugMode ? performance.now() : 0;
-                const suggs = typo.suggest(cleanWord) || [];
-                if (debugMode) {
-                    console.log('[SpellCheck] typo.suggest() took', (performance.now() - suggestStart).toFixed(2), 'ms, found', suggs.length, 'suggestions');
-                }
+                // Set the selected word immediately so context menu can show
                 setSelectedWord(cleanWord);
-                setSuggestions(suggs.slice(0, 5)); // Limit to 5 suggestions
-
-                // set replace handler
+                
+                // Set up replace handler immediately
+                const nodeKey = node.getKey();
                 setReplaceHandler(() => {
-                    const nodeKey = node.getKey();
-
                     return (oldWord: string, newWord: string) => {
                         try {
                             editor.update(() => {
@@ -401,6 +395,42 @@ export function KhmerSpellCheckPlugin() {
                         }
                     };
                 });
+
+                // For complex Khmer words (many characters/subscripts), skip suggestions
+                // as typo.suggest() can take 10+ seconds for complex words
+                const MAX_KHMER_WORD_LENGTH_FOR_SUGGESTIONS = 10;
+                if (containsKhmer(cleanWord) && cleanWord.length > MAX_KHMER_WORD_LENGTH_FOR_SUGGESTIONS) {
+                    if (debugMode) {
+                        console.log('[SpellCheck] Skipping suggestions for complex word (length:', cleanWord.length, ')');
+                    }
+                    setSuggestions([]); // No suggestions for complex words
+                } else {
+                    // Run typo.suggest() asynchronously to prevent UI freeze
+                    setSuggestions([]); // Clear while loading
+                    
+                    const suggestStart = performance.now();
+                    
+                    // Use setTimeout to make it async and allow UI to update first
+                    setTimeout(() => {
+                        try {
+                            const suggs = typo.suggest(cleanWord) || [];
+                            const elapsed = performance.now() - suggestStart;
+                            
+                            if (debugMode) {
+                                console.log('[SpellCheck] typo.suggest() took', elapsed.toFixed(2), 'ms, found', suggs.length, 'suggestions');
+                            }
+                            
+                            // Only update if we're still looking at the same word
+                            if (lastWordRef.current === cleanWord) {
+                                setSuggestions(suggs.slice(0, 5)); // Limit to 5 suggestions
+                            }
+                        } catch (err) {
+                            if (debugMode) {
+                                console.log('[SpellCheck] typo.suggest() error:', err);
+                            }
+                        }
+                    }, 0);
+                }
             } else {
                 // word is correct -> clear suggestions
                 if (debugMode) {
