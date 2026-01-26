@@ -99,24 +99,30 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       const newNodes: LexicalNode[] = []
 
       segments.forEach((segment, i) => {
-        const newTextNode = $createTextNode(segment)
+        const isLastSegment = i === segments.length - 1
+        const nextSegment = !isLastSegment ? segments[i + 1] : null
+        
+        const skipBreak = !isLastSegment && (
+          isWhitespaceOnly(segment) ||
+          (nextSegment && isWhitespaceOnly(nextSegment)) ||
+          containsWhitespace(segment.slice(-1)) ||
+          (nextSegment && containsWhitespace(nextSegment.slice(0, 1)))
+        )
+        
+        // Add ZWSP to segment text when showBreaks is false (invisible word boundary)
+        const segmentText = (!showBreaks && !isLastSegment && !skipBreak)
+          ? segment + '\u200B'  // ZWSP appended
+          : segment
+        
+        const newTextNode = $createTextNode(segmentText)
         newTextNode.setFormat(format)
         newTextNode.setStyle(style)
         processedNodesRef.current.add(newTextNode)
         newNodes.push(newTextNode)
 
-        if (showBreaks && i < segments.length - 1) {
-          const nextSegment = segments[i + 1]
-
-          const skipBreak =
-            isWhitespaceOnly(segment) ||
-            isWhitespaceOnly(nextSegment) ||
-            containsWhitespace(segment.slice(-1)) ||
-            containsWhitespace(nextSegment.slice(0, 1))
-
-          if (!skipBreak) {
-            newNodes.push($createKhmerBreakNode())
-          }
+        // When showBreaks is true, insert visible KhmerBreakNode markers
+        if (showBreaks && !isLastSegment && !skipBreak) {
+          newNodes.push($createKhmerBreakNode())
         }
       })
 
@@ -165,7 +171,25 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           // Get format at the start of this segment
           const { format, style } = getFormatAtPosition(formatRanges, charPos)
           
-          const newTextNode = $createTextNode(segment)
+          // When showBreaks is false, append ZWSP to each segment (except last) to prevent
+          // Lexical from merging adjacent TextNodes and to maintain word boundaries for
+          // spell checking and copy/paste
+          const isLastSegment = i === segments.length - 1
+          const nextSegment = !isLastSegment ? segments[i + 1] : null
+          
+          const skipBreak = !isLastSegment && (
+            isWhitespaceOnly(segment) ||
+            (nextSegment && isWhitespaceOnly(nextSegment)) ||
+            containsWhitespace(segment.slice(-1)) ||
+            (nextSegment && containsWhitespace(nextSegment.slice(0, 1)))
+          )
+          
+          // Add ZWSP to segment text when showBreaks is false (invisible word boundary)
+          const segmentText = (!showBreaks && !isLastSegment && !skipBreak) 
+            ? segment + '\u200B'  // ZWSP appended
+            : segment
+          
+          const newTextNode = $createTextNode(segmentText)
           newTextNode.setFormat(format)
           newTextNode.setStyle(style)
           processedNodesRef.current.add(newTextNode)
@@ -173,18 +197,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           
           charPos += segment.length
 
-          if (showBreaks && i < segments.length - 1) {
-            const nextSegment = segments[i + 1]
-
-            const skipBreak =
-              isWhitespaceOnly(segment) ||
-              isWhitespaceOnly(nextSegment) ||
-              containsWhitespace(segment.slice(-1)) ||
-              containsWhitespace(nextSegment.slice(0, 1))
-
-            if (!skipBreak) {
-              newNodes.push($createKhmerBreakNode())
-            }
+          // When showBreaks is true, insert visible KhmerBreakNode markers
+          if (showBreaks && !isLastSegment && !skipBreak) {
+            newNodes.push($createKhmerBreakNode())
           }
         })
 
