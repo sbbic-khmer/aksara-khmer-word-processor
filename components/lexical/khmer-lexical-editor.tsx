@@ -13,7 +13,8 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useTheme } from "next-themes"
-import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection, CLICK_COMMAND, COMMAND_PRIORITY_LOW, SELECTION_CHANGE_COMMAND } from "lexical"
+import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection, $createRangeSelection, $setSelection, CLICK_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, SELECTION_CHANGE_COMMAND } from "lexical"
+import { $getNearestNodeFromDOMNode } from "@lexical/utils"
 
 import { KhmerBreakNode } from "./nodes/khmer-break-node"
 import { KhmerWordBreakPlugin } from "./plugins/khmer-word-break-plugin"
@@ -402,6 +403,181 @@ function EditorContent({
     debugLog("Cursor Debug mode", newValue ? "enabled" : "disabled")
   }, [cursorDebugMode, setCursorDebugMode])
 
+  // Fix for clicks on paragraph elements (between words/on KhmerBreakNodes)
+  // This intercepts clicks BEFORE the browser sets selection, preventing the visual flash
+  useEffect(() => {
+    const editorElement = editor.getRootElement()
+    if (!editorElement) return
+
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      
+      // Only intervene when click lands on paragraph element (not on a span/text)
+      if (target.tagName !== 'P') {
+        return // Let normal handling proceed
+      }
+
+      // Use browser's caret position calculation
+      if (!document.caretRangeFromPoint) {
+        return
+      }
+
+      const range = document.caretRangeFromPoint(event.clientX, event.clientY)
+      if (!range) {
+        return
+      }
+
+      const container = range.startContainer
+      
+      // If we landed on a text node, the browser should handle it fine
+      if (container.nodeType === Node.TEXT_NODE) {
+        return
+      }
+
+      // We landed on an element node (likely empty KhmerBreakNode span)
+      // Find the closest text node and position cursor there
+      const containerElement = container as Element
+      
+      if (isCursorDebugEnabled()) {
+        cursorDebugLog("CLICK_FIX - Intervening for paragraph click (mousedown capture)", {
+          containerNodeName: containerElement.nodeName,
+          containerClass: containerElement.className,
+          rangeOffset: range.startOffset,
+        })
+      }
+
+      // Get all child nodes of the paragraph
+      const paragraphElement = target
+      const childNodes = Array.from(paragraphElement.childNodes)
+      
+      // Find the clicked element's position among siblings
+      let clickedIndex = -1
+      for (let i = 0; i < childNodes.length; i++) {
+        if (childNodes[i] === container || childNodes[i].contains(container as Node)) {
+          clickedIndex = i
+          break
+        }
+      }
+
+      // Find the nearest text node (prefer the one before, then after)
+      let targetTextNode: Text | null = null
+      let positionAtEnd = true
+
+      // Look backwards for a text node
+      for (let i = clickedIndex - 1; i >= 0; i--) {
+        const node = childNodes[i]
+        if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+          targetTextNode = node as Text
+          positionAtEnd = true
+          break
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          // Look inside the element for text
+          const textNode = findLastTextNode(node as Element)
+          if (textNode) {
+            targetTextNode = textNode
+            positionAtEnd = true
+            break
+          }
+        }
+      }
+
+      // If nothing found before, look forward
+      if (!targetTextNode) {
+        for (let i = clickedIndex + 1; i < childNodes.length; i++) {
+          const node = childNodes[i]
+          if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+            targetTextNode = node as Text
+            positionAtEnd = false
+            break
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const textNode = findFirstTextNode(node as Element)
+            if (textNode) {
+              targetTextNode = textNode
+              positionAtEnd = false
+              break
+            }
+          }
+        }
+      }
+
+      if (targetTextNode) {
+        // Prevent default to stop browser from setting incorrect selection
+        event.preventDefault()
+        
+        const offset = positionAtEnd ? targetTextNode.length : 0
+
+        if (isCursorDebugEnabled()) {
+          cursorDebugLog("CLICK_FIX - Setting selection", {
+            targetText: targetTextNode.textContent?.slice(0, 20),
+            offset,
+            positionAtEnd,
+          })
+        }
+
+        // Set Lexical selection directly using editor.update()
+        editor.update(() => {
+          const lexicalNode = $getNearestNodeFromDOMNode(targetTextNode)
+          
+          if (isCursorDebugEnabled()) {
+            cursorDebugLog("CLICK_FIX - Found Lexical node", {
+              lexicalNodeType: lexicalNode?.getType(),
+              isTextNode: lexicalNode ? $isTextNode(lexicalNode) : false,
+            })
+          }
+          
+          if (lexicalNode && $isTextNode(lexicalNode)) {
+            // Create and set the selection directly in Lexical
+            const selection = $createRangeSelection()
+            selection.anchor.set(lexicalNode.getKey(), offset, 'text')
+            selection.focus.set(lexicalNode.getKey(), offset, 'text')
+            $setSelection(selection)
+            
+            if (isCursorDebugEnabled()) {
+              cursorDebugLog("CLICK_FIX - Lexical selection set", {
+                nodeKey: lexicalNode.getKey(),
+                offset,
+              })
+            }
+          }
+        })
+
+        // Focus the editor after setting selection
+        editor.focus()
+      }
+    }
+
+    // Use capture phase to intercept BEFORE browser processes the click
+    editorElement.addEventListener("mousedown", handleMouseDown, { capture: true })
+
+    return () => {
+      editorElement.removeEventListener("mousedown", handleMouseDown, { capture: true })
+    }
+  }, [editor])
+
+  // Helper functions for finding text nodes
+  function findLastTextNode(element: Element): Text | null {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let lastText: Text | null = null
+    let node: Text | null
+    while ((node = walker.nextNode() as Text | null)) {
+      if (node.textContent?.trim()) {
+        lastText = node
+      }
+    }
+    return lastText
+  }
+
+  function findFirstTextNode(element: Element): Text | null {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let node: Text | null
+    while ((node = walker.nextNode() as Text | null)) {
+      if (node.textContent?.trim()) {
+        return node
+      }
+    }
+    return null
+  }
+
   // Cursor debug: track clicks and selection changes
   useEffect(() => {
     if (!cursorDebugMode) return
@@ -559,10 +735,6 @@ function EditorContent({
         }
       })
     }
-
-    editorElement.addEventListener("mousedown", handleMouseDown)
-    editorElement.addEventListener("mouseup", handleMouseUp)
-    document.addEventListener("selectionchange", handleSelectionChange)
 
     // Register Lexical command listeners to see internal processing
     const unregisterClick = editor.registerCommand(
