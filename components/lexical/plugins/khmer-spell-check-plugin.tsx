@@ -247,7 +247,9 @@ export function KhmerSpellCheckPlugin() {
             if (containsKhmer(text)) {
                 // Split by spaces OR zero-width characters (ZWSP, ZWJ, ZWNJ)
                 // This respects user's manual word breaks
+                const hasZWSP = /[\u200B\u200C\u200D]/.test(text);
                 const segments = text.split(/[\s\u200B\u200C\u200D]+/).filter(s => s.length > 0);
+                console.log('[v0] SpellCheck span:', text.length, 'chars, hasZWSP:', hasZWSP, 'segments:', segments.length);
                 
                 for (const segment of segments) {
                     // Clean the segment
@@ -257,8 +259,11 @@ export function KhmerSpellCheckPlugin() {
                     // Only check segments that look like single words (reasonable length)
                     // Long unsegmented text should not be marked - user needs to segment it first
                     // A typical Khmer word is 2-15 characters
-                    if (cleanedWord.length <= 20 && !typo.check(cleanedWord)) {
+                    const inDict = typo.check(cleanedWord);
+                    console.log('[v0] SpellCheck segment:', cleanedWord, 'len:', cleanedWord.length, 'inDict:', inDict);
+                    if (cleanedWord.length <= 20 && !inDict) {
                         isMisspelled = true;
+                        console.log('[v0] SpellCheck MISSPELLED:', cleanedWord);
                         break;
                     }
                 }
