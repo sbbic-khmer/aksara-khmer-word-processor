@@ -279,7 +279,13 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       let lastPos = 0
       
       for (let i = 0; i <= allBreakPositions.length; i++) {
-        const endPos = i < allBreakPositions.length ? allBreakPositions[i] : text.length
+        const breakPos = i < allBreakPositions.length ? allBreakPositions[i] : text.length
+        const isUserBreak = i < allBreakPositions.length && userBreakPositions.includes(breakPos)
+        
+        // When showBreaks is false, include the ZWSP character in the segment
+        // so it's preserved in the text. When showBreaks is true, we split at
+        // the ZWSP and show visual break markers instead.
+        const endPos = (!showBreaks && isUserBreak) ? breakPos + 1 : breakPos
         const segment = text.slice(lastPos, endPos)
         
         if (segment.length > 0) {
@@ -295,7 +301,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           // Add break node after this segment if there's more content and showBreaks is on
           if (showBreaks && i < allBreakPositions.length) {
             const nextEndPos = i + 1 < allBreakPositions.length ? allBreakPositions[i + 1] : text.length
-            const nextSegment = text.slice(endPos, nextEndPos)
+            const nextSegment = text.slice(breakPos, nextEndPos)
             
             // Skip break if current or next segment is whitespace only
             const skipBreak =
@@ -310,7 +316,8 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           }
         }
         
-        lastPos = endPos
+        // When showBreaks is false and we included the ZWSP, skip past it for next segment
+        lastPos = (!showBreaks && isUserBreak) ? breakPos + 1 : breakPos
       }
 
       if (newNodes.length === 0) return
