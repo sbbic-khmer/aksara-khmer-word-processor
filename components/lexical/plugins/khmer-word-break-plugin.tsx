@@ -140,23 +140,11 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         if (!text || text.length === 0) return
 
         // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
-        // We process user breaks even when showBreaks is false, so manually typed
-        // ZWSP creates separate TextNodes (enabling spell check per word)
-        const hasUserBreaks = containsUserBreaks(text)
-        if (hasUserBreaks) {
+        if (containsUserBreaks(text)) {
           if (isWordBreakerDebugEnabled()) {
             console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
           }
           resegmentWithUserBreaks(paragraph, text, cursorOffset, formatRanges)
-          return
-        }
-
-        // When showBreaks is false (auto-word-break disabled) and no user breaks,
-        // don't auto-segment. Keep text as a single TextNode.
-        if (!showBreaks) {
-          if (isWordBreakerDebugEnabled()) {
-            console.log(`[v0:wb] Skipping auto-segmentation - showBreaks is false and no user breaks`)
-          }
           return
         }
 
@@ -279,14 +267,11 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         return adjustedPos
       })
       
-      // When showBreaks is true, combine user break positions and auto break positions
-      // When showBreaks is false, ONLY use user break positions (no auto-segmentation)
-      const allBreakPositions = showBreaks 
-        ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
-        : [...userBreakPositions].sort((a, b) => a - b)
+      // Combine user break positions and adjusted auto break positions, sort, and deduplicate
+      const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
       
       if (isWordBreakerDebugEnabled()) {
-        console.log(`[v0:wb] resegmentWithUserBreaks: userBreaks=${userBreakPositions.join(',')}, allBreaks=${allBreakPositions.join(',')}, showBreaks=${showBreaks}`)
+        console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All: ${allBreakPositions.join(',')}`)
       }
       
       // Now create text nodes, splitting at all break positions
@@ -294,12 +279,8 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       let lastPos = 0
       
       for (let i = 0; i <= allBreakPositions.length; i++) {
-        const breakPos = i < allBreakPositions.length ? allBreakPositions[i] : text.length
-        const isUserBreak = i < allBreakPositions.length && userBreakPositions.includes(breakPos)
-        
-        // Always slice up to breakPos (excluding the ZWSP character itself)
-        // This creates separate TextNodes for each word, enabling per-word spell check
-        const segment = text.slice(lastPos, breakPos)
+        const endPos = i < allBreakPositions.length ? allBreakPositions[i] : text.length
+        const segment = text.slice(lastPos, endPos)
         
         if (segment.length > 0) {
           // Get format at the start of this segment
@@ -314,7 +295,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           // Add break node after this segment if there's more content and showBreaks is on
           if (showBreaks && i < allBreakPositions.length) {
             const nextEndPos = i + 1 < allBreakPositions.length ? allBreakPositions[i + 1] : text.length
-            const nextSegment = text.slice(breakPos, nextEndPos)
+            const nextSegment = text.slice(endPos, nextEndPos)
             
             // Skip break if current or next segment is whitespace only
             const skipBreak =
@@ -329,14 +310,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           }
         }
         
-        // Skip past the break character (ZWSP) for the next segment
-        // The ZWSP is consumed/stripped - it served as a word boundary marker
-        lastPos = isUserBreak ? breakPos + 1 : breakPos
+        lastPos = endPos
       }
 
-      if (isWordBreakerDebugEnabled()) {
-        console.log(`[v0:wb] resegmentWithUserBreaks: created ${newNodes.length} nodes`)
-      }
       if (newNodes.length === 0) return
 
       paragraph.clear()

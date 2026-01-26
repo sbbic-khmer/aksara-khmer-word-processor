@@ -21,7 +21,7 @@ import {
   Undo2,
   Redo2,
   Highlighter,
-  Wand2,
+  WrapText,
   SpellCheck,
   SpellCheck2,
 } from "lucide-react"
@@ -58,8 +58,8 @@ interface FormattingToolbarProps {
   onRedo: () => void
   onInsertZWSP: () => void
   onJoinWord: () => void
-  autoWordBreak: boolean
-  onToggleAutoWordBreak: () => void
+  showBreaks: boolean
+  onToggleBreaks: () => void
   spellCheckEnabled: boolean
   onToggleSpellCheck: () => void
 }
@@ -71,8 +71,8 @@ export function FormattingToolbar({
   onRedo,
   onInsertZWSP,
   onJoinWord,
-  autoWordBreak,
-  onToggleAutoWordBreak,
+  showBreaks,
+  onToggleBreaks,
   spellCheckEnabled,
   onToggleSpellCheck,
 }: FormattingToolbarProps) {
@@ -392,22 +392,22 @@ export function FormattingToolbar({
 
         <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
 
-        {/* Auto-Word Break Toggle */}
+        {/* Auto Word Break Toggle */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
-              onClick={onToggleAutoWordBreak}
+              onClick={onToggleBreaks}
               className={cn(
                 "h-8 w-8 p-0",
-                autoWordBreak && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
+                showBreaks && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
               )}
             >
-              <Wand2 className="h-4 w-4" />
+              <WrapText className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{autoWordBreak ? "Disable auto word break" : "Enable auto word break"}</TooltipContent>
+          <TooltipContent>{showBreaks ? "Disable auto word break" : "Enable auto word break"}</TooltipContent>
         </Tooltip>
 
         {/* Spell Check Toggle */}
@@ -419,7 +419,7 @@ export function FormattingToolbar({
               onClick={onToggleSpellCheck}
               className={cn(
                 "h-8 w-8 p-0",
-                spellCheckEnabled && "bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300",
+                spellCheckEnabled && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
               )}
             >
               {spellCheckEnabled ? <SpellCheck className="h-4 w-4" /> : <SpellCheck2 className="h-4 w-4" />}

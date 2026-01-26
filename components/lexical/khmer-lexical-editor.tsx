@@ -890,8 +890,8 @@ function EditorContent({
           onRedo={redo}
           onInsertZWSP={insertZWSP}
           onJoinWord={joinWord}
-          autoWordBreak={showBreaks}
-          onToggleAutoWordBreak={() => setShowBreaks(!showBreaks)}
+          showBreaks={showBreaks}
+          onToggleBreaks={() => setShowBreaks(!showBreaks)}
           spellCheckEnabled={spellCheckEnabled}
           onToggleSpellCheck={() => setSpellCheckEnabled(!spellCheckEnabled)}
         />
