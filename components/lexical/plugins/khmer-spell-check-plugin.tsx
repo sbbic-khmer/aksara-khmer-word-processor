@@ -239,31 +239,23 @@ export function KhmerSpellCheckPlugin() {
 
             let isMisspelled = false;
 
-            // For Khmer text, we can only visually mark the ENTIRE span as misspelled.
-            // This only makes sense when the span contains a SINGLE word.
-            // When a span contains multiple words (has spaces or ZWSP), we should NOT
-            // mark it visually - the user needs to use auto-word-break for visual spell check.
+            // For Khmer text, use KhmerBreaker to segment into words and check each
             if (containsKhmer(text)) {
-                // Check if span contains multiple words (spaces or ZWSP)
-                const hasZWSP = /[\u200B\u200C\u200D]/.test(text);
-                const hasSpaces = /\s/.test(text);
-                console.log('[v0] SpellCheck span:', text.substring(0, 30), 'len:', text.length, 'hasZWSP:', hasZWSP, 'hasSpaces:', hasSpaces);
+                // Use KhmerBreaker to get word segments
+                const breaker = new KhmerBreaker();
+                const segments = breaker.getSegments(text);
                 
-                if (hasSpaces) {
-                    // Has regular spaces - this is a multi-word span, don't mark
-                    isMisspelled = false;
-                } else if (hasZWSP) {
-                    // Has ZWSP but no spaces - the word-breaker should have split this
-                    // but if it didn't, don't mark the whole thing
-                    console.log('[v0] SpellCheck: span has ZWSP but wasnt split - skipping visual mark');
-                    isMisspelled = false;
-                } else {
-                    // Single word span (no spaces, no ZWSP): check if it's misspelled
-                    const cleanedWord = cleanKhmerWord(text);
-                    const inDict = cleanedWord ? typo.check(cleanedWord) : true;
-                    console.log('[v0] SpellCheck single word:', cleanedWord, 'inDict:', inDict);
-                    if (cleanedWord && cleanedWord.length <= 20) {
-                        isMisspelled = !inDict;
+                // Check each word segment
+                for (const segment of segments) {
+                    // Skip whitespace/punctuation segments
+                    if (/^[\s\u200B\u200C\u200D។៕៖៘]+$/.test(segment)) continue;
+                    
+                    const cleanedWord = cleanKhmerWord(segment);
+                    if (cleanedWord && cleanedWord.length > 0 && cleanedWord.length <= 20) {
+                        if (!typo.check(cleanedWord)) {
+                            isMisspelled = true;
+                            break;
+                        }
                     }
                 }
             } else {

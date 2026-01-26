@@ -143,9 +143,10 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         // We process user breaks even when showBreaks is false, so manually typed
         // ZWSP creates separate TextNodes (enabling spell check per word)
         const hasUserBreaks = containsUserBreaks(text)
-        console.log('[v0] WordBreak: showBreaks=' + showBreaks + ', hasUserBreaks=' + hasUserBreaks + ', textLen=' + text.length)
         if (hasUserBreaks) {
-          console.log('[v0] WordBreak: processing user breaks')
+          if (isWordBreakerDebugEnabled()) {
+            console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
+          }
           resegmentWithUserBreaks(paragraph, text, cursorOffset, formatRanges)
           return
         }
@@ -284,7 +285,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
         : [...userBreakPositions].sort((a, b) => a - b)
       
-      console.log(`[v0] resegmentWithUserBreaks: userBreakPositions=${userBreakPositions.join(',')}, allBreakPositions=${allBreakPositions.join(',')}, showBreaks=${showBreaks}`)
+      if (isWordBreakerDebugEnabled()) {
+        console.log(`[v0:wb] resegmentWithUserBreaks: userBreaks=${userBreakPositions.join(',')}, allBreaks=${allBreakPositions.join(',')}, showBreaks=${showBreaks}`)
+      }
       
       // Now create text nodes, splitting at all break positions
       const newNodes: LexicalNode[] = []
@@ -331,7 +334,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         lastPos = isUserBreak ? breakPos + 1 : breakPos
       }
 
-      console.log(`[v0] resegmentWithUserBreaks: created ${newNodes.length} nodes`)
+      if (isWordBreakerDebugEnabled()) {
+        console.log(`[v0:wb] resegmentWithUserBreaks: created ${newNodes.length} nodes`)
+      }
       if (newNodes.length === 0) return
 
       paragraph.clear()
