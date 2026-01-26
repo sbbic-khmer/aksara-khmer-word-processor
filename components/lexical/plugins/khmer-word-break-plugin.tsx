@@ -296,11 +296,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         const breakPos = i < allBreakPositions.length ? allBreakPositions[i] : text.length
         const isUserBreak = i < allBreakPositions.length && userBreakPositions.includes(breakPos)
         
-        // When showBreaks is false, include the ZWSP character in the segment
-        // so it's preserved in the text. When showBreaks is true, we split at
-        // the ZWSP and show visual break markers instead.
-        const endPos = (!showBreaks && isUserBreak) ? breakPos + 1 : breakPos
-        const segment = text.slice(lastPos, endPos)
+        // Always slice up to breakPos (excluding the ZWSP character itself)
+        // This creates separate TextNodes for each word, enabling per-word spell check
+        const segment = text.slice(lastPos, breakPos)
         
         if (segment.length > 0) {
           // Get format at the start of this segment
@@ -330,8 +328,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           }
         }
         
-        // When showBreaks is false and we included the ZWSP, skip past it for next segment
-        lastPos = (!showBreaks && isUserBreak) ? breakPos + 1 : breakPos
+        // Skip past the break character (ZWSP) for the next segment
+        // The ZWSP is consumed/stripped - it served as a word boundary marker
+        lastPos = isUserBreak ? breakPos + 1 : breakPos
       }
 
       if (newNodes.length === 0) return
