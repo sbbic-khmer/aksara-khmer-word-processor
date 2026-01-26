@@ -148,6 +148,12 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           return
         }
 
+        // Skip auto-segmentation when showBreaks is false (auto-word-break disabled)
+        // User can still manually insert ZWSP for breaks (handled above)
+        if (!showBreaks) {
+          return
+        }
+
         const segments = breaker.getSegments(text)
 
         if (segments.length <= 1 && !hasBreakNodes) {
@@ -267,11 +273,14 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         return adjustedPos
       })
       
-      // Combine user break positions and adjusted auto break positions, sort, and deduplicate
-      const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
+      // When showBreaks is true (auto-word-break enabled): combine user + auto breaks
+      // When showBreaks is false (auto-word-break disabled): only use user breaks
+      const allBreakPositions = showBreaks 
+        ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
+        : [...userBreakPositions].sort((a, b) => a - b)
       
       if (isWordBreakerDebugEnabled()) {
-        console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All: ${allBreakPositions.join(',')}`)
+        console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
       }
       
       // Now create text nodes, splitting at all break positions
@@ -292,8 +301,14 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           processedNodesRef.current.add(newTextNode)
           newNodes.push(newTextNode)
           
-          // Add break node after this segment if there's more content and showBreaks is on
-          if (showBreaks && i < allBreakPositions.length) {
+          // Add break node after this segment if there's more content
+          // Show visual breaks when:
+          // - showBreaks is true (auto-word-break enabled) - show all breaks
+          // - OR this is a user-inserted break position (always show user breaks visually)
+          const currentBreakPos = i < allBreakPositions.length ? allBreakPositions[i] : -1
+          const isUserBreak = currentBreakPos >= 0 && userBreakPositions.includes(currentBreakPos)
+          
+          if ((showBreaks || isUserBreak) && i < allBreakPositions.length) {
             const nextEndPos = i + 1 < allBreakPositions.length ? allBreakPositions[i + 1] : text.length
             const nextSegment = text.slice(endPos, nextEndPos)
             

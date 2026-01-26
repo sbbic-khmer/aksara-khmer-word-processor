@@ -304,7 +304,7 @@ const scanAndMarkMisspellings = useCallback(() => {
             }
             unregister();
         };
-    }, [editor, typo, scanAndMarkMisspellings, SCAN_DEBOUNCE_MS]);
+    }, [editor, typo, scanAndMarkMisspellings, SCAN_DEBOUNCE_MS, spellCheckEnabled]);
 
     /**
      * For Khmer text, each TextNode after word-breaking represents a word segment.
