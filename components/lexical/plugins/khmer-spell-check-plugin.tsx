@@ -95,6 +95,11 @@ export function KhmerSpellCheckPlugin() {
     } = useSpellCheck();
 
     const [typo, setTypo] = useState<Typo | null>(null);
+    
+    // Web Worker for async suggestions (prevents UI freeze for complex words)
+    const workerRef = useRef<Worker | null>(null);
+    const [workerReady, setWorkerReady] = useState(false);
+    const pendingRequestRef = useRef<string | null>(null);
 
     // last detected word info for debugging/fallback
     const lastDetected = useRef<{ nodeKey: string; start: number; end: number } | null>(null);
@@ -146,6 +151,53 @@ export function KhmerSpellCheckPlugin() {
             mounted = false;
         };
     }, [setIsLoading, setError]);
+
+    // Initialize Web Worker for async suggestions
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        
+        try {
+            const worker = new Worker('/workers/spell-check-worker.js');
+            
+            worker.onmessage = (e) => {
+                const { type, word, suggestions, elapsed, error } = e.data;
+                
+                if (type === 'ready') {
+                    setWorkerReady(true);
+                    if (debugMode) {
+                        console.log('[SpellCheck] Worker ready');
+                    }
+                }
+                
+                if (type === 'suggestions') {
+                    if (debugMode) {
+                        console.log('[SpellCheck] Worker suggestions for', word, ':', suggestions?.length, 'in', elapsed?.toFixed(2), 'ms', error ? `(error: ${error})` : '');
+                    }
+                    
+                    // Only update if this is still the pending request
+                    if (pendingRequestRef.current === word) {
+                        setSuggestions(suggestions || []);
+                        pendingRequestRef.current = null;
+                    }
+                }
+            };
+            
+            worker.onerror = (err) => {
+                console.error('[SpellCheck] Worker error:', err);
+            };
+            
+            // Initialize the worker's dictionary
+            worker.postMessage({ type: 'init' });
+            workerRef.current = worker;
+            
+            return () => {
+                worker.terminate();
+                workerRef.current = null;
+            };
+        } catch (err) {
+            console.error('[SpellCheck] Failed to create worker:', err);
+        }
+    }, [debugMode, setSuggestions]);
 
     /**
      * Scan all text spans in the DOM and mark misspelled words visually
@@ -396,33 +448,38 @@ export function KhmerSpellCheckPlugin() {
                     };
                 });
 
-                // For complex Khmer words (many characters/subscripts), skip suggestions
-                // as typo.suggest() can take 10+ seconds for complex words
-                const MAX_KHMER_WORD_LENGTH_FOR_SUGGESTIONS = 10;
-                if (containsKhmer(cleanWord) && cleanWord.length > MAX_KHMER_WORD_LENGTH_FOR_SUGGESTIONS) {
+                // Use Web Worker for suggestions to prevent UI freeze
+                // This is especially important for complex Khmer words where suggest() can take 10+ seconds
+                setSuggestions([]); // Clear while loading
+                
+                if (workerRef.current && workerReady) {
+                    // Use worker for non-blocking suggestions
+                    pendingRequestRef.current = cleanWord;
                     if (debugMode) {
-                        console.log('[SpellCheck] Skipping suggestions for complex word (length:', cleanWord.length, ')');
+                        console.log('[SpellCheck] Requesting suggestions from worker for:', cleanWord);
                     }
-                    setSuggestions([]); // No suggestions for complex words
+                    workerRef.current.postMessage({ 
+                        type: 'suggest', 
+                        word: cleanWord,
+                        requestId: cleanWord 
+                    });
                 } else {
-                    // Run typo.suggest() asynchronously to prevent UI freeze
-                    setSuggestions([]); // Clear while loading
-                    
-                    const suggestStart = performance.now();
-                    
-                    // Use setTimeout to make it async and allow UI to update first
+                    // Fallback: run synchronously (may freeze for complex words)
+                    if (debugMode) {
+                        console.log('[SpellCheck] Worker not ready, using sync suggest for:', cleanWord);
+                    }
                     setTimeout(() => {
                         try {
+                            const suggestStart = performance.now();
                             const suggs = typo.suggest(cleanWord) || [];
                             const elapsed = performance.now() - suggestStart;
                             
                             if (debugMode) {
-                                console.log('[SpellCheck] typo.suggest() took', elapsed.toFixed(2), 'ms, found', suggs.length, 'suggestions');
+                                console.log('[SpellCheck] Sync typo.suggest() took', elapsed.toFixed(2), 'ms, found', suggs.length, 'suggestions');
                             }
                             
-                            // Only update if we're still looking at the same word
                             if (lastWordRef.current === cleanWord) {
-                                setSuggestions(suggs.slice(0, 5)); // Limit to 5 suggestions
+                                setSuggestions(suggs.slice(0, 5));
                             }
                         } catch (err) {
                             if (debugMode) {
@@ -443,7 +500,7 @@ export function KhmerSpellCheckPlugin() {
                 lastDetected.current = null;
             }
         },
-        [editor, typo, setReplaceHandler, setSelectedWord, setSuggestions, debugMode]
+        [editor, typo, setReplaceHandler, setSelectedWord, setSuggestions, debugMode, workerReady]
     );
 
     // Called when selection changes (debounced)

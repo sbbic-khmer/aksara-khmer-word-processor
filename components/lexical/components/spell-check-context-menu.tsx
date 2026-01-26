@@ -99,8 +99,9 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
   }, [isOpen, position]);
 
   const hasSpellingSuggestions = selectedWord && suggestions.length > 0;
-  const isWordCorrect = selectedWord && suggestions.length === 0 && !isLoading;
-  const showMenu = isOpen && (hasSpellingSuggestions || isLoading || error);
+  const hasMisspelledWord = !!selectedWord;
+  const isLoadingSuggestions = selectedWord && suggestions.length === 0 && !isLoading;
+  const showMenu = isOpen && (hasMisspelledWord || isLoading || error);
 
   return (
     <div ref={containerRef} onContextMenu={handleContextMenu} className="contents">
@@ -133,7 +134,7 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
             </div>
           )}
 
-          {hasSpellingSuggestions && (
+          {hasMisspelledWord && (
             <>
               {/* Header showing the misspelled word */}
               <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground border-b border-border mb-1">
@@ -141,6 +142,14 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
                 <span>ពាក្យមិនត្រឹមត្រូវ៖</span>
                 <span className="font-medium text-destructive">{selectedWord}</span>
               </div>
+
+              {/* Loading suggestions indicator */}
+              {isLoadingSuggestions && (
+                <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>កំពុងស្វែងរកពាក្យ...</span>
+                </div>
+              )}
 
               {/* Suggestions */}
               {suggestions.map((suggestion, index) => (
