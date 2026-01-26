@@ -159,7 +159,7 @@ function extractTextFromSelection(
       }
     })
 
-    // Wrap in styled container for Khmer font
+    // Wrap in styled container for Khmer font 
     html = `<div style="font-family: 'Khmer Mondulkiri', 'Battambang', sans-serif;">${html}</div>`
 
     result = { text: plainText, html }
@@ -427,89 +427,103 @@ function EditorContent({
       }
 
       const container = range.startContainer
+      const rangeOffset = range.startOffset
       
-      // If we landed on a text node, the browser should handle it fine
-      if (container.nodeType === Node.TEXT_NODE) {
-        return
-      }
-
-      // We landed on an element node (likely empty KhmerBreakNode span)
-      // Find the closest text node and position cursor there
-      const containerElement = container as Element
+      // ALWAYS intervene for clicks on <P> elements, even when caretRangeFromPoint 
+      // returns a text node. The browser's default behavior often resets cursor to
+      // paragraph start when the click target is the <P> element itself.
       
-      if (isCursorDebugEnabled()) {
-        cursorDebugLog("CLICK_FIX - Intervening for paragraph click (mousedown capture)", {
-          containerNodeName: containerElement.nodeName,
-          containerClass: containerElement.className,
-          rangeOffset: range.startOffset,
-        })
-      }
-
-      // Get all child nodes of the paragraph
-      const paragraphElement = target
-      const childNodes = Array.from(paragraphElement.childNodes)
-      
-      // Find the clicked element's position among siblings
-      let clickedIndex = -1
-      for (let i = 0; i < childNodes.length; i++) {
-        if (childNodes[i] === container || childNodes[i].contains(container as Node)) {
-          clickedIndex = i
-          break
-        }
-      }
-
-      // Find the nearest text node (prefer the one before, then after)
       let targetTextNode: Text | null = null
-      let positionAtEnd = true
+      let finalOffset: number = 0
 
-      // Look backwards for a text node
-      for (let i = clickedIndex - 1; i >= 0; i--) {
-        const node = childNodes[i]
-        if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-          targetTextNode = node as Text
-          positionAtEnd = true
-          break
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-          // Look inside the element for text
-          const textNode = findLastTextNode(node as Element)
-          if (textNode) {
-            targetTextNode = textNode
-            positionAtEnd = true
+      if (container.nodeType === Node.TEXT_NODE) {
+        // caretRangeFromPoint found the correct text node and offset
+        targetTextNode = container as Text
+        finalOffset = rangeOffset
+        
+        if (isCursorDebugEnabled()) {
+          cursorDebugLog("CLICK_FIX - P element click, caretRange found text node", {
+            containerText: container.textContent?.slice(0, 20),
+            offset: rangeOffset,
+          })
+        }
+      } else {
+        // We landed on an element node (likely empty KhmerBreakNode span)
+        // Find the closest text node and position cursor there
+        const containerElement = container as Element
+        
+        if (isCursorDebugEnabled()) {
+          cursorDebugLog("CLICK_FIX - P element click, landed on element", {
+            containerNodeName: containerElement.nodeName,
+            containerClass: containerElement.className,
+            rangeOffset,
+          })
+        }
+
+        // Get all child nodes of the paragraph
+        const paragraphElement = target
+        const childNodes = Array.from(paragraphElement.childNodes)
+        
+        // Find the clicked element's position among siblings
+        let clickedIndex = -1
+        for (let i = 0; i < childNodes.length; i++) {
+          if (childNodes[i] === container || childNodes[i].contains(container as Node)) {
+            clickedIndex = i
             break
           }
         }
-      }
 
-      // If nothing found before, look forward
-      if (!targetTextNode) {
-        for (let i = clickedIndex + 1; i < childNodes.length; i++) {
+        // Find the nearest text node (prefer the one before, then after)
+        let positionAtEnd = true
+
+        // Look backwards for a text node
+        for (let i = clickedIndex - 1; i >= 0; i--) {
           const node = childNodes[i]
           if (node.nodeType === Node.TEXT_NODE && node.textContent) {
             targetTextNode = node as Text
-            positionAtEnd = false
+            positionAtEnd = true
             break
           } else if (node.nodeType === Node.ELEMENT_NODE) {
-            const textNode = findFirstTextNode(node as Element)
+            // Look inside the element for text
+            const textNode = findLastTextNode(node as Element)
             if (textNode) {
               targetTextNode = textNode
-              positionAtEnd = false
+              positionAtEnd = true
               break
             }
           }
         }
+
+        // If nothing found before, look forward
+        if (!targetTextNode) {
+          for (let i = clickedIndex + 1; i < childNodes.length; i++) {
+            const node = childNodes[i]
+            if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+              targetTextNode = node as Text
+              positionAtEnd = false
+              break
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              const textNode = findFirstTextNode(node as Element)
+              if (textNode) {
+                targetTextNode = textNode
+                positionAtEnd = false
+                break
+              }
+            }
+          }
+        }
+
+        finalOffset = targetTextNode ? (positionAtEnd ? targetTextNode.length : 0) : 0
       }
 
       if (targetTextNode) {
         // Prevent default to stop browser from setting incorrect selection
         event.preventDefault()
-        
-        const offset = positionAtEnd ? targetTextNode.length : 0
 
         if (isCursorDebugEnabled()) {
           cursorDebugLog("CLICK_FIX - Setting selection", {
             targetText: targetTextNode.textContent?.slice(0, 20),
-            offset,
-            positionAtEnd,
+            offset: finalOffset,
           })
         }
 
@@ -549,16 +563,20 @@ function EditorContent({
           }
           
           if (foundNode) {
+            // Ensure offset is within bounds
+            const nodeLength = foundNode.getTextContentSize()
+            const safeOffset = Math.min(finalOffset, nodeLength)
+            
             // Create and set the selection directly in Lexical
             const selection = $createRangeSelection()
-            selection.anchor.set(foundNode.getKey(), offset, 'text')
-            selection.focus.set(foundNode.getKey(), offset, 'text')
+            selection.anchor.set(foundNode.getKey(), safeOffset, 'text')
+            selection.focus.set(foundNode.getKey(), safeOffset, 'text')
             $setSelection(selection)
             
             if (isCursorDebugEnabled()) {
               cursorDebugLog("CLICK_FIX - Lexical selection set", {
                 nodeKey: foundNode.getKey(),
-                offset,
+                offset: safeOffset,
               })
             }
           }
