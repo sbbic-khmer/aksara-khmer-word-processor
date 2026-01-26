@@ -1006,8 +1006,10 @@ export default function KhmerEditor() {
               onRedo={handleRedo}
               onInsertZWSP={handleInsertZWSP}
               onJoinWord={handleJoinWord}
-              showBreaks={showBreaks}
-              onToggleBreaks={() => setShowBreaks(!showBreaks)}
+              autoWordBreak={showBreaks}
+              onToggleAutoWordBreak={() => setShowBreaks(!showBreaks)}
+              spellCheckEnabled={true}
+              onToggleSpellCheck={() => {}}
             />
 
             <div className="flex-1" />
@@ -1029,8 +1031,10 @@ export default function KhmerEditor() {
               onRedo={handleRedo}
               onInsertZWSP={handleInsertZWSP}
               onJoinWord={handleJoinWord}
-              showBreaks={showBreaks}
-              onToggleBreaks={() => setShowBreaks(!showBreaks)}
+              autoWordBreak={showBreaks}
+              onToggleAutoWordBreak={() => setShowBreaks(!showBreaks)}
+              spellCheckEnabled={true}
+              onToggleSpellCheck={() => {}}
               onApplyReplacements={handleApplyReplacements}
               replacementsLoading={replacementsLoading}
             />

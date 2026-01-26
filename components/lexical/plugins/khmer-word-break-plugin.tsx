@@ -44,73 +44,78 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const processedParagraphKeysRef = useRef(new Set<string>())
   const prevShowBreaksRef = useRef(showBreaks)
 
-  // When showBreaks changes, clear processed refs and trigger re-processing of all paragraphs
+  // When showBreaks changes from false to true, re-process all paragraphs with auto word breaking
+  // When showBreaks changes to false, remove KhmerBreakNodes but preserve manual ZWSP
   useEffect(() => {
     if (prevShowBreaksRef.current !== showBreaks) {
+      const wasEnabled = prevShowBreaksRef.current
       prevShowBreaksRef.current = showBreaks
       
       // Clear processed refs to allow re-processing
       processedNodesRef.current = new WeakSet<TextNode>()
       processedParagraphKeysRef.current = new Set<string>()
       
-      // Force re-processing by collecting all paragraph text and re-segmenting
-      // We use a setTimeout to ensure the main transform useEffect has updated with new showBreaks
       setTimeout(() => {
         editor.update(() => {
           const root = $getRoot()
           const paragraphs = root.getChildren().filter($isParagraphNode)
           
           for (const paragraph of paragraphs) {
-            // Get all text content from the paragraph, stripping existing ZWSP
             const children = paragraph.getChildren()
-            let fullText = ''
-            let hasTextNodes = false
             
-            for (const child of children) {
-              if ($isTextNode(child)) {
-                hasTextNodes = true
-                // Remove existing ZWSP when collecting text
-                fullText += child.getTextContent().replace(/\u200B/g, '')
-              } else if ($isKhmerBreakNode(child)) {
-                // Skip break nodes - they'll be re-added if needed
+            if (showBreaks) {
+              // Auto word break enabled: collect text (preserve manual ZWSP), re-segment, add KhmerBreakNodes
+              let fullText = ''
+              let hasTextNodes = false
+              
+              for (const child of children) {
+                if ($isTextNode(child)) {
+                  hasTextNodes = true
+                  fullText += child.getTextContent()
+                } else if ($isKhmerBreakNode(child)) {
+                  // Skip existing break nodes
+                }
               }
-            }
-            
-            if (!hasTextNodes || fullText.length === 0) continue
-            
-            // Clear the paragraph and re-segment
-            const segments = breaker.getSegments(fullText)
-            const newNodes: LexicalNode[] = []
-            
-            segments.forEach((segment, i) => {
-              const isLastSegment = i === segments.length - 1
-              const nextSegment = !isLastSegment ? segments[i + 1] : null
               
-              const skipBreak = isLastSegment || (
-                /^\s+$/.test(segment) ||
-                (nextSegment && /^\s+$/.test(nextSegment)) ||
-                /\s$/.test(segment) ||
-                (nextSegment && /^\s/.test(nextSegment))
-              )
+              if (!hasTextNodes || fullText.length === 0) continue
               
-              // Add ZWSP when showBreaks is false, or nothing when true (KhmerBreakNode will be added)
-              const segmentText = (!showBreaks && !skipBreak)
-                ? segment + '\u200B'
-                : segment
+              // Re-segment with breaker
+              const segments = breaker.getSegments(fullText)
+              const newNodes: LexicalNode[] = []
               
-              const newTextNode = $createTextNode(segmentText)
-              processedNodesRef.current.add(newTextNode)
-              newNodes.push(newTextNode)
+              segments.forEach((segment, i) => {
+                const isLastSegment = i === segments.length - 1
+                const nextSegment = !isLastSegment ? segments[i + 1] : null
+                
+                const skipBreak = isLastSegment || (
+                  /^\s+$/.test(segment) ||
+                  (nextSegment && /^\s+$/.test(nextSegment)) ||
+                  /\s$/.test(segment) ||
+                  (nextSegment && /^\s/.test(nextSegment))
+                )
+                
+                const newTextNode = $createTextNode(segment)
+                processedNodesRef.current.add(newTextNode)
+                newNodes.push(newTextNode)
+                
+                if (!skipBreak) {
+                  newNodes.push($createKhmerBreakNode())
+                }
+              })
               
-              // Add visible break node when showBreaks is on
-              if (showBreaks && !skipBreak) {
-                newNodes.push($createKhmerBreakNode())
+              if (newNodes.length > 0) {
+                paragraph.clear()
+                newNodes.forEach(node => paragraph.append(node))
               }
-            })
-            
-            if (newNodes.length > 0) {
-              paragraph.clear()
-              newNodes.forEach(node => paragraph.append(node))
+            } else {
+              // Auto word break disabled: just remove KhmerBreakNodes, preserve everything else including manual ZWSP
+              const nodesToRemove: LexicalNode[] = []
+              for (const child of children) {
+                if ($isKhmerBreakNode(child)) {
+                  nodesToRemove.push(child)
+                }
+              }
+              nodesToRemove.forEach(node => node.remove())
             }
           }
         })
@@ -119,6 +124,12 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   }, [editor, showBreaks, breaker])
 
   useEffect(() => {
+    // When auto word break is disabled (showBreaks=false), skip all auto processing
+    // This allows manual ZWSP insertion to be honored
+    if (!showBreaks) {
+      return
+    }
+    
     // Store format info for each character position
     interface FormatRange {
       start: number
