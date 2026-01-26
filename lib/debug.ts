@@ -70,3 +70,24 @@ export function debugError(...args: unknown[]): void {
   // Always log errors
   console.error("[v0]", ...args)
 }
+
+// Cursor debug mode - for debugging click/selection/cursor jump issues
+export function isCursorDebugEnabled(): boolean {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("aksara-cursor-debug-enabled")
+    return stored === "true"
+  }
+  return false
+}
+
+export function setCursorDebugEnabled(enabled: boolean): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("aksara-cursor-debug-enabled", String(enabled))
+  }
+}
+
+export function cursorDebugLog(...args: unknown[]): void {
+  if (isCursorDebugEnabled()) {
+    console.log("[v0:cursor]", ...args)
+  }
+}

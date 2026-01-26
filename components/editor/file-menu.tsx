@@ -21,6 +21,8 @@ interface FileMenuProps {
   onToggleDebug: () => void
   wordBreakerDebugMode: boolean
   onToggleWordBreakerDebug: () => void
+  cursorDebugMode: boolean
+  onToggleCursorDebug: () => void
   hasUnsavedChanges?: boolean
   currentDocTitle?: string
 }
@@ -36,6 +38,8 @@ export function FileMenu({
   onToggleDebug,
   wordBreakerDebugMode,
   onToggleWordBreakerDebug,
+  cursorDebugMode,
+  onToggleCursorDebug,
   hasUnsavedChanges,
   currentDocTitle,
 }: FileMenuProps) {
@@ -83,6 +87,10 @@ export function FileMenu({
         <DropdownMenuItem onClick={onToggleWordBreakerDebug}>
           {wordBreakerDebugMode ? <BugOff className="h-4 w-4 mr-2" /> : <Bug className="h-4 w-4 mr-2" />}
           {wordBreakerDebugMode ? "Disable Word Breaker Debug" : "Enable Word Breaker Debug"}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onToggleCursorDebug}>
+          {cursorDebugMode ? <BugOff className="h-4 w-4 mr-2" /> : <Bug className="h-4 w-4 mr-2" />}
+          {cursorDebugMode ? "Disable Cursor Debug" : "Enable Cursor Debug"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -13,7 +13,7 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useTheme } from "next-themes"
-import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection } from "lexical"
+import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection, $createRangeSelection, $setSelection, CLICK_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, SELECTION_CHANGE_COMMAND, type TextNode } from "lexical"
 
 import { KhmerBreakNode } from "./nodes/khmer-break-node"
 import { KhmerWordBreakPlugin } from "./plugins/khmer-word-break-plugin"
@@ -44,6 +44,9 @@ import {
   isDebugEnabled,
   setWordBreakerDebugEnabled,
   isWordBreakerDebugEnabled,
+  setCursorDebugEnabled,
+  isCursorDebugEnabled,
+  cursorDebugLog,
 } from "@/lib/debug"
 import { Loader2 } from "lucide-react"
 
@@ -264,6 +267,8 @@ function EditorContent({
   setDebugMode,
   wordBreakerDebugMode,
   setWordBreakerDebugMode,
+  cursorDebugMode,
+  setCursorDebugMode,
   onVoiceStateChange,
   onPartialTranscriptChange,
   documentState,
@@ -286,6 +291,8 @@ function EditorContent({
   setDebugMode: (debug: boolean) => void
   wordBreakerDebugMode: boolean
   setWordBreakerDebugMode: (debug: boolean) => void
+  cursorDebugMode: boolean
+  setCursorDebugMode: (debug: boolean) => void
   onVoiceStateChange: (active: boolean) => void
   onPartialTranscriptChange: (text: string) => void
   documentState: DocumentState
@@ -388,6 +395,434 @@ function EditorContent({
     debugLog("Word Breaker Debug mode", newValue ? "enabled" : "disabled")
   }, [wordBreakerDebugMode, setWordBreakerDebugMode])
 
+  const handleToggleCursorDebug = useCallback(() => {
+    const newValue = !cursorDebugMode
+    setCursorDebugMode(newValue)
+    setCursorDebugEnabled(newValue)
+    debugLog("Cursor Debug mode", newValue ? "enabled" : "disabled")
+  }, [cursorDebugMode, setCursorDebugMode])
+
+  // Fix for clicks on paragraph elements (between words/on KhmerBreakNodes)
+  // This intercepts clicks BEFORE the browser sets selection, preventing the visual flash
+  useEffect(() => {
+    const editorElement = editor.getRootElement()
+    if (!editorElement) return
+
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      
+      // Only intervene when click lands on paragraph element (not on a span/text)
+      if (target.tagName !== 'P') {
+        return // Let normal handling proceed
+      }
+
+      // Use browser's caret position calculation
+      if (!document.caretRangeFromPoint) {
+        return
+      }
+
+      const range = document.caretRangeFromPoint(event.clientX, event.clientY)
+      if (!range) {
+        return
+      }
+
+      const container = range.startContainer
+      
+      // If we landed on a text node, the browser should handle it fine
+      if (container.nodeType === Node.TEXT_NODE) {
+        return
+      }
+
+      // We landed on an element node (likely empty KhmerBreakNode span)
+      // Find the closest text node and position cursor there
+      const containerElement = container as Element
+      
+      if (isCursorDebugEnabled()) {
+        cursorDebugLog("CLICK_FIX - Intervening for paragraph click (mousedown capture)", {
+          containerNodeName: containerElement.nodeName,
+          containerClass: containerElement.className,
+          rangeOffset: range.startOffset,
+        })
+      }
+
+      // Get all child nodes of the paragraph
+      const paragraphElement = target
+      const childNodes = Array.from(paragraphElement.childNodes)
+      
+      // Find the clicked element's position among siblings
+      let clickedIndex = -1
+      for (let i = 0; i < childNodes.length; i++) {
+        if (childNodes[i] === container || childNodes[i].contains(container as Node)) {
+          clickedIndex = i
+          break
+        }
+      }
+
+      // Find the nearest text node (prefer the one before, then after)
+      let targetTextNode: Text | null = null
+      let positionAtEnd = true
+
+      // Look backwards for a text node
+      for (let i = clickedIndex - 1; i >= 0; i--) {
+        const node = childNodes[i]
+        if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+          targetTextNode = node as Text
+          positionAtEnd = true
+          break
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          // Look inside the element for text
+          const textNode = findLastTextNode(node as Element)
+          if (textNode) {
+            targetTextNode = textNode
+            positionAtEnd = true
+            break
+          }
+        }
+      }
+
+      // If nothing found before, look forward
+      if (!targetTextNode) {
+        for (let i = clickedIndex + 1; i < childNodes.length; i++) {
+          const node = childNodes[i]
+          if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+            targetTextNode = node as Text
+            positionAtEnd = false
+            break
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const textNode = findFirstTextNode(node as Element)
+            if (textNode) {
+              targetTextNode = textNode
+              positionAtEnd = false
+              break
+            }
+          }
+        }
+      }
+
+      if (targetTextNode) {
+        // Prevent default to stop browser from setting incorrect selection
+        event.preventDefault()
+        
+        const offset = positionAtEnd ? targetTextNode.length : 0
+
+        if (isCursorDebugEnabled()) {
+          cursorDebugLog("CLICK_FIX - Setting selection", {
+            targetText: targetTextNode.textContent?.slice(0, 20),
+            offset,
+            positionAtEnd,
+          })
+        }
+
+        // Find the Lexical node by matching the DOM text node's parent element
+        // and its position within the paragraph
+        const targetSpan = targetTextNode.parentElement
+        
+        // Set Lexical selection directly using editor.update()
+        editor.update(() => {
+          // Find the matching Lexical text node by traversing the tree
+          const root = $getRoot()
+          let foundNode: TextNode | null = null
+          
+          // Walk through all paragraphs and their children
+          for (const paragraph of root.getChildren()) {
+            if (!$isParagraphNode(paragraph)) continue
+            
+            for (const child of paragraph.getChildren()) {
+              if ($isTextNode(child)) {
+                // Get the DOM element for this Lexical node
+                const domElement = editor.getElementByKey(child.getKey())
+                if (domElement && (domElement === targetSpan || domElement.contains(targetTextNode))) {
+                  foundNode = child
+                  break
+                }
+              }
+            }
+            if (foundNode) break
+          }
+          
+          if (isCursorDebugEnabled()) {
+            cursorDebugLog("CLICK_FIX - Found Lexical node", {
+              found: !!foundNode,
+              nodeType: foundNode?.getType(),
+              nodeText: foundNode?.getTextContent().slice(0, 20),
+            })
+          }
+          
+          if (foundNode) {
+            // Create and set the selection directly in Lexical
+            const selection = $createRangeSelection()
+            selection.anchor.set(foundNode.getKey(), offset, 'text')
+            selection.focus.set(foundNode.getKey(), offset, 'text')
+            $setSelection(selection)
+            
+            if (isCursorDebugEnabled()) {
+              cursorDebugLog("CLICK_FIX - Lexical selection set", {
+                nodeKey: foundNode.getKey(),
+                offset,
+              })
+            }
+          }
+        })
+
+        // Focus the editor after setting selection
+        editor.focus()
+      }
+    }
+
+    // Use capture phase to intercept BEFORE browser processes the click
+    editorElement.addEventListener("mousedown", handleMouseDown, { capture: true })
+
+    return () => {
+      editorElement.removeEventListener("mousedown", handleMouseDown, { capture: true })
+    }
+  }, [editor])
+
+  // Helper functions for finding text nodes
+  function findLastTextNode(element: Element): Text | null {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let lastText: Text | null = null
+    let node: Text | null
+    while ((node = walker.nextNode() as Text | null)) {
+      if (node.textContent?.trim()) {
+        lastText = node
+      }
+    }
+    return lastText
+  }
+
+  function findFirstTextNode(element: Element): Text | null {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let node: Text | null
+    while ((node = walker.nextNode() as Text | null)) {
+      if (node.textContent?.trim()) {
+        return node
+      }
+    }
+    return null
+  }
+
+  // Cursor debug: track clicks and selection changes
+  useEffect(() => {
+    if (!cursorDebugMode) return
+
+    const editorElement = editor.getRootElement()
+    if (!editorElement) return
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      
+      // Also capture what caretRangeFromPoint would give us
+      let caretInfo = null
+      if (document.caretRangeFromPoint) {
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY)
+        if (range) {
+          const container = range.startContainer
+          caretInfo = {
+            containerNodeType: container.nodeType,
+            containerNodeName: container.nodeName,
+            containerText: container.textContent?.slice(0, 30),
+            offset: range.startOffset,
+            parentElement: (container.parentElement as HTMLElement)?.tagName,
+            parentClass: (container.parentElement as HTMLElement)?.className,
+          }
+        }
+      }
+      
+      cursorDebugLog("MOUSEDOWN", {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        target: target.tagName,
+        targetClass: target.className,
+        isContentEditable: target.isContentEditable,
+        targetText: target.textContent?.slice(0, 50),
+        caretRangeFromPoint: caretInfo,
+      })
+      
+      // Capture Lexical selection state BEFORE the click is processed
+      editor.getEditorState().read(() => {
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          const anchor = selection.anchor
+          const anchorNode = anchor.getNode()
+          cursorDebugLog("MOUSEDOWN - Lexical selection BEFORE click", {
+            anchorKey: anchor.key,
+            anchorOffset: anchor.offset,
+            nodeType: anchorNode.getType(),
+            nodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 30) : "N/A",
+          })
+        }
+      })
+    }
+
+    const handleMouseUp = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      
+      // Capture native selection immediately
+      const nativeSelection = window.getSelection()
+      let nativeInfo = null
+      if (nativeSelection && nativeSelection.rangeCount > 0) {
+        const range = nativeSelection.getRangeAt(0)
+        const container = range.startContainer
+        nativeInfo = {
+          containerNodeType: container.nodeType,
+          containerNodeName: container.nodeName,
+          containerText: container.textContent?.slice(0, 30),
+          offset: range.startOffset,
+          isCollapsed: range.collapsed,
+          parentElement: (container.parentElement as HTMLElement)?.tagName,
+          parentClass: (container.parentElement as HTMLElement)?.className,
+        }
+      }
+      
+      cursorDebugLog("MOUSEUP - Native selection IMMEDIATELY", {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        target: target.tagName,
+        nativeSelection: nativeInfo,
+      })
+      
+      // Capture selection after a tick to see what Lexical does
+      setTimeout(() => {
+        editor.getEditorState().read(() => {
+          const selection = $getSelection()
+          if ($isRangeSelection(selection)) {
+            const anchor = selection.anchor
+            const focus = selection.focus
+            const anchorNode = anchor.getNode()
+            const focusNode = focus.getNode()
+            
+            // Check if this is a "first node" situation
+            const parent = anchorNode.getParent()
+            const isFirstInParagraph = parent && anchorNode.getPreviousSibling() === null
+            
+            cursorDebugLog("MOUSEUP - Lexical selection AFTER tick", {
+              target: target.tagName,
+              isCollapsed: selection.isCollapsed(),
+              isFirstInParagraph,
+              anchor: {
+                key: anchor.key,
+                offset: anchor.offset,
+                type: anchor.type,
+                nodeType: anchorNode.getType(),
+                nodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 30) : "N/A",
+              },
+              focus: {
+                key: focus.key,
+                offset: focus.offset,
+                type: focus.type,
+                nodeType: focusNode.getType(),
+                nodeText: $isTextNode(focusNode) ? focusNode.getTextContent().slice(0, 30) : "N/A",
+              },
+            })
+            
+            // CRITICAL: Compare native vs Lexical to see if they match
+            const nativeSelNow = window.getSelection()
+            if (nativeSelNow && nativeSelNow.rangeCount > 0) {
+              const nativeRange = nativeSelNow.getRangeAt(0)
+              cursorDebugLog("MOUSEUP - Native vs Lexical comparison", {
+                nativeOffset: nativeRange.startOffset,
+                lexicalOffset: anchor.offset,
+                nativeContainer: nativeRange.startContainer.textContent?.slice(0, 20),
+                lexicalNodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 20) : "N/A",
+                match: nativeRange.startOffset === anchor.offset,
+              })
+            }
+          } else {
+            cursorDebugLog("MOUSEUP - No range selection after tick", {
+              selectionType: selection ? selection.constructor.name : "null",
+            })
+          }
+        })
+      }, 0)
+    }
+
+    const handleSelectionChange = () => {
+      editor.getEditorState().read(() => {
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          const anchor = selection.anchor
+          const anchorNode = anchor.getNode()
+          
+          // Only log if cursor is at position 0 AND it's the first node (potential jump to start)
+          const parent = anchorNode.getParent()
+          const isFirstInParagraph = parent && anchorNode.getPreviousSibling() === null
+          
+          if (anchor.offset === 0 && isFirstInParagraph) {
+            cursorDebugLog("SELECTION_CHANGE - Cursor at START of paragraph!", {
+              anchorKey: anchor.key,
+              nodeType: anchorNode.getType(),
+              nodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 30) : "N/A",
+              parentType: parent?.getType(),
+            })
+          }
+        }
+      })
+    }
+
+    // Register Lexical command listeners to see internal processing
+    const unregisterClick = editor.registerCommand(
+      CLICK_COMMAND,
+      (payload: MouseEvent) => {
+        const target = payload.target as HTMLElement
+        editor.getEditorState().read(() => {
+          const selection = $getSelection()
+          cursorDebugLog("LEXICAL CLICK_COMMAND", {
+            target: target.tagName,
+            targetClass: target.className,
+            hasSelection: !!selection,
+            selectionType: selection ? (selection as { constructor: { name: string } }).constructor.name : "null",
+            isRangeSelection: $isRangeSelection(selection),
+            anchorOffset: $isRangeSelection(selection) ? selection.anchor.offset : "N/A",
+            anchorNodeType: $isRangeSelection(selection) ? selection.anchor.getNode().getType() : "N/A",
+          })
+        })
+        return false // Don't prevent default handling
+      },
+      COMMAND_PRIORITY_LOW
+    )
+
+    const unregisterSelectionChange = editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        editor.getEditorState().read(() => {
+          const selection = $getSelection()
+          if ($isRangeSelection(selection)) {
+            const anchor = selection.anchor
+            const anchorNode = anchor.getNode()
+            const parent = anchorNode.getParent()
+            const isFirstInParagraph = parent && anchorNode.getPreviousSibling() === null
+            
+            // Only log position 0 + first node events (cursor jump candidates)
+            if (anchor.offset === 0 && isFirstInParagraph) {
+              cursorDebugLog("LEXICAL SELECTION_CHANGE_COMMAND - At paragraph start!", {
+                anchorKey: anchor.key,
+                nodeType: anchorNode.getType(),
+                nodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 30) : "N/A",
+              })
+            }
+          }
+        })
+        return false
+      },
+      COMMAND_PRIORITY_LOW
+    )
+
+    editorElement.addEventListener("mousedown", handleMouseDown)
+    editorElement.addEventListener("mouseup", handleMouseUp)
+    document.addEventListener("selectionchange", handleSelectionChange)
+
+    cursorDebugLog("Cursor debug listeners attached (DOM + Lexical commands)")
+
+    return () => {
+      unregisterClick()
+      unregisterSelectionChange()
+      editorElement.removeEventListener("mousedown", handleMouseDown)
+      editorElement.removeEventListener("mouseup", handleMouseUp)
+      document.removeEventListener("selectionchange", handleSelectionChange)
+      cursorDebugLog("Cursor debug listeners removed")
+    }
+  }, [editor, cursorDebugMode])
+
   return (
     <>
       <ToolbarPlugin onFormatsChange={handleFormatsChange} />
@@ -409,6 +844,8 @@ function EditorContent({
           onToggleDebug={handleToggleDebug}
           wordBreakerDebugMode={wordBreakerDebugMode}
           onToggleWordBreakerDebug={handleToggleWordBreakerDebug}
+          cursorDebugMode={cursorDebugMode}
+          onToggleCursorDebug={handleToggleCursorDebug}
           hasUnsavedChanges={documentState.hasUnsavedChanges}
           currentDocTitle={documentState.title}
         />
@@ -492,6 +929,8 @@ function EditorWrapper({
   setDebugMode,
   wordBreakerDebugMode,
   setWordBreakerDebugMode,
+  cursorDebugMode,
+  setCursorDebugMode,
   onVoiceStateChange,
   onPartialTranscriptChange,
   documentState,
@@ -513,6 +952,8 @@ function EditorWrapper({
   setDebugMode: (debug: boolean) => void
   wordBreakerDebugMode: boolean
   setWordBreakerDebugMode: (debug: boolean) => void
+  cursorDebugMode: boolean
+  setCursorDebugMode: (debug: boolean) => void
   onVoiceStateChange: (active: boolean) => void
   onPartialTranscriptChange: (text: string) => void
   documentState: DocumentState
@@ -1051,6 +1492,8 @@ function EditorWrapper({
             setDebugMode={setDebugMode}
             wordBreakerDebugMode={wordBreakerDebugMode}
             setWordBreakerDebugMode={setWordBreakerDebugMode}
+            cursorDebugMode={cursorDebugMode}
+            setCursorDebugMode={setCursorDebugMode}
             onVoiceStateChange={onVoiceStateChange}
             onPartialTranscriptChange={onPartialTranscriptChange}
             documentState={documentState}
@@ -1099,6 +1542,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     const [currentText, setCurrentText] = useState("")
     const [debugMode, setDebugMode] = useState(isDebugEnabled())
     const [wordBreakerDebugMode, setWordBreakerDebugMode] = useState(isWordBreakerDebugEnabled())
+    const [cursorDebugMode, setCursorDebugMode] = useState(isCursorDebugEnabled())
     const [mounted, setMounted] = useState(false)
     const [isVoiceActive, setIsVoiceActive] = useState(false)
     const [partialTranscript, setPartialTranscript] = useState("")
@@ -1259,6 +1703,8 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
             setDebugMode={setDebugMode}
             wordBreakerDebugMode={wordBreakerDebugMode}
             setWordBreakerDebugMode={setWordBreakerDebugMode}
+            cursorDebugMode={cursorDebugMode}
+            setCursorDebugMode={setCursorDebugMode}
             onVoiceStateChange={handleVoiceStateChange}
             onPartialTranscriptChange={setPartialTranscript}
             documentState={documentState}
