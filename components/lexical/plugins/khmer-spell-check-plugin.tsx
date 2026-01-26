@@ -358,8 +358,18 @@ export function KhmerSpellCheckPlugin() {
                 return;
             }
 
-            if (!typo.check(cleanWord)) {
+            const checkStart = debugMode ? performance.now() : 0;
+            const isCorrect = typo.check(cleanWord);
+            if (debugMode) {
+                console.log('[SpellCheck] typo.check() took', (performance.now() - checkStart).toFixed(2), 'ms, result:', isCorrect);
+            }
+            
+            if (!isCorrect) {
+                const suggestStart = debugMode ? performance.now() : 0;
                 const suggs = typo.suggest(cleanWord) || [];
+                if (debugMode) {
+                    console.log('[SpellCheck] typo.suggest() took', (performance.now() - suggestStart).toFixed(2), 'ms, found', suggs.length, 'suggestions');
+                }
                 setSelectedWord(cleanWord);
                 setSuggestions(suggs.slice(0, 5)); // Limit to 5 suggestions
 
@@ -393,6 +403,9 @@ export function KhmerSpellCheckPlugin() {
                 });
             } else {
                 // word is correct -> clear suggestions
+                if (debugMode) {
+                    console.log('[SpellCheck] Word is correct, clearing suggestions');
+                }
                 setSelectedWord(null);
                 setSuggestions([]);
                 setReplaceHandler(() => () => { });
@@ -405,9 +418,16 @@ export function KhmerSpellCheckPlugin() {
 
     // Called when selection changes (debounced)
     const handleSelectionChange = useCallback(() => {
+        if (debugMode) {
+            console.log('[SpellCheck] handleSelectionChange called');
+        }
+        
         editor.getEditorState().read(() => {
             const selection = $getSelection();
             if (!$isRangeSelection(selection)) {
+                if (debugMode) {
+                    console.log('[SpellCheck] Not a range selection, clearing');
+                }
                 if (lastWordRef.current !== null) {
                     setSelectedWord(null);
                     setSuggestions([]);
@@ -423,6 +443,9 @@ export function KhmerSpellCheckPlugin() {
 
             // Skip KhmerBreakNodes
             if ($isKhmerBreakNode(node)) {
+                if (debugMode) {
+                    console.log('[SpellCheck] Node is KhmerBreakNode, skipping');
+                }
                 if (lastWordRef.current !== null) {
                     setSelectedWord(null);
                     setSuggestions([]);
@@ -434,6 +457,9 @@ export function KhmerSpellCheckPlugin() {
             }
 
             if (!$isTextNode(node)) {
+                if (debugMode) {
+                    console.log('[SpellCheck] Node is not TextNode, skipping');
+                }
                 if (lastWordRef.current !== null) {
                     setSelectedWord(null);
                     setSuggestions([]);
@@ -448,6 +474,9 @@ export function KhmerSpellCheckPlugin() {
             const found = detectWordAtCursor(node, offset);
 
             if (!found) {
+                if (debugMode) {
+                    console.log('[SpellCheck] No word found at cursor');
+                }
                 if (lastWordRef.current !== null) {
                     setSelectedWord(null);
                     setSuggestions([]);
@@ -462,13 +491,20 @@ export function KhmerSpellCheckPlugin() {
 
             // If the word hasn't changed, skip heavy suggestion generation
             if (word === lastWordRef.current) {
+                if (debugMode) {
+                    console.log('[SpellCheck] Word unchanged, skipping suggestion update:', word);
+                }
                 return;
+            }
+            
+            if (debugMode) {
+                console.log('[SpellCheck] New word detected, updating suggestions:', word, 'previous:', lastWordRef.current);
             }
             lastWordRef.current = word;
 
             updateSuggestionsForNode(node, start, end, word);
         });
-    }, [editor, detectWordAtCursor, updateSuggestionsForNode, setReplaceHandler, setSelectedWord, setSuggestions]);
+    }, [editor, detectWordAtCursor, updateSuggestionsForNode, setReplaceHandler, setSelectedWord, setSuggestions, debugMode]);
 
     // register Lexical selection change with debounce
     useEffect(() => {
