@@ -249,10 +249,10 @@ export function KhmerSpellCheckPlugin() {
 
             let isMisspelled = false;
 
-            // For Khmer text, we may have multiple words separated by spaces or ZWSP
-            // Split by spaces/ZWSP and check each word
+            // For Khmer text, we may have multiple words separated by spaces
+            // Split by spaces and check each word
             if (containsKhmer(cleanWord)) {
-                const words = cleanWord.split(/[\s\u200B]+/).filter(w => w.length > 0);
+                const words = cleanWord.split(/\s+/).filter(w => w.length > 0);
                 for (const word of words) {
                     const cleanedWord = cleanKhmerWord(word);
                     if (cleanedWord && !typo.check(cleanedWord)) {
@@ -333,24 +333,22 @@ export function KhmerSpellCheckPlugin() {
         if (!text || text.length === 0) return null;
         
         // For Khmer text, the TextNode may contain one or more words
-        // Check for word boundaries: spaces OR ZWSP characters (U+200B)
+        // If there are spaces, find the word at the cursor position
         if (containsKhmer(text)) {
             // Skip whitespace-only nodes
             if (/^\s+$/.test(text)) return null;
             
-            // Check if text contains word boundaries (spaces or ZWSP)
-            const hasWordBoundaries = /[\s\u200B]/.test(text);
-            
-            if (hasWordBoundaries) {
-                // Split into words by spaces or ZWSP while tracking positions
+            // If the text contains spaces, find the word at cursor
+            if (/\s/.test(text)) {
+                // Split into words while tracking positions
                 let currentPos = 0;
-                const words = text.split(/([\s\u200B]+)/); // Keep delimiters to track positions
+                const words = text.split(/(\s+)/); // Keep delimiters to track positions
                 
                 for (const segment of words) {
                     const segmentEnd = currentPos + segment.length;
                     
-                    // Skip whitespace/ZWSP segments
-                    if (/^[\s\u200B]+$/.test(segment)) {
+                    // Skip whitespace segments
+                    if (/^\s+$/.test(segment)) {
                         currentPos = segmentEnd;
                         continue;
                     }
@@ -367,7 +365,7 @@ export function KhmerSpellCheckPlugin() {
                 return null;
             }
             
-            // No word boundaries - the entire node content is the word (clean it first)
+            // No spaces - the entire node content is the word (clean it first)
             const cleanedWord = cleanKhmerWord(text);
             if (!cleanedWord) {
                 if (debugMode) {
