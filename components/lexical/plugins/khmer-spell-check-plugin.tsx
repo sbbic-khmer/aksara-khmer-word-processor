@@ -247,9 +247,16 @@ const scanAndMarkMisspellings = useCallback(() => {
             // Split by spaces and check each word
             if (containsKhmer(cleanWord)) {
                 const words = cleanWord.split(/\s+/).filter(w => w.length > 0);
+                if (debugMode) {
+                    console.log('[SpellCheck] Khmer text split into words:', words.length, 'words from:', cleanWord.substring(0, 50));
+                }
                 for (const word of words) {
                     const cleanedWord = cleanKhmerWord(word);
-                    if (cleanedWord && !typo.check(cleanedWord)) {
+                    const inDict = cleanedWord ? typo.check(cleanedWord) : true;
+                    if (debugMode) {
+                        console.log('[SpellCheck] Checking word:', cleanedWord, 'inDict:', inDict);
+                    }
+                    if (cleanedWord && !inDict) {
                         isMisspelled = true;
                         break;
                     }
@@ -276,7 +283,7 @@ const scanAndMarkMisspellings = useCallback(() => {
                 span.classList.remove(MISSPELLED_CLASS);
             }
         });
-    }, [editor, typo, MISSPELLED_CLASS, debugMode]);
+    }, [editor, typo, MISSPELLED_CLASS, debugMode, spellCheckEnabled]);
 
     // Register update listener to scan for misspellings on content change
     useEffect(() => {
@@ -305,6 +312,11 @@ const scanAndMarkMisspellings = useCallback(() => {
             unregister();
         };
     }, [editor, typo, scanAndMarkMisspellings, SCAN_DEBOUNCE_MS, spellCheckEnabled]);
+
+    // Immediately trigger scan when spellCheckEnabled changes (e.g., to clear markers when disabled)
+    useEffect(() => {
+        scanAndMarkMisspellings();
+    }, [spellCheckEnabled, scanAndMarkMisspellings]);
 
     /**
      * For Khmer text, each TextNode after word-breaking represents a word segment.
