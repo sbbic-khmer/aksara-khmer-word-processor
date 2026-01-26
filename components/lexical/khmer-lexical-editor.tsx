@@ -308,7 +308,7 @@ function EditorContent({
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
-  const { debugMode: spellCheckDebugMode, setDebugMode: setSpellCheckDebugMode } = useSpellCheck()
+  const { debugMode: spellCheckDebugMode, setDebugMode: setSpellCheckDebugMode, spellCheckEnabled, setSpellCheckEnabled } = useSpellCheck()
   const [activeFormats, setActiveFormats] = useState<ActiveFormats>({
     bold: false,
     italic: false,
@@ -890,8 +890,10 @@ function EditorContent({
           onRedo={redo}
           onInsertZWSP={insertZWSP}
           onJoinWord={joinWord}
-          showBreaks={showBreaks}
-          onToggleBreaks={() => setShowBreaks(!showBreaks)}
+          autoWordBreak={showBreaks}
+          onToggleAutoWordBreak={() => setShowBreaks(!showBreaks)}
+          spellCheckEnabled={spellCheckEnabled}
+          onToggleSpellCheck={() => setSpellCheckEnabled(!spellCheckEnabled)}
         />
 
         <div className="ml-auto flex items-center">

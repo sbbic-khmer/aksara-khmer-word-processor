@@ -93,6 +93,7 @@ export function KhmerSpellCheckPlugin() {
         setError,
         debugMode,
         setSuggestionsLoaded,
+        spellCheckEnabled,
     } = useSpellCheck();
 
     const [typo, setTypo] = useState<Typo | null>(null);
@@ -207,6 +208,16 @@ export function KhmerSpellCheckPlugin() {
      */
     const scanAndMarkMisspellings = useCallback(() => {
         if (!typo) return;
+        
+        // If spell check is disabled, clear all misspelling markers
+        if (!spellCheckEnabled) {
+            const rootEl = editor.getRootElement();
+            if (rootEl) {
+                const spans = rootEl.querySelectorAll('.' + MISSPELLED_CLASS);
+                spans.forEach(span => span.classList.remove(MISSPELLED_CLASS));
+            }
+            return;
+        }
 
         const rootEl = editor.getRootElement();
         if (!rootEl) return;
@@ -271,7 +282,7 @@ export function KhmerSpellCheckPlugin() {
                 span.classList.remove(MISSPELLED_CLASS);
             }
         });
-    }, [editor, typo, MISSPELLED_CLASS, debugMode]);
+    }, [editor, typo, MISSPELLED_CLASS, debugMode, spellCheckEnabled]);
 
     // Register update listener to scan for misspellings on content change
     useEffect(() => {
@@ -602,6 +613,11 @@ export function KhmerSpellCheckPlugin() {
             updateSuggestionsForNode(node, start, end, word);
         });
     }, [editor, detectWordAtCursor, updateSuggestionsForNode, setReplaceHandler, setSelectedWord, setSuggestions, debugMode]);
+
+    // Re-scan when spellCheckEnabled changes
+    useEffect(() => {
+        scanAndMarkMisspellings();
+    }, [spellCheckEnabled, scanAndMarkMisspellings]);
 
     // register Lexical selection change with debounce
     useEffect(() => {

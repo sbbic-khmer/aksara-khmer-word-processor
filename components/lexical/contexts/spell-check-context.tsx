@@ -37,6 +37,9 @@ interface SpellCheckContextValue {
     // Track if suggestions have been loaded for current word
     suggestionsLoaded: boolean;
     setSuggestionsLoaded: (loaded: boolean) => void;
+    // Enable/disable spell checking
+    spellCheckEnabled: boolean;
+    setSpellCheckEnabled: (enabled: boolean) => void;
 }
 
 const SpellCheckContext = createContext<SpellCheckContextValue>({
@@ -58,6 +61,8 @@ const SpellCheckContext = createContext<SpellCheckContextValue>({
     setDebugMode: () => { },
     suggestionsLoaded: false,
     setSuggestionsLoaded: () => { },
+    spellCheckEnabled: true,
+    setSpellCheckEnabled: () => { },
 });
 
 export const useSpellCheck = () => useContext(SpellCheckContext);
@@ -70,6 +75,7 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
     const [misspelledNodeKeys, setMisspelledNodeKeys] = useState<Set<string>>(new Set());
     const [debugMode, setDebugMode] = useState(false);
     const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
+    const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
 
     // store the active Lexical replacement function
     const [replaceHandler, setReplaceHandler] = useState<
@@ -119,6 +125,7 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
                 clearMisspelledNodes,
                 debugMode, setDebugMode,
                 suggestionsLoaded, setSuggestionsLoaded,
+                spellCheckEnabled, setSpellCheckEnabled,
             }}
         >
             {children}

@@ -18,11 +18,12 @@ import {
   AlignJustify,
   Link2,
   Unlink2,
-  Eye,
-  EyeOff,
   Undo2,
   Redo2,
   Highlighter,
+  Wand2,
+  SpellCheck,
+  SpellCheck2,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
@@ -57,8 +58,10 @@ interface FormattingToolbarProps {
   onRedo: () => void
   onInsertZWSP: () => void
   onJoinWord: () => void
-  showBreaks: boolean
-  onToggleBreaks: () => void
+  autoWordBreak: boolean
+  onToggleAutoWordBreak: () => void
+  spellCheckEnabled: boolean
+  onToggleSpellCheck: () => void
 }
 
 export function FormattingToolbar({
@@ -68,8 +71,10 @@ export function FormattingToolbar({
   onRedo,
   onInsertZWSP,
   onJoinWord,
-  showBreaks,
-  onToggleBreaks,
+  autoWordBreak,
+  onToggleAutoWordBreak,
+  spellCheckEnabled,
+  onToggleSpellCheck,
 }: FormattingToolbarProps) {
   return (
     <TooltipProvider>
@@ -387,22 +392,40 @@ export function FormattingToolbar({
 
         <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
 
-        {/* Show Breaks Toggle */}
+        {/* Auto-Word Break Toggle */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
-              onClick={onToggleBreaks}
+              onClick={onToggleAutoWordBreak}
               className={cn(
                 "h-8 w-8 p-0",
-                showBreaks && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
+                autoWordBreak && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
               )}
             >
-              {showBreaks ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              <Wand2 className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{showBreaks ? "Hide word breaks" : "Show word breaks"}</TooltipContent>
+          <TooltipContent>{autoWordBreak ? "Disable auto word break" : "Enable auto word break"}</TooltipContent>
+        </Tooltip>
+
+        {/* Spell Check Toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleSpellCheck}
+              className={cn(
+                "h-8 w-8 p-0",
+                spellCheckEnabled && "bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300",
+              )}
+            >
+              {spellCheckEnabled ? <SpellCheck className="h-4 w-4" /> : <SpellCheck2 className="h-4 w-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{spellCheckEnabled ? "Disable spell check" : "Enable spell check"}</TooltipContent>
         </Tooltip>
       </>
     </TooltipProvider>
