@@ -284,9 +284,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
         : [...userBreakPositions].sort((a, b) => a - b)
       
-      if (isWordBreakerDebugEnabled()) {
-        console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
-      }
+      console.log(`[v0] resegmentWithUserBreaks: userBreakPositions=${userBreakPositions.join(',')}, allBreakPositions=${allBreakPositions.join(',')}, showBreaks=${showBreaks}`)
       
       // Now create text nodes, splitting at all break positions
       const newNodes: LexicalNode[] = []
@@ -333,6 +331,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         lastPos = isUserBreak ? breakPos + 1 : breakPos
       }
 
+      console.log(`[v0] resegmentWithUserBreaks: created ${newNodes.length} nodes`)
       if (newNodes.length === 0) return
 
       paragraph.clear()
