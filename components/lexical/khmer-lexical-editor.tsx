@@ -22,6 +22,7 @@ import { ToolbarPlugin, useToolbarCommands, type ActiveFormats } from "./plugins
 import { OnChangePlugin } from "./plugins/on-change-plugin"
 import { KhmerSpellCheckPlugin } from "./plugins/khmer-spell-check-plugin"
 import { SpellCheckProvider, useSpellCheck } from "./contexts/spell-check-context"
+import { SpellCheckContextMenu } from "./components/spell-check-context-menu"
 import { $isKhmerBreakNode } from "./nodes/khmer-break-node"
 import { $isHeadingNode } from "@lexical/rich-text"
 import { $isListNode, $isListItemNode } from "@lexical/list"
@@ -896,42 +897,44 @@ function EditorContent({
       </div>
 
       <div className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
-        <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative">
-          {isLoadingDocument ? (
-            <div className="flex items-start justify-center pt-32">
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Loading document...</span>
-              </div>
-            </div>
-          ) : (
-            <RichTextPlugin
-              contentEditable={
-                <ContentEditable
-                  className={cn(
-                    "min-h-[1056px] p-12 outline-none",
-                    "font-khmer text-lg leading-relaxed",
-                    "focus:outline-none",
-                  )}
-                  style={{
-                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                  }}
-                />
-              }
-              placeholder={
-                <div
-                  className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
-                  style={{
-                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                  }}
-                >
-                  វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
+        <SpellCheckContextMenu>
+          <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative">
+            {isLoadingDocument ? (
+              <div className="flex items-start justify-center pt-32">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Loading document...</span>
                 </div>
-              }
-              ErrorBoundary={LexicalErrorBoundary}
-            />
-          )}
-        </div>
+              </div>
+            ) : (
+              <RichTextPlugin
+                contentEditable={
+                  <ContentEditable
+                    className={cn(
+                      "min-h-[1056px] p-12 outline-none",
+                      "font-khmer text-lg leading-relaxed",
+                      "focus:outline-none",
+                    )}
+                    style={{
+                      fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                    }}
+                  />
+                }
+                placeholder={
+                  <div
+                    className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
+                    style={{
+                      fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                    }}
+                  >
+                    វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
+                  </div>
+                }
+                ErrorBoundary={LexicalErrorBoundary}
+              />
+            )}
+          </div>
+        </SpellCheckContextMenu>
       </div>
     </>
   )

@@ -98,9 +98,7 @@ export function KhmerSpellCheckPlugin() {
                 const typoInstance = new Typo('km_KH', aff, dic);
                 setTypo(typoInstance);
                 setIsLoading(false);
-                console.log('[v0] Khmer spell check dictionary loaded successfully');
             } catch (err) {
-                console.warn('[v0] Failed to load Khmer dictionary:', err);
                 if (mounted) {
                     setIsLoading(false);
                     setError(err instanceof Error ? err.message : 'Failed to load dictionary');
@@ -199,8 +197,8 @@ export function KhmerSpellCheckPlugin() {
                                     maybeNode.setTextContent(newText);
                                 }
                             });
-                        } catch (err) {
-                            console.error('[v0] Error performing spell replace:', err);
+                        } catch {
+                            // Error performing spell replace
                         }
                     };
                 });
