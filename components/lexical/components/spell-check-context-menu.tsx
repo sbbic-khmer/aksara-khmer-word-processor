@@ -23,13 +23,14 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
 
   // Handle right-click
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    // Prevent the browser's default context menu
+    e.preventDefault();
+    
     // Small delay to let the spell check plugin detect the word first
     setTimeout(() => {
       setPosition({ x: e.clientX, y: e.clientY });
       setIsOpen(true);
     }, 50);
-    
-    // Don't prevent default - let the spell check plugin handle word detection
   }, []);
 
   // Handle clicking a suggestion

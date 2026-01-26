@@ -198,3 +198,15 @@
     opacity: 1;
   }
 }
+
+/* Spell check - Red squiggly underline for misspelled words */
+.spellcheck-misspelled {
+  text-decoration: underline wavy;
+  text-decoration-color: oklch(0.55 0.22 25); /* destructive red */
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+.dark .spellcheck-misspelled {
+  text-decoration-color: oklch(0.65 0.22 25);
+}

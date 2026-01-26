@@ -62,7 +62,13 @@ function containsKhmer(text: string): boolean {
 
 export function KhmerSpellCheckPlugin() {
     const [editor] = useLexicalComposerContext();
-    const { setSelectedWord, setSuggestions, setReplaceHandler, setIsLoading, setError } = useSpellCheck();
+    const { 
+        setSelectedWord, 
+        setSuggestions, 
+        setReplaceHandler, 
+        setIsLoading, 
+        setError,
+    } = useSpellCheck();
 
     const [typo, setTypo] = useState<Typo | null>(null);
 
@@ -72,7 +78,12 @@ export function KhmerSpellCheckPlugin() {
 
     // debounce timer ref
     const debounceRef = useRef<number | null>(null);
+    const scanDebounceRef = useRef<number | null>(null);
     const DEBOUNCE_MS = 100;
+    const SCAN_DEBOUNCE_MS = 300;
+
+    // CSS class name for misspelled words
+    const MISSPELLED_CLASS = 'spellcheck-misspelled';
 
     // Load Khmer dictionary from /public/dictionaries
     useEffect(() => {
@@ -110,6 +121,89 @@ export function KhmerSpellCheckPlugin() {
             mounted = false;
         };
     }, [setIsLoading, setError]);
+
+    /**
+     * Scan all text spans in the DOM and mark misspelled words visually
+     * This approach directly scans DOM elements rather than trying to map Lexical nodes
+     */
+    const scanAndMarkMisspellings = useCallback(() => {
+        if (!typo) return;
+
+        const rootEl = editor.getRootElement();
+        if (!rootEl) return;
+
+        // Find all text spans in the editor
+        const spans = rootEl.querySelectorAll('span[data-lexical-text="true"]');
+        
+        spans.forEach((span) => {
+            const text = span.textContent;
+            if (!text || /^\s+$/.test(text)) {
+                span.classList.remove(MISSPELLED_CLASS);
+                return;
+            }
+
+            // Clean the word (remove invisible characters)
+            const cleanWord = text.replace(/[\u200B\u200C\u200D\u2060]/g, '').trim();
+            if (!cleanWord) {
+                span.classList.remove(MISSPELLED_CLASS);
+                return;
+            }
+
+            let isMisspelled = false;
+
+            // For Khmer text, check the whole span content as a word
+            if (containsKhmer(cleanWord)) {
+                if (!typo.check(cleanWord)) {
+                    isMisspelled = true;
+                }
+            } else {
+                // For non-Khmer, check individual words
+                const words = cleanWord.match(/\b[\w]+\b/g);
+                if (words) {
+                    for (const word of words) {
+                        if (!typo.check(word)) {
+                            isMisspelled = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (isMisspelled) {
+                span.classList.add(MISSPELLED_CLASS);
+            } else {
+                span.classList.remove(MISSPELLED_CLASS);
+            }
+        });
+    }, [editor, typo, MISSPELLED_CLASS]);
+
+    // Register update listener to scan for misspellings on content change
+    useEffect(() => {
+        if (!typo) return;
+
+        const unregister = editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves }) => {
+            // Only scan if there are actual changes
+            if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
+
+            // Debounce the scan
+            if (scanDebounceRef.current) {
+                window.clearTimeout(scanDebounceRef.current);
+            }
+            scanDebounceRef.current = window.setTimeout(() => {
+                scanAndMarkMisspellings();
+            }, SCAN_DEBOUNCE_MS);
+        });
+
+        // Initial scan
+        scanAndMarkMisspellings();
+
+        return () => {
+            if (scanDebounceRef.current) {
+                window.clearTimeout(scanDebounceRef.current);
+            }
+            unregister();
+        };
+    }, [editor, typo, scanAndMarkMisspellings, SCAN_DEBOUNCE_MS]);
 
     /**
      * For Khmer text, each TextNode after word-breaking represents a word segment.

@@ -26,6 +26,11 @@ interface SpellCheckContextValue {
     setIsLoading: (loading: boolean) => void;
     error: string | null;
     setError: (error: string | null) => void;
+    // Track misspelled node keys for visual highlighting
+    misspelledNodeKeys: Set<string>;
+    addMisspelledNode: (key: string) => void;
+    removeMisspelledNode: (key: string) => void;
+    clearMisspelledNodes: () => void;
 }
 
 const SpellCheckContext = createContext<SpellCheckContextValue>({
@@ -39,6 +44,10 @@ const SpellCheckContext = createContext<SpellCheckContextValue>({
     setIsLoading: () => { },
     error: null,
     setError: () => { },
+    misspelledNodeKeys: new Set(),
+    addMisspelledNode: () => { },
+    removeMisspelledNode: () => { },
+    clearMisspelledNodes: () => { },
 });
 
 export const useSpellCheck = () => useContext(SpellCheckContext);
@@ -48,6 +57,7 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [misspelledNodeKeys, setMisspelledNodeKeys] = useState<Set<string>>(new Set());
 
     // store the active Lexical replacement function
     const [replaceHandler, setReplaceHandler] = useState<
@@ -62,6 +72,26 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
         [replaceHandler]
     );
 
+    const addMisspelledNode = useCallback((key: string) => {
+        setMisspelledNodeKeys(prev => {
+            const next = new Set(prev);
+            next.add(key);
+            return next;
+        });
+    }, []);
+
+    const removeMisspelledNode = useCallback((key: string) => {
+        setMisspelledNodeKeys(prev => {
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+        });
+    }, []);
+
+    const clearMisspelledNodes = useCallback(() => {
+        setMisspelledNodeKeys(new Set());
+    }, []);
+
     return (
         <SpellCheckContext.Provider
             value={{
@@ -71,6 +101,10 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
                 replaceWord,
                 isLoading, setIsLoading,
                 error, setError,
+                misspelledNodeKeys,
+                addMisspelledNode,
+                removeMisspelledNode,
+                clearMisspelledNodes,
             }}
         >
             {children}
