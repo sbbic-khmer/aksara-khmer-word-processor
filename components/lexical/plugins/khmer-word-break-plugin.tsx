@@ -42,6 +42,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const processingParagraphRef = useRef(false)
   const processedNodesRef = useRef(new WeakSet<TextNode>())
   const processedParagraphKeysRef = useRef(new Set<string>())
+
   useEffect(() => {
     // Store format info for each character position
     interface FormatRange {
@@ -174,13 +175,13 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
 
           if (showBreaks && i < segments.length - 1) {
             const nextSegment = segments[i + 1]
-            
+
             const skipBreak =
               isWhitespaceOnly(segment) ||
               isWhitespaceOnly(nextSegment) ||
               containsWhitespace(segment.slice(-1)) ||
               containsWhitespace(nextSegment.slice(0, 1))
-            
+
             if (!skipBreak) {
               newNodes.push($createKhmerBreakNode())
             }

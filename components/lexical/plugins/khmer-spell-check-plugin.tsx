@@ -209,7 +209,7 @@ export function KhmerSpellCheckPlugin() {
     const scanAndMarkMisspellings = useCallback(() => {
         if (!typo) return;
         
-        // If spell check is disabled, clear all misspelling markers
+        // If spell check is disabled, clear all misspelling markers and return
         if (!spellCheckEnabled) {
             const rootEl = editor.getRootElement();
             if (rootEl) {
@@ -227,10 +227,6 @@ export function KhmerSpellCheckPlugin() {
         
         if (debugMode) {
             console.log('[SpellCheck] Scanning', spans.length, 'text spans');
-            // Log first few spans for debugging
-            Array.from(spans).slice(0, 5).forEach((span, i) => {
-                console.log(`[SpellCheck] Span ${i}:`, span.textContent?.substring(0, 50), '(length:', span.textContent?.length, ')');
-            });
         }
         
         spans.forEach((span) => {
