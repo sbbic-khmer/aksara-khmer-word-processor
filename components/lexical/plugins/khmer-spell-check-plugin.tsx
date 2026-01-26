@@ -322,7 +322,7 @@ export function KhmerSpellCheckPlugin() {
         }
         
         return null;
-    }, []);
+    }, [debugMode]);
 
     // small helper that updates suggestions for a specific lexical text node
     const updateSuggestionsForNode = useCallback(
@@ -400,7 +400,7 @@ export function KhmerSpellCheckPlugin() {
                 lastDetected.current = null;
             }
         },
-        [editor, typo, setReplaceHandler, setSelectedWord, setSuggestions]
+        [editor, typo, setReplaceHandler, setSelectedWord, setSuggestions, debugMode]
     );
 
     // Called when selection changes (debounced)
@@ -564,7 +564,7 @@ export function KhmerSpellCheckPlugin() {
             root.removeEventListener('pointerdown', handlePointerDown, true);
             root.removeEventListener('contextmenu', handleContextMenu);
         };
-    }, [editor, typo, handleSelectionChange]);
+    }, [editor, typo, handleSelectionChange, debugMode]);
 
     return null;
 }
