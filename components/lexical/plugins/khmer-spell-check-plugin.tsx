@@ -216,6 +216,10 @@ export function KhmerSpellCheckPlugin() {
         
         if (debugMode) {
             console.log('[SpellCheck] Scanning', spans.length, 'text spans');
+            // Log first few spans for debugging
+            Array.from(spans).slice(0, 5).forEach((span, i) => {
+                console.log(`[SpellCheck] Span ${i}:`, span.textContent?.substring(0, 50), '(length:', span.textContent?.length, ')');
+            });
         }
         
         spans.forEach((span) => {
