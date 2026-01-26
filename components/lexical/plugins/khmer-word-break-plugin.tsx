@@ -139,6 +139,16 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
 
         if (!text || text.length === 0) return
 
+        // When showBreaks is false (auto-word-break disabled), don't segment at all.
+        // Keep text as a single TextNode with any ZWSP characters preserved inline.
+        // The spell checker will use ZWSP as word boundaries when checking.
+        if (!showBreaks) {
+          if (isWordBreakerDebugEnabled()) {
+            console.log(`[v0:wb] Skipping all segmentation - showBreaks is false`)
+          }
+          return
+        }
+
         // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
         const hasUserBreaks = containsUserBreaks(text)
         if (hasUserBreaks) {
@@ -146,15 +156,6 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
             console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
           }
           resegmentWithUserBreaks(paragraph, text, cursorOffset, formatRanges)
-          return
-        }
-
-        // When showBreaks is false (auto-word-break disabled), don't auto-segment
-        // The text should remain as-is unless user manually inserts ZWSP
-        if (!showBreaks) {
-          if (isWordBreakerDebugEnabled()) {
-            console.log(`[v0:wb] Skipping auto-segmentation - showBreaks is false`)
-          }
           return
         }
 

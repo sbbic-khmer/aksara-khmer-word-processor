@@ -243,13 +243,11 @@ export function KhmerSpellCheckPlugin() {
                 // Split by spaces or zero-width characters (ZWSP, ZWJ, ZWNJ) BEFORE cleaning
                 const hasZWSP = /[\u200B\u200C\u200D]/.test(text);
                 const words = text.split(/[\s\u200B\u200C\u200D]+/).filter(w => w.length > 0);
-                console.log('[v0] SpellCheck scanning span:', JSON.stringify(text), 'hasZWSP:', hasZWSP, 'wordCount:', words.length, 'words:', words.map(w => cleanKhmerWord(w)));
+                console.log('[v0] SpellCheck span text:', JSON.stringify(text), 'len:', text.length, 'hasZWSP:', hasZWSP, 'words:', words);
                 for (const word of words) {
                     // Now clean each individual word segment
                     const cleanedWord = cleanKhmerWord(word);
-                    const isInDict = cleanedWord ? typo.check(cleanedWord) : true;
-                    console.log('[v0] SpellCheck word:', cleanedWord, 'inDict:', isInDict);
-                    if (cleanedWord && !isInDict) {
+                    if (cleanedWord && !typo.check(cleanedWord)) {
                         isMisspelled = true;
                         break;
                     }
