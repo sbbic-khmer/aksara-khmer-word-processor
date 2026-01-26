@@ -44,6 +44,9 @@ import {
   isDebugEnabled,
   setWordBreakerDebugEnabled,
   isWordBreakerDebugEnabled,
+  setCursorDebugEnabled,
+  isCursorDebugEnabled,
+  cursorDebugLog,
 } from "@/lib/debug"
 import { Loader2 } from "lucide-react"
 
@@ -264,6 +267,8 @@ function EditorContent({
   setDebugMode,
   wordBreakerDebugMode,
   setWordBreakerDebugMode,
+  cursorDebugMode,
+  setCursorDebugMode,
   onVoiceStateChange,
   onPartialTranscriptChange,
   documentState,
@@ -286,6 +291,8 @@ function EditorContent({
   setDebugMode: (debug: boolean) => void
   wordBreakerDebugMode: boolean
   setWordBreakerDebugMode: (debug: boolean) => void
+  cursorDebugMode: boolean
+  setCursorDebugMode: (debug: boolean) => void
   onVoiceStateChange: (active: boolean) => void
   onPartialTranscriptChange: (text: string) => void
   documentState: DocumentState
@@ -388,6 +395,111 @@ function EditorContent({
     debugLog("Word Breaker Debug mode", newValue ? "enabled" : "disabled")
   }, [wordBreakerDebugMode, setWordBreakerDebugMode])
 
+  const handleToggleCursorDebug = useCallback(() => {
+    const newValue = !cursorDebugMode
+    setCursorDebugMode(newValue)
+    setCursorDebugEnabled(newValue)
+    debugLog("Cursor Debug mode", newValue ? "enabled" : "disabled")
+  }, [cursorDebugMode, setCursorDebugMode])
+
+  // Cursor debug: track clicks and selection changes
+  useEffect(() => {
+    if (!cursorDebugMode) return
+
+    const editorElement = editor.getRootElement()
+    if (!editorElement) return
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      cursorDebugLog("MOUSEDOWN", {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        target: target.tagName,
+        targetClass: target.className,
+        isContentEditable: target.isContentEditable,
+        targetText: target.textContent?.slice(0, 50),
+      })
+    }
+
+    const handleMouseUp = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      
+      // Capture selection immediately after mouseup
+      setTimeout(() => {
+        editor.getEditorState().read(() => {
+          const selection = $getSelection()
+          if ($isRangeSelection(selection)) {
+            const anchor = selection.anchor
+            const focus = selection.focus
+            const anchorNode = anchor.getNode()
+            const focusNode = focus.getNode()
+            
+            cursorDebugLog("MOUSEUP - Selection state", {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              target: target.tagName,
+              isCollapsed: selection.isCollapsed(),
+              anchor: {
+                key: anchor.key,
+                offset: anchor.offset,
+                type: anchor.type,
+                nodeType: anchorNode.getType(),
+                nodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 30) : "N/A",
+              },
+              focus: {
+                key: focus.key,
+                offset: focus.offset,
+                type: focus.type,
+                nodeType: focusNode.getType(),
+                nodeText: $isTextNode(focusNode) ? focusNode.getTextContent().slice(0, 30) : "N/A",
+              },
+            })
+          } else {
+            cursorDebugLog("MOUSEUP - No range selection", {
+              clientX: e.clientX,
+              clientY: e.clientY,
+              selectionType: selection ? selection.constructor.name : "null",
+            })
+          }
+        })
+      }, 0)
+    }
+
+    const handleSelectionChange = () => {
+      editor.getEditorState().read(() => {
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          const anchor = selection.anchor
+          const anchorNode = anchor.getNode()
+          
+          // Only log if cursor is at position 0 (potential jump to start)
+          if (anchor.offset === 0) {
+            cursorDebugLog("SELECTION_CHANGE - Cursor at position 0!", {
+              anchorKey: anchor.key,
+              nodeType: anchorNode.getType(),
+              nodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 30) : "N/A",
+              isFirstNode: anchorNode.getPreviousSibling() === null,
+              parentType: anchorNode.getParent()?.getType(),
+            })
+          }
+        }
+      })
+    }
+
+    editorElement.addEventListener("mousedown", handleMouseDown)
+    editorElement.addEventListener("mouseup", handleMouseUp)
+    document.addEventListener("selectionchange", handleSelectionChange)
+
+    cursorDebugLog("Cursor debug listeners attached")
+
+    return () => {
+      editorElement.removeEventListener("mousedown", handleMouseDown)
+      editorElement.removeEventListener("mouseup", handleMouseUp)
+      document.removeEventListener("selectionchange", handleSelectionChange)
+      cursorDebugLog("Cursor debug listeners removed")
+    }
+  }, [editor, cursorDebugMode])
+
   return (
     <>
       <ToolbarPlugin onFormatsChange={handleFormatsChange} />
@@ -409,6 +521,8 @@ function EditorContent({
           onToggleDebug={handleToggleDebug}
           wordBreakerDebugMode={wordBreakerDebugMode}
           onToggleWordBreakerDebug={handleToggleWordBreakerDebug}
+          cursorDebugMode={cursorDebugMode}
+          onToggleCursorDebug={handleToggleCursorDebug}
           hasUnsavedChanges={documentState.hasUnsavedChanges}
           currentDocTitle={documentState.title}
         />
@@ -492,6 +606,8 @@ function EditorWrapper({
   setDebugMode,
   wordBreakerDebugMode,
   setWordBreakerDebugMode,
+  cursorDebugMode,
+  setCursorDebugMode,
   onVoiceStateChange,
   onPartialTranscriptChange,
   documentState,
@@ -513,6 +629,8 @@ function EditorWrapper({
   setDebugMode: (debug: boolean) => void
   wordBreakerDebugMode: boolean
   setWordBreakerDebugMode: (debug: boolean) => void
+  cursorDebugMode: boolean
+  setCursorDebugMode: (debug: boolean) => void
   onVoiceStateChange: (active: boolean) => void
   onPartialTranscriptChange: (text: string) => void
   documentState: DocumentState
@@ -1051,6 +1169,8 @@ function EditorWrapper({
             setDebugMode={setDebugMode}
             wordBreakerDebugMode={wordBreakerDebugMode}
             setWordBreakerDebugMode={setWordBreakerDebugMode}
+            cursorDebugMode={cursorDebugMode}
+            setCursorDebugMode={setCursorDebugMode}
             onVoiceStateChange={onVoiceStateChange}
             onPartialTranscriptChange={onPartialTranscriptChange}
             documentState={documentState}
@@ -1099,6 +1219,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     const [currentText, setCurrentText] = useState("")
     const [debugMode, setDebugMode] = useState(isDebugEnabled())
     const [wordBreakerDebugMode, setWordBreakerDebugMode] = useState(isWordBreakerDebugEnabled())
+    const [cursorDebugMode, setCursorDebugMode] = useState(isCursorDebugEnabled())
     const [mounted, setMounted] = useState(false)
     const [isVoiceActive, setIsVoiceActive] = useState(false)
     const [partialTranscript, setPartialTranscript] = useState("")
@@ -1259,6 +1380,8 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
             setDebugMode={setDebugMode}
             wordBreakerDebugMode={wordBreakerDebugMode}
             setWordBreakerDebugMode={setWordBreakerDebugMode}
+            cursorDebugMode={cursorDebugMode}
+            setCursorDebugMode={setCursorDebugMode}
             onVoiceStateChange={handleVoiceStateChange}
             onPartialTranscriptChange={setPartialTranscript}
             documentState={documentState}

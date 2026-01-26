@@ -18,7 +18,7 @@ import {
 import { useEffect, useRef } from "react"
 import { $createKhmerBreakNode, $isKhmerBreakNode } from "../nodes/khmer-break-node"
 import type { KhmerBreaker } from "@/lib/khmer-breaker"
-import { isWordBreakerDebugEnabled } from "@/lib/debug"
+import { isWordBreakerDebugEnabled, isCursorDebugEnabled, cursorDebugLog } from "@/lib/debug"
 
 const ZWSP = "\u200B"
 const ZWJ = "\u200D"  // Zero-width joiner
@@ -192,17 +192,32 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         newNodes.forEach((node) => paragraph.append(node))
 
         if (cursorOffset !== null) {
+          if (isCursorDebugEnabled()) {
+            cursorDebugLog("resegmentParagraph - RESTORING cursor", { cursorOffset, nodeCount: newNodes.length })
+          }
           let charCount = 0
+          let cursorRestored = false
           for (const node of newNodes) {
             if ($isTextNode(node)) {
               const nodeLength = node.getTextContentSize()
               if (charCount + nodeLength >= cursorOffset) {
                 const offsetInNode = cursorOffset - charCount
                 node.select(offsetInNode, offsetInNode)
+                cursorRestored = true
+                if (isCursorDebugEnabled()) {
+                  cursorDebugLog("resegmentParagraph - Cursor restored", { offsetInNode, nodeText: node.getTextContent().slice(0, 20) })
+                }
                 break
               }
               charCount += nodeLength
             }
+          }
+          if (!cursorRestored && isCursorDebugEnabled()) {
+            cursorDebugLog("resegmentParagraph - WARNING: Cursor NOT restored! charCount:", charCount, "cursorOffset:", cursorOffset)
+          }
+        } else {
+          if (isCursorDebugEnabled()) {
+            cursorDebugLog("resegmentParagraph - NO cursor restoration (cursorOffset is null)")
           }
         }
       } finally {
@@ -382,6 +397,24 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
               offset += child.getTextContentSize()
             }
           }
+          if (isCursorDebugEnabled()) {
+            cursorDebugLog("NodeTransform - cursor calculated", { 
+              cursorOffset, 
+              anchorOffset: selection.anchor.offset,
+              anchorNodeText: anchorNode.getTextContent().slice(0, 20)
+            })
+          }
+        } else {
+          if (isCursorDebugEnabled()) {
+            cursorDebugLog("NodeTransform - anchorNode is NOT TextNode!", { 
+              anchorNodeType: anchorNode.getType(),
+              anchorOffset: selection.anchor.offset
+            })
+          }
+        }
+      } else {
+        if (isCursorDebugEnabled()) {
+          cursorDebugLog("NodeTransform - No range selection", { selectionType: selection ? selection.constructor.name : "null" })
         }
       }
 
