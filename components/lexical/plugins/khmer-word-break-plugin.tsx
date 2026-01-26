@@ -140,7 +140,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         if (!text || text.length === 0) return
 
         // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
-        if (containsUserBreaks(text)) {
+        const hasUserBreaks = containsUserBreaks(text)
+        console.log(`[v0] resegmentParagraph - text:`, JSON.stringify(text), 'hasUserBreaks:', hasUserBreaks, 'showBreaks:', showBreaks)
+        if (hasUserBreaks) {
           if (isWordBreakerDebugEnabled()) {
             console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
           }
@@ -287,6 +289,8 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         // the ZWSP and show visual break markers instead.
         const endPos = (!showBreaks && isUserBreak) ? breakPos + 1 : breakPos
         const segment = text.slice(lastPos, endPos)
+        
+        console.log(`[v0] resegmentWithUserBreaks segment ${i}: showBreaks=${showBreaks}, isUserBreak=${isUserBreak}, breakPos=${breakPos}, endPos=${endPos}, segment=`, JSON.stringify(segment))
         
         if (segment.length > 0) {
           // Get format at the start of this segment
