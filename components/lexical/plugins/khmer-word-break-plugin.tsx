@@ -42,6 +42,81 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const processingParagraphRef = useRef(false)
   const processedNodesRef = useRef(new WeakSet<TextNode>())
   const processedParagraphKeysRef = useRef(new Set<string>())
+  const prevShowBreaksRef = useRef(showBreaks)
+
+  // When showBreaks changes, clear processed refs and trigger re-processing of all paragraphs
+  useEffect(() => {
+    if (prevShowBreaksRef.current !== showBreaks) {
+      prevShowBreaksRef.current = showBreaks
+      
+      // Clear processed refs to allow re-processing
+      processedNodesRef.current = new WeakSet<TextNode>()
+      processedParagraphKeysRef.current = new Set<string>()
+      
+      // Force re-processing by collecting all paragraph text and re-segmenting
+      // We use a setTimeout to ensure the main transform useEffect has updated with new showBreaks
+      setTimeout(() => {
+        editor.update(() => {
+          const root = $getRoot()
+          const paragraphs = root.getChildren().filter($isParagraphNode)
+          
+          for (const paragraph of paragraphs) {
+            // Get all text content from the paragraph, stripping existing ZWSP
+            const children = paragraph.getChildren()
+            let fullText = ''
+            let hasTextNodes = false
+            
+            for (const child of children) {
+              if ($isTextNode(child)) {
+                hasTextNodes = true
+                // Remove existing ZWSP when collecting text
+                fullText += child.getTextContent().replace(/\u200B/g, '')
+              } else if ($isKhmerBreakNode(child)) {
+                // Skip break nodes - they'll be re-added if needed
+              }
+            }
+            
+            if (!hasTextNodes || fullText.length === 0) continue
+            
+            // Clear the paragraph and re-segment
+            const segments = breaker.getSegments(fullText)
+            const newNodes: LexicalNode[] = []
+            
+            segments.forEach((segment, i) => {
+              const isLastSegment = i === segments.length - 1
+              const nextSegment = !isLastSegment ? segments[i + 1] : null
+              
+              const skipBreak = isLastSegment || (
+                /^\s+$/.test(segment) ||
+                (nextSegment && /^\s+$/.test(nextSegment)) ||
+                /\s$/.test(segment) ||
+                (nextSegment && /^\s/.test(nextSegment))
+              )
+              
+              // Add ZWSP when showBreaks is false, or nothing when true (KhmerBreakNode will be added)
+              const segmentText = (!showBreaks && !skipBreak)
+                ? segment + '\u200B'
+                : segment
+              
+              const newTextNode = $createTextNode(segmentText)
+              processedNodesRef.current.add(newTextNode)
+              newNodes.push(newTextNode)
+              
+              // Add visible break node when showBreaks is on
+              if (showBreaks && !skipBreak) {
+                newNodes.push($createKhmerBreakNode())
+              }
+            })
+            
+            if (newNodes.length > 0) {
+              paragraph.clear()
+              newNodes.forEach(node => paragraph.append(node))
+            }
+          }
+        })
+      }, 0)
+    }
+  }, [editor, showBreaks, breaker])
 
   useEffect(() => {
     // Store format info for each character position
@@ -301,27 +376,34 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           // Get format at the start of this segment
           const { format, style } = getFormatAtPosition(formatRanges, lastPos)
           
-          const newTextNode = $createTextNode(segment)
+          // Check if we should add a word boundary after this segment
+          const isLastSegment = i >= allBreakPositions.length
+          const nextEndPos = !isLastSegment && i + 1 < allBreakPositions.length ? allBreakPositions[i + 1] : text.length
+          const nextSegment = !isLastSegment ? text.slice(endPos, nextEndPos) : ''
+          
+          // Skip break if current or next segment is whitespace only
+          const skipBreak = isLastSegment || (
+            isWhitespaceOnly(segment.replace(USER_BREAK_REGEX, '')) ||
+            isWhitespaceOnly(nextSegment.replace(USER_BREAK_REGEX, '')) ||
+            containsWhitespace(segment.replace(USER_BREAK_REGEX, '').slice(-1)) ||
+            containsWhitespace(nextSegment.replace(USER_BREAK_REGEX, '').slice(0, 1))
+          )
+          
+          // When showBreaks is false, append ZWSP to maintain word boundaries
+          // This ensures spell check and copy/paste work correctly
+          const segmentText = (!showBreaks && !skipBreak)
+            ? segment + '\u200B'  // ZWSP appended for invisible word boundary
+            : segment
+          
+          const newTextNode = $createTextNode(segmentText)
           newTextNode.setFormat(format)
           newTextNode.setStyle(style)
           processedNodesRef.current.add(newTextNode)
           newNodes.push(newTextNode)
           
-          // Add break node after this segment if there's more content and showBreaks is on
-          if (showBreaks && i < allBreakPositions.length) {
-            const nextEndPos = i + 1 < allBreakPositions.length ? allBreakPositions[i + 1] : text.length
-            const nextSegment = text.slice(endPos, nextEndPos)
-            
-            // Skip break if current or next segment is whitespace only
-            const skipBreak =
-              isWhitespaceOnly(segment.replace(USER_BREAK_REGEX, '')) ||
-              isWhitespaceOnly(nextSegment.replace(USER_BREAK_REGEX, '')) ||
-              containsWhitespace(segment.replace(USER_BREAK_REGEX, '').slice(-1)) ||
-              containsWhitespace(nextSegment.replace(USER_BREAK_REGEX, '').slice(0, 1))
-            
-            if (!skipBreak) {
-              newNodes.push($createKhmerBreakNode())
-            }
+          // Add visible break node after this segment when showBreaks is on
+          if (showBreaks && !skipBreak) {
+            newNodes.push($createKhmerBreakNode())
           }
         }
         
