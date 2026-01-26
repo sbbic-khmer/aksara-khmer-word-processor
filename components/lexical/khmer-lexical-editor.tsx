@@ -13,7 +13,7 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useTheme } from "next-themes"
-import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection } from "lexical"
+import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection, CLICK_COMMAND, COMMAND_PRIORITY_LOW, SELECTION_CHANGE_COMMAND } from "lexical"
 
 import { KhmerBreakNode } from "./nodes/khmer-break-node"
 import { KhmerWordBreakPlugin } from "./plugins/khmer-word-break-plugin"
@@ -411,6 +411,24 @@ function EditorContent({
 
     const handleMouseDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement
+      
+      // Also capture what caretRangeFromPoint would give us
+      let caretInfo = null
+      if (document.caretRangeFromPoint) {
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY)
+        if (range) {
+          const container = range.startContainer
+          caretInfo = {
+            containerNodeType: container.nodeType,
+            containerNodeName: container.nodeName,
+            containerText: container.textContent?.slice(0, 30),
+            offset: range.startOffset,
+            parentElement: (container.parentElement as HTMLElement)?.tagName,
+            parentClass: (container.parentElement as HTMLElement)?.className,
+          }
+        }
+      }
+      
       cursorDebugLog("MOUSEDOWN", {
         clientX: e.clientX,
         clientY: e.clientY,
@@ -418,13 +436,53 @@ function EditorContent({
         targetClass: target.className,
         isContentEditable: target.isContentEditable,
         targetText: target.textContent?.slice(0, 50),
+        caretRangeFromPoint: caretInfo,
+      })
+      
+      // Capture Lexical selection state BEFORE the click is processed
+      editor.getEditorState().read(() => {
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          const anchor = selection.anchor
+          const anchorNode = anchor.getNode()
+          cursorDebugLog("MOUSEDOWN - Lexical selection BEFORE click", {
+            anchorKey: anchor.key,
+            anchorOffset: anchor.offset,
+            nodeType: anchorNode.getType(),
+            nodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 30) : "N/A",
+          })
+        }
       })
     }
 
     const handleMouseUp = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       
-      // Capture selection immediately after mouseup
+      // Capture native selection immediately
+      const nativeSelection = window.getSelection()
+      let nativeInfo = null
+      if (nativeSelection && nativeSelection.rangeCount > 0) {
+        const range = nativeSelection.getRangeAt(0)
+        const container = range.startContainer
+        nativeInfo = {
+          containerNodeType: container.nodeType,
+          containerNodeName: container.nodeName,
+          containerText: container.textContent?.slice(0, 30),
+          offset: range.startOffset,
+          isCollapsed: range.collapsed,
+          parentElement: (container.parentElement as HTMLElement)?.tagName,
+          parentClass: (container.parentElement as HTMLElement)?.className,
+        }
+      }
+      
+      cursorDebugLog("MOUSEUP - Native selection IMMEDIATELY", {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        target: target.tagName,
+        nativeSelection: nativeInfo,
+      })
+      
+      // Capture selection after a tick to see what Lexical does
       setTimeout(() => {
         editor.getEditorState().read(() => {
           const selection = $getSelection()
@@ -434,11 +492,14 @@ function EditorContent({
             const anchorNode = anchor.getNode()
             const focusNode = focus.getNode()
             
-            cursorDebugLog("MOUSEUP - Selection state", {
-              clientX: e.clientX,
-              clientY: e.clientY,
+            // Check if this is a "first node" situation
+            const parent = anchorNode.getParent()
+            const isFirstInParagraph = parent && anchorNode.getPreviousSibling() === null
+            
+            cursorDebugLog("MOUSEUP - Lexical selection AFTER tick", {
               target: target.tagName,
               isCollapsed: selection.isCollapsed(),
+              isFirstInParagraph,
               anchor: {
                 key: anchor.key,
                 offset: anchor.offset,
@@ -454,10 +515,21 @@ function EditorContent({
                 nodeText: $isTextNode(focusNode) ? focusNode.getTextContent().slice(0, 30) : "N/A",
               },
             })
+            
+            // CRITICAL: Compare native vs Lexical to see if they match
+            const nativeSelNow = window.getSelection()
+            if (nativeSelNow && nativeSelNow.rangeCount > 0) {
+              const nativeRange = nativeSelNow.getRangeAt(0)
+              cursorDebugLog("MOUSEUP - Native vs Lexical comparison", {
+                nativeOffset: nativeRange.startOffset,
+                lexicalOffset: anchor.offset,
+                nativeContainer: nativeRange.startContainer.textContent?.slice(0, 20),
+                lexicalNodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 20) : "N/A",
+                match: nativeRange.startOffset === anchor.offset,
+              })
+            }
           } else {
-            cursorDebugLog("MOUSEUP - No range selection", {
-              clientX: e.clientX,
-              clientY: e.clientY,
+            cursorDebugLog("MOUSEUP - No range selection after tick", {
               selectionType: selection ? selection.constructor.name : "null",
             })
           }
@@ -472,14 +544,16 @@ function EditorContent({
           const anchor = selection.anchor
           const anchorNode = anchor.getNode()
           
-          // Only log if cursor is at position 0 (potential jump to start)
-          if (anchor.offset === 0) {
-            cursorDebugLog("SELECTION_CHANGE - Cursor at position 0!", {
+          // Only log if cursor is at position 0 AND it's the first node (potential jump to start)
+          const parent = anchorNode.getParent()
+          const isFirstInParagraph = parent && anchorNode.getPreviousSibling() === null
+          
+          if (anchor.offset === 0 && isFirstInParagraph) {
+            cursorDebugLog("SELECTION_CHANGE - Cursor at START of paragraph!", {
               anchorKey: anchor.key,
               nodeType: anchorNode.getType(),
               nodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 30) : "N/A",
-              isFirstNode: anchorNode.getPreviousSibling() === null,
-              parentType: anchorNode.getParent()?.getType(),
+              parentType: parent?.getType(),
             })
           }
         }
@@ -490,9 +564,63 @@ function EditorContent({
     editorElement.addEventListener("mouseup", handleMouseUp)
     document.addEventListener("selectionchange", handleSelectionChange)
 
-    cursorDebugLog("Cursor debug listeners attached")
+    // Register Lexical command listeners to see internal processing
+    const unregisterClick = editor.registerCommand(
+      CLICK_COMMAND,
+      (payload: MouseEvent) => {
+        const target = payload.target as HTMLElement
+        editor.getEditorState().read(() => {
+          const selection = $getSelection()
+          cursorDebugLog("LEXICAL CLICK_COMMAND", {
+            target: target.tagName,
+            targetClass: target.className,
+            hasSelection: !!selection,
+            selectionType: selection ? (selection as { constructor: { name: string } }).constructor.name : "null",
+            isRangeSelection: $isRangeSelection(selection),
+            anchorOffset: $isRangeSelection(selection) ? selection.anchor.offset : "N/A",
+            anchorNodeType: $isRangeSelection(selection) ? selection.anchor.getNode().getType() : "N/A",
+          })
+        })
+        return false // Don't prevent default handling
+      },
+      COMMAND_PRIORITY_LOW
+    )
+
+    const unregisterSelectionChange = editor.registerCommand(
+      SELECTION_CHANGE_COMMAND,
+      () => {
+        editor.getEditorState().read(() => {
+          const selection = $getSelection()
+          if ($isRangeSelection(selection)) {
+            const anchor = selection.anchor
+            const anchorNode = anchor.getNode()
+            const parent = anchorNode.getParent()
+            const isFirstInParagraph = parent && anchorNode.getPreviousSibling() === null
+            
+            // Only log position 0 + first node events (cursor jump candidates)
+            if (anchor.offset === 0 && isFirstInParagraph) {
+              cursorDebugLog("LEXICAL SELECTION_CHANGE_COMMAND - At paragraph start!", {
+                anchorKey: anchor.key,
+                nodeType: anchorNode.getType(),
+                nodeText: $isTextNode(anchorNode) ? anchorNode.getTextContent().slice(0, 30) : "N/A",
+              })
+            }
+          }
+        })
+        return false
+      },
+      COMMAND_PRIORITY_LOW
+    )
+
+    editorElement.addEventListener("mousedown", handleMouseDown)
+    editorElement.addEventListener("mouseup", handleMouseUp)
+    document.addEventListener("selectionchange", handleSelectionChange)
+
+    cursorDebugLog("Cursor debug listeners attached (DOM + Lexical commands)")
 
     return () => {
+      unregisterClick()
+      unregisterSelectionChange()
       editorElement.removeEventListener("mousedown", handleMouseDown)
       editorElement.removeEventListener("mouseup", handleMouseUp)
       document.removeEventListener("selectionchange", handleSelectionChange)
