@@ -20,6 +20,8 @@ import { KhmerWordBreakPlugin } from "./plugins/khmer-word-break-plugin"
 import { VoiceInputPlugin, INSERT_VOICE_TEXT_COMMAND } from "./plugins/voice-input-plugin"
 import { ToolbarPlugin, useToolbarCommands, type ActiveFormats } from "./plugins/toolbar-plugin"
 import { OnChangePlugin } from "./plugins/on-change-plugin"
+import { KhmerSpellCheckPlugin } from "./plugins/khmer-spell-check-plugin"
+import { SpellCheckProvider, useSpellCheck } from "./contexts/spell-check-context"
 import { $isKhmerBreakNode } from "./nodes/khmer-break-node"
 import { $isHeadingNode } from "@lexical/rich-text"
 import { $isListNode, $isListItemNode } from "@lexical/list"
@@ -846,6 +848,7 @@ function EditorContent({
       <ToolbarPlugin onFormatsChange={handleFormatsChange} />
       <KhmerWordBreakPlugin breaker={breaker} showBreaks={showBreaks} />
       <VoiceInputPlugin />
+      <KhmerSpellCheckPlugin />
       <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
       <HistoryPlugin />
       <ListPlugin />
@@ -1708,30 +1711,32 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
         />
 
         <LexicalComposer initialConfig={initialConfig}>
-          <EditorWrapper
-            breaker={breaker}
-            showBreaks={showBreaks}
-            setShowBreaks={setShowBreaks}
-            onActiveFormatsChange={setActiveFormats}
-            onTextChange={handleTextChange}
-            voiceInputRef={voiceInputRef}
-            applyReplacements={applyReplacements}
-            onExportOdt={handleExportOdt}
-            debugMode={debugMode}
-            setDebugMode={setDebugMode}
-            wordBreakerDebugMode={wordBreakerDebugMode}
-            setWordBreakerDebugMode={setWordBreakerDebugMode}
-            cursorDebugMode={cursorDebugMode}
-            setCursorDebugMode={setCursorDebugMode}
-            onVoiceStateChange={handleVoiceStateChange}
-            onPartialTranscriptChange={setPartialTranscript}
-            documentState={documentState}
-            setDocumentState={setDocumentState}
-            initialEditorState={initialEditorState || null}
-            lastOpenedDocumentId={preferences.last_opened_document_id}
-            updateLastOpenedDocumentId={updateLastOpenedDocumentId}
-            isLoadingPreferences={isLoadingPreferences}
-          />
+          <SpellCheckProvider>
+            <EditorWrapper
+              breaker={breaker}
+              showBreaks={showBreaks}
+              setShowBreaks={setShowBreaks}
+              onActiveFormatsChange={setActiveFormats}
+              onTextChange={handleTextChange}
+              voiceInputRef={voiceInputRef}
+              applyReplacements={applyReplacements}
+              onExportOdt={handleExportOdt}
+              debugMode={debugMode}
+              setDebugMode={setDebugMode}
+              wordBreakerDebugMode={wordBreakerDebugMode}
+              setWordBreakerDebugMode={setWordBreakerDebugMode}
+              cursorDebugMode={cursorDebugMode}
+              setCursorDebugMode={setCursorDebugMode}
+              onVoiceStateChange={handleVoiceStateChange}
+              onPartialTranscriptChange={setPartialTranscript}
+              documentState={documentState}
+              setDocumentState={setDocumentState}
+              initialEditorState={initialEditorState || null}
+              lastOpenedDocumentId={preferences.last_opened_document_id}
+              updateLastOpenedDocumentId={updateLastOpenedDocumentId}
+              isLoadingPreferences={isLoadingPreferences}
+            />
+          </SpellCheckProvider>
         </LexicalComposer>
 
         <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-500 dark:text-gray-400">
