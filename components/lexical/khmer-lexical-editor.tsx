@@ -13,8 +13,7 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useTheme } from "next-themes"
-import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection, $createRangeSelection, $setSelection, CLICK_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, SELECTION_CHANGE_COMMAND } from "lexical"
-import { $getNearestNodeFromDOMNode } from "@lexical/utils"
+import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection, $createRangeSelection, $setSelection, CLICK_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, SELECTION_CHANGE_COMMAND, type TextNode } from "lexical"
 
 import { KhmerBreakNode } from "./nodes/khmer-break-node"
 import { KhmerWordBreakPlugin } from "./plugins/khmer-word-break-plugin"
@@ -514,27 +513,51 @@ function EditorContent({
           })
         }
 
+        // Find the Lexical node by matching the DOM text node's parent element
+        // and its position within the paragraph
+        const targetSpan = targetTextNode.parentElement
+        
         // Set Lexical selection directly using editor.update()
         editor.update(() => {
-          const lexicalNode = $getNearestNodeFromDOMNode(targetTextNode)
+          // Find the matching Lexical text node by traversing the tree
+          const root = $getRoot()
+          let foundNode: TextNode | null = null
+          
+          // Walk through all paragraphs and their children
+          for (const paragraph of root.getChildren()) {
+            if (!$isParagraphNode(paragraph)) continue
+            
+            for (const child of paragraph.getChildren()) {
+              if ($isTextNode(child)) {
+                // Get the DOM element for this Lexical node
+                const domElement = editor.getElementByKey(child.getKey())
+                if (domElement && (domElement === targetSpan || domElement.contains(targetTextNode))) {
+                  foundNode = child
+                  break
+                }
+              }
+            }
+            if (foundNode) break
+          }
           
           if (isCursorDebugEnabled()) {
             cursorDebugLog("CLICK_FIX - Found Lexical node", {
-              lexicalNodeType: lexicalNode?.getType(),
-              isTextNode: lexicalNode ? $isTextNode(lexicalNode) : false,
+              found: !!foundNode,
+              nodeType: foundNode?.getType(),
+              nodeText: foundNode?.getTextContent().slice(0, 20),
             })
           }
           
-          if (lexicalNode && $isTextNode(lexicalNode)) {
+          if (foundNode) {
             // Create and set the selection directly in Lexical
             const selection = $createRangeSelection()
-            selection.anchor.set(lexicalNode.getKey(), offset, 'text')
-            selection.focus.set(lexicalNode.getKey(), offset, 'text')
+            selection.anchor.set(foundNode.getKey(), offset, 'text')
+            selection.focus.set(foundNode.getKey(), offset, 'text')
             $setSelection(selection)
             
             if (isCursorDebugEnabled()) {
               cursorDebugLog("CLICK_FIX - Lexical selection set", {
-                nodeKey: lexicalNode.getKey(),
+                nodeKey: foundNode.getKey(),
                 offset,
               })
             }
