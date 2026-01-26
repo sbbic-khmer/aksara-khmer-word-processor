@@ -91,6 +91,7 @@ export function KhmerSpellCheckPlugin() {
         setReplaceHandler, 
         setIsLoading, 
         setError,
+        debugMode,
     } = useSpellCheck();
 
     const [typo, setTypo] = useState<Typo | null>(null);
@@ -132,6 +133,7 @@ export function KhmerSpellCheckPlugin() {
                 const typoInstance = new Typo('km_KH', aff, dic);
                 setTypo(typoInstance);
                 setIsLoading(false);
+                console.log('[SpellCheck] Dictionary loaded successfully');
             } catch (err) {
                 if (mounted) {
                     setIsLoading(false);
@@ -157,6 +159,10 @@ export function KhmerSpellCheckPlugin() {
 
         // Find all text spans in the editor
         const spans = rootEl.querySelectorAll('span[data-lexical-text="true"]');
+        
+        if (debugMode) {
+            console.log('[SpellCheck] Scanning', spans.length, 'text spans');
+        }
         
         spans.forEach((span) => {
             const text = span.textContent;
@@ -200,11 +206,14 @@ export function KhmerSpellCheckPlugin() {
 
             if (isMisspelled) {
                 span.classList.add(MISSPELLED_CLASS);
+                if (debugMode) {
+                    console.log('[SpellCheck] Misspelled word:', cleanWord);
+                }
             } else {
                 span.classList.remove(MISSPELLED_CLASS);
             }
         });
-    }, [editor, typo, MISSPELLED_CLASS]);
+    }, [editor, typo, MISSPELLED_CLASS, debugMode]);
 
     // Register update listener to scan for misspellings on content change
     useEffect(() => {
@@ -243,6 +252,15 @@ export function KhmerSpellCheckPlugin() {
     const detectWordAtCursor = useCallback((node: TextNode, offset: number): { word: string; start: number; end: number } | null => {
         const text = node.getTextContent();
         
+        if (debugMode) {
+            console.log('[SpellCheck] detectWordAtCursor called with:', { 
+                text: text?.substring(0, 50) + (text && text.length > 50 ? '...' : ''), 
+                offset, 
+                textLength: text?.length,
+                containsKhmer: text ? containsKhmer(text) : false
+            });
+        }
+        
         if (!text || text.length === 0) return null;
         
         // For Khmer text, the TextNode may contain one or more words
@@ -280,7 +298,15 @@ export function KhmerSpellCheckPlugin() {
             
             // No spaces - the entire node content is the word (clean it first)
             const cleanedWord = cleanKhmerWord(text);
-            if (!cleanedWord) return null;
+            if (!cleanedWord) {
+                if (debugMode) {
+                    console.log('[SpellCheck] Word cleaned to empty, skipping');
+                }
+                return null;
+            }
+            if (debugMode) {
+                console.log('[SpellCheck] Detected Khmer word (whole node):', cleanedWord);
+            }
             return { word: cleanedWord, start: 0, end: text.length };
         }
         
@@ -301,9 +327,16 @@ export function KhmerSpellCheckPlugin() {
     // small helper that updates suggestions for a specific lexical text node
     const updateSuggestionsForNode = useCallback(
         (node: TextNode, start: number, end: number, word: string) => {
+            if (debugMode) {
+                console.log('[SpellCheck] updateSuggestionsForNode called:', { word, start, end, nodeKey: node.getKey() });
+            }
+            
             lastDetected.current = { nodeKey: node.getKey(), start, end };
 
             if (!typo) {
+                if (debugMode) {
+                    console.log('[SpellCheck] No typo instance, clearing suggestions');
+                }
                 setSelectedWord(null);
                 setSuggestions([]);
                 setReplaceHandler(() => () => { });
@@ -313,6 +346,9 @@ export function KhmerSpellCheckPlugin() {
 
             // Clean the word (remove invisible chars, punctuation, etc.)
             const cleanWord = cleanKhmerWord(word);
+            if (debugMode) {
+                console.log('[SpellCheck] Cleaned word:', cleanWord, 'from:', word);
+            }
             
             if (!cleanWord) {
                 setSelectedWord(null);
@@ -468,12 +504,30 @@ export function KhmerSpellCheckPlugin() {
             // only care about right-clicks (button === 2)
             if (ev.button !== 2) return;
 
+            if (debugMode) {
+                console.log('[SpellCheck] Right-click pointerdown at:', ev.clientX, ev.clientY);
+            }
+
             const r = getDOMRangeFromPoint(ev.clientX, ev.clientY);
-            if (!r) return;
+            if (!r) {
+                if (debugMode) {
+                    console.log('[SpellCheck] Could not get DOM range from point');
+                }
+                return;
+            }
             const sel = window.getSelection();
-            if (!sel) return;
+            if (!sel) {
+                if (debugMode) {
+                    console.log('[SpellCheck] Could not get window selection');
+                }
+                return;
+            }
             sel.removeAllRanges();
             sel.addRange(r);
+
+            if (debugMode) {
+                console.log('[SpellCheck] Selection set, calling handleSelectionChange');
+            }
 
             setTimeout(() => {
                 if (debounceRef.current) window.clearTimeout(debounceRef.current);
@@ -482,11 +536,22 @@ export function KhmerSpellCheckPlugin() {
         };
 
         const handleContextMenu = (ev: MouseEvent) => {
+            if (debugMode) {
+                console.log('[SpellCheck] Context menu event at:', ev.clientX, ev.clientY);
+            }
+            
             const r = getDOMRangeFromPoint(ev.clientX, ev.clientY);
             if (r) {
                 const sel = window.getSelection();
                 sel?.removeAllRanges();
                 sel?.addRange(r);
+                if (debugMode) {
+                    console.log('[SpellCheck] Selection updated from contextmenu');
+                }
+            } else {
+                if (debugMode) {
+                    console.log('[SpellCheck] No DOM range from contextmenu point');
+                }
             }
 
             handleSelectionChange();

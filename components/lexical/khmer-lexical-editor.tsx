@@ -308,6 +308,7 @@ function EditorContent({
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
+  const { debugMode: spellCheckDebugMode, setDebugMode: setSpellCheckDebugMode } = useSpellCheck()
   const [activeFormats, setActiveFormats] = useState<ActiveFormats>({
     bold: false,
     italic: false,
@@ -404,6 +405,12 @@ function EditorContent({
     setCursorDebugEnabled(newValue)
     debugLog("Cursor Debug mode", newValue ? "enabled" : "disabled")
   }, [cursorDebugMode, setCursorDebugMode])
+
+  const handleToggleSpellCheckDebug = useCallback(() => {
+    const newValue = !spellCheckDebugMode
+    setSpellCheckDebugMode(newValue)
+    debugLog("Spell Check Debug mode", newValue ? "enabled" : "disabled")
+  }, [spellCheckDebugMode, setSpellCheckDebugMode])
 
   // Fix for clicks on paragraph elements (between words/on KhmerBreakNodes)
   // This intercepts clicks BEFORE the browser sets selection, preventing the visual flash
@@ -868,6 +875,8 @@ function EditorContent({
           onToggleWordBreakerDebug={handleToggleWordBreakerDebug}
           cursorDebugMode={cursorDebugMode}
           onToggleCursorDebug={handleToggleCursorDebug}
+          spellCheckDebugMode={spellCheckDebugMode}
+          onToggleSpellCheckDebug={handleToggleSpellCheckDebug}
           hasUnsavedChanges={documentState.hasUnsavedChanges}
           currentDocTitle={documentState.title}
         />

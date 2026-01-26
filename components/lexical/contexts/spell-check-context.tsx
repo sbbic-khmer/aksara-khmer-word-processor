@@ -31,6 +31,9 @@ interface SpellCheckContextValue {
     addMisspelledNode: (key: string) => void;
     removeMisspelledNode: (key: string) => void;
     clearMisspelledNodes: () => void;
+    // Debug mode
+    debugMode: boolean;
+    setDebugMode: (debug: boolean) => void;
 }
 
 const SpellCheckContext = createContext<SpellCheckContextValue>({
@@ -48,6 +51,8 @@ const SpellCheckContext = createContext<SpellCheckContextValue>({
     addMisspelledNode: () => { },
     removeMisspelledNode: () => { },
     clearMisspelledNodes: () => { },
+    debugMode: false,
+    setDebugMode: () => { },
 });
 
 export const useSpellCheck = () => useContext(SpellCheckContext);
@@ -58,6 +63,7 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [misspelledNodeKeys, setMisspelledNodeKeys] = useState<Set<string>>(new Set());
+    const [debugMode, setDebugMode] = useState(false);
 
     // store the active Lexical replacement function
     const [replaceHandler, setReplaceHandler] = useState<
@@ -105,6 +111,7 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
                 addMisspelledNode,
                 removeMisspelledNode,
                 clearMisspelledNodes,
+                debugMode, setDebugMode,
             }}
         >
             {children}
