@@ -19,6 +19,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import Typo from 'typo-js';
 import { useSpellCheck } from '../contexts/spell-check-context';
 import { $isKhmerBreakNode } from '../nodes/khmer-break-node';
+import KhmerBreaker from '@/lib/khmer-breaker';
 
 /**
  * Cross-browser caret range from point helper
@@ -238,21 +239,30 @@ export function KhmerSpellCheckPlugin() {
 
             let isMisspelled = false;
 
-            // For Khmer text, split by ZWSP/spaces FIRST (before cleaning), then check each word
+            // For Khmer text, use KhmerBreaker to segment into words
+            // This ensures proper word detection even when auto-word-break is disabled
             if (containsKhmer(text)) {
-                // Split by spaces or zero-width characters (ZWSP, ZWJ, ZWNJ) BEFORE cleaning
-                const hasZWSP = /[\u200B\u200C\u200D]/.test(text);
-                const words = text.split(/[\s\u200B\u200C\u200D]+/).filter(w => w.length > 0);
-                console.log('[v0] SpellCheck: text len=' + text.length + ', hasZWSP=' + hasZWSP + ', wordCount=' + words.length);
-                for (const word of words) {
-                    // Now clean each individual word segment
-                    const cleanedWord = cleanKhmerWord(word);
-                    const inDict = cleanedWord ? typo.check(cleanedWord) : true;
-                    console.log('[v0] SpellCheck word: "' + cleanedWord + '" inDict=' + inDict);
-                    if (cleanedWord && !inDict) {
-                        isMisspelled = true;
-                        break;
+                // First split by regular spaces to get space-separated chunks
+                const chunks = text.split(/\s+/).filter(c => c.length > 0);
+                
+                for (const chunk of chunks) {
+                    // Use KhmerBreaker to segment each chunk into words
+                    // This handles both manually-inserted ZWSP AND auto-detection of word boundaries
+                    const breaker = new KhmerBreaker();
+                    const segments = breaker.getSegments(chunk);
+                    
+                    for (const segment of segments) {
+                        // Skip whitespace-only segments
+                        if (/^\s*$/.test(segment)) continue;
+                        
+                        // Clean the word (remove invisible chars, punctuation)
+                        const cleanedWord = cleanKhmerWord(segment);
+                        if (cleanedWord && !typo.check(cleanedWord)) {
+                            isMisspelled = true;
+                            break;
+                        }
                     }
+                    if (isMisspelled) break;
                 }
             } else {
                 // For non-Khmer, clean first then check individual words
@@ -326,52 +336,40 @@ export function KhmerSpellCheckPlugin() {
         
         if (!text || text.length === 0) return null;
         
-        // For Khmer text, the TextNode may contain one or more words
-        // If there are spaces or ZWSP characters, find the word at the cursor position
+        // For Khmer text, use KhmerBreaker to find word boundaries
+        // This works whether auto-word-break is enabled or not
         if (containsKhmer(text)) {
             // Skip whitespace-only nodes
             if (/^\s+$/.test(text)) return null;
             
-            // Check for word boundaries: spaces OR zero-width characters (ZWSP, ZWJ, ZWNJ)
-            const wordBoundaryRegex = /[\s\u200B\u200C\u200D]/;
-            if (wordBoundaryRegex.test(text)) {
-                // Split into words while tracking positions (keep delimiters)
-                let currentPos = 0;
-                const words = text.split(/([\s\u200B\u200C\u200D]+)/); // Keep delimiters to track positions
-                
-                for (const segment of words) {
-                    const segmentEnd = currentPos + segment.length;
-                    
-                    // Skip whitespace/ZWSP segments
-                    if (/^[\s\u200B\u200C\u200D]+$/.test(segment)) {
-                        currentPos = segmentEnd;
-                        continue;
-                    }
-                    
-                    // Check if cursor is within this word
-                    if (offset >= currentPos && offset <= segmentEnd) {
-                        const cleanedWord = cleanKhmerWord(segment);
-                        if (cleanedWord) {
-                            return { word: cleanedWord, start: currentPos, end: segmentEnd };
-                        }
-                    }
-                    currentPos = segmentEnd;
-                }
-                return null;
-            }
+            // Use KhmerBreaker to get word segments with positions
+            const breaker = new KhmerBreaker();
+            const segments = breaker.getSegments(text);
             
-            // No word boundaries - the entire node content is the word (clean it first)
-            const cleanedWord = cleanKhmerWord(text);
-            if (!cleanedWord) {
-                if (debugMode) {
-                    console.log('[SpellCheck] Word cleaned to empty, skipping');
+            // Track positions as we iterate through segments
+            let currentPos = 0;
+            for (const segment of segments) {
+                const segmentEnd = currentPos + segment.length;
+                
+                // Skip whitespace/ZWSP-only segments
+                if (/^[\s\u200B\u200C\u200D]+$/.test(segment)) {
+                    currentPos = segmentEnd;
+                    continue;
                 }
-                return null;
+                
+                // Check if cursor is within this word
+                if (offset >= currentPos && offset <= segmentEnd) {
+                    const cleanedWord = cleanKhmerWord(segment);
+                    if (cleanedWord) {
+                        if (debugMode) {
+                            console.log('[SpellCheck] Detected word at cursor:', cleanedWord, 'pos:', currentPos, '-', segmentEnd);
+                        }
+                        return { word: cleanedWord, start: currentPos, end: segmentEnd };
+                    }
+                }
+                currentPos = segmentEnd;
             }
-            if (debugMode) {
-                console.log('[SpellCheck] Detected Khmer word (whole node):', cleanedWord);
-            }
-            return { word: cleanedWord, start: 0, end: text.length };
+            return null;
         }
         
         // For non-Khmer (e.g., English), use traditional word boundary detection
