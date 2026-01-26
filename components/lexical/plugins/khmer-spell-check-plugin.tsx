@@ -245,17 +245,25 @@ export function KhmerSpellCheckPlugin() {
             // mark it visually - the user needs to use auto-word-break for visual spell check.
             if (containsKhmer(text)) {
                 // Check if span contains multiple words (spaces or ZWSP)
-                const hasMultipleWords = /[\s\u200B\u200C\u200D]/.test(text);
+                const hasZWSP = /[\u200B\u200C\u200D]/.test(text);
+                const hasSpaces = /\s/.test(text);
+                console.log('[v0] SpellCheck span:', text.substring(0, 30), 'len:', text.length, 'hasZWSP:', hasZWSP, 'hasSpaces:', hasSpaces);
                 
-                if (hasMultipleWords) {
-                    // Multi-word span: do NOT mark visually
-                    // Right-click will still work via detectWordAtCursor + KhmerBreaker
+                if (hasSpaces) {
+                    // Has regular spaces - this is a multi-word span, don't mark
+                    isMisspelled = false;
+                } else if (hasZWSP) {
+                    // Has ZWSP but no spaces - the word-breaker should have split this
+                    // but if it didn't, don't mark the whole thing
+                    console.log('[v0] SpellCheck: span has ZWSP but wasnt split - skipping visual mark');
                     isMisspelled = false;
                 } else {
-                    // Single word span: check if it's misspelled
+                    // Single word span (no spaces, no ZWSP): check if it's misspelled
                     const cleanedWord = cleanKhmerWord(text);
+                    const inDict = cleanedWord ? typo.check(cleanedWord) : true;
+                    console.log('[v0] SpellCheck single word:', cleanedWord, 'inDict:', inDict);
                     if (cleanedWord && cleanedWord.length <= 20) {
-                        isMisspelled = !typo.check(cleanedWord);
+                        isMisspelled = !inDict;
                     }
                 }
             } else {

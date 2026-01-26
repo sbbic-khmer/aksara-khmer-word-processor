@@ -143,10 +143,9 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         // We process user breaks even when showBreaks is false, so manually typed
         // ZWSP creates separate TextNodes (enabling spell check per word)
         const hasUserBreaks = containsUserBreaks(text)
+        console.log('[v0] WordBreak: showBreaks=' + showBreaks + ', hasUserBreaks=' + hasUserBreaks + ', textLen=' + text.length)
         if (hasUserBreaks) {
-          if (isWordBreakerDebugEnabled()) {
-            console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
-          }
+          console.log('[v0] WordBreak: processing user breaks')
           resegmentWithUserBreaks(paragraph, text, cursorOffset, formatRanges)
           return
         }
