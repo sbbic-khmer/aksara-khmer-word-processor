@@ -662,7 +662,7 @@ function EditorWrapper({
       docId: string,
       title: string,
       forceOverwrite = false,
-    ): Promise<{ success: boolean; conflict?: boolean; serverUpdatedAt?: string }> => {
+    ): Promise<{ success: boolean; conflict?: boolean; serverUpdatedAt?: string; newUpdatedAt?: string }> => {
       const currentState = documentStateRef.current
       const editorState = JSON.stringify(editor.getEditorState().toJSON())
       const content = editor.getEditorState().read(() => {
@@ -688,7 +688,13 @@ function EditorWrapper({
           return { success: false, conflict: true, serverUpdatedAt: data.serverUpdatedAt }
         }
 
-        return { success: response.ok }
+        if (response.ok) {
+          const data = await response.json()
+          // Return the server's updated_at timestamp to ensure sync
+          return { success: true, newUpdatedAt: data.updated_at }
+        }
+
+        return { success: false }
       } catch (error) {
         console.error("[v0] Error saving document:", error)
         return { success: false }
@@ -760,12 +766,12 @@ function EditorWrapper({
       setConflictServerUpdatedAt(result.serverUpdatedAt)
       setConflictDialogOpen(true)
       setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-    } else if (result.success) {
+    } else if (result.success && result.newUpdatedAt) {
       setDocumentState((prev) => ({
         ...prev,
         hasUnsavedChanges: false,
         saveStatus: "saved",
-        lastSavedAt: new Date().toISOString(),
+        lastSavedAt: result.newUpdatedAt,
       }))
       if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
       savedStatusTimeoutRef.current = setTimeout(() => {
@@ -791,12 +797,12 @@ function EditorWrapper({
       setConflictServerUpdatedAt(result.serverUpdatedAt)
       setConflictDialogOpen(true)
       setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-    } else if (result.success) {
+    } else if (result.success && result.newUpdatedAt) {
       setDocumentState((prev) => ({
         ...prev,
         hasUnsavedChanges: false,
         saveStatus: "saved",
-        lastSavedAt: new Date().toISOString(),
+        lastSavedAt: result.newUpdatedAt,
       }))
       if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
       savedStatusTimeoutRef.current = setTimeout(() => {
@@ -861,12 +867,13 @@ function EditorWrapper({
             setConflictServerUpdatedAt(result.serverUpdatedAt)
             setConflictDialogOpen(true)
             setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-          } else if (result.success) {
+          } else if (result.success && result.newUpdatedAt) {
             setDocumentState((prev) => ({
               ...prev,
+              title,
               hasUnsavedChanges: false,
               saveStatus: "saved",
-              lastSavedAt: new Date().toISOString(),
+              lastSavedAt: result.newUpdatedAt,
             }))
             if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
             savedStatusTimeoutRef.current = setTimeout(() => {
@@ -978,12 +985,12 @@ function EditorWrapper({
 
     const result = await performSave(documentState.id, documentState.title, true) // forceOverwrite = true
 
-    if (result.success) {
+    if (result.success && result.newUpdatedAt) {
       setDocumentState((prev) => ({
         ...prev,
         hasUnsavedChanges: false,
         saveStatus: "saved",
-        lastSavedAt: new Date().toISOString(),
+        lastSavedAt: result.newUpdatedAt,
       }))
       if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
       savedStatusTimeoutRef.current = setTimeout(() => {
