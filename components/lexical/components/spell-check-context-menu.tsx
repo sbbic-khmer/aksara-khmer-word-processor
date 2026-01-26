@@ -26,11 +26,10 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
     // Prevent the browser's default context menu
     e.preventDefault();
     
-    // Small delay to let the spell check plugin detect the word first
-    setTimeout(() => {
-      setPosition({ x: e.clientX, y: e.clientY });
-      setIsOpen(true);
-    }, 50);
+    // Set position and open immediately - the spell check plugin handles word detection
+    // via its own contextmenu event listener which fires first
+    setPosition({ x: e.clientX, y: e.clientY });
+    setIsOpen(true);
   }, []);
 
   // Handle clicking a suggestion

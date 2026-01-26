@@ -49,15 +49,38 @@ function getDOMRangeFromPoint(x: number, y: number): Range | null {
     return null;
 }
 
-// Check if a character is Khmer
-function isKhmerChar(char: string): boolean {
+// Check if a character is Khmer (letters only, not punctuation)
+function isKhmerLetter(char: string): boolean {
     const code = char.charCodeAt(0);
-    return code >= 0x1780 && code <= 0x17FF;
+    // Khmer letters: U+1780 to U+17DD (excluding punctuation U+17D4-U+17DA)
+    // Khmer punctuation: ។ (U+17D4), ៖ (U+17D6), etc.
+    return (code >= 0x1780 && code <= 0x17D3) || (code >= 0x17DB && code <= 0x17DD);
 }
 
-// Check if text contains Khmer characters
+// Check if a character is Khmer punctuation
+function isKhmerPunctuation(char: string): boolean {
+    const code = char.charCodeAt(0);
+    // Khmer punctuation range: U+17D4 to U+17DA
+    // ។ (U+17D4), ៕ (U+17D5), ៖ (U+17D6), ៗ (U+17D7), ៘ (U+17D8), ៙ (U+17D9), ៚ (U+17DA)
+    return code >= 0x17D4 && code <= 0x17DA;
+}
+
+// Check if text contains Khmer characters (letters)
 function containsKhmer(text: string): boolean {
-    return [...text].some(isKhmerChar);
+    return [...text].some(isKhmerLetter);
+}
+
+// Clean a word by removing invisible characters, punctuation, and trimming
+function cleanKhmerWord(text: string): string {
+    return text
+        // Remove zero-width characters
+        .replace(/[\u200B\u200C\u200D\u2060]/g, '')
+        // Remove Khmer punctuation
+        .replace(/[\u17D4-\u17DA]/g, '')
+        // Remove common punctuation
+        .replace(/[.,!?;:'"()\[\]{}]/g, '')
+        // Trim whitespace
+        .trim();
 }
 
 export function KhmerSpellCheckPlugin() {
@@ -142,8 +165,8 @@ export function KhmerSpellCheckPlugin() {
                 return;
             }
 
-            // Clean the word (remove invisible characters)
-            const cleanWord = text.replace(/[\u200B\u200C\u200D\u2060]/g, '').trim();
+            // Clean the word (remove invisible characters, punctuation, etc.)
+            const cleanWord = cleanKhmerWord(text);
             if (!cleanWord) {
                 span.classList.remove(MISSPELLED_CLASS);
                 return;
@@ -151,10 +174,16 @@ export function KhmerSpellCheckPlugin() {
 
             let isMisspelled = false;
 
-            // For Khmer text, check the whole span content as a word
+            // For Khmer text, we may have multiple words separated by spaces
+            // Split by spaces and check each word
             if (containsKhmer(cleanWord)) {
-                if (!typo.check(cleanWord)) {
-                    isMisspelled = true;
+                const words = cleanWord.split(/\s+/).filter(w => w.length > 0);
+                for (const word of words) {
+                    const cleanedWord = cleanKhmerWord(word);
+                    if (cleanedWord && !typo.check(cleanedWord)) {
+                        isMisspelled = true;
+                        break;
+                    }
                 }
             } else {
                 // For non-Khmer, check individual words
@@ -209,20 +238,50 @@ export function KhmerSpellCheckPlugin() {
      * For Khmer text, each TextNode after word-breaking represents a word segment.
      * We don't need regex-based word detection - the TextNode IS the word.
      * For non-Khmer text, we fall back to word boundary detection.
+     * Also handles spaces and punctuation properly.
      */
     const detectWordAtCursor = useCallback((node: TextNode, offset: number): { word: string; start: number; end: number } | null => {
         const text = node.getTextContent();
         
         if (!text || text.length === 0) return null;
         
-        // For Khmer text, the entire TextNode is considered one word
-        // (since KhmerWordBreakPlugin already segments words into separate TextNodes)
+        // For Khmer text, the TextNode may contain one or more words
+        // If there are spaces, find the word at the cursor position
         if (containsKhmer(text)) {
             // Skip whitespace-only nodes
             if (/^\s+$/.test(text)) return null;
             
-            // The entire node content is the word
-            return { word: text.trim(), start: 0, end: text.length };
+            // If the text contains spaces, find the word at cursor
+            if (/\s/.test(text)) {
+                // Split into words while tracking positions
+                let currentPos = 0;
+                const words = text.split(/(\s+)/); // Keep delimiters to track positions
+                
+                for (const segment of words) {
+                    const segmentEnd = currentPos + segment.length;
+                    
+                    // Skip whitespace segments
+                    if (/^\s+$/.test(segment)) {
+                        currentPos = segmentEnd;
+                        continue;
+                    }
+                    
+                    // Check if cursor is within this word
+                    if (offset >= currentPos && offset <= segmentEnd) {
+                        const cleanedWord = cleanKhmerWord(segment);
+                        if (cleanedWord) {
+                            return { word: cleanedWord, start: currentPos, end: segmentEnd };
+                        }
+                    }
+                    currentPos = segmentEnd;
+                }
+                return null;
+            }
+            
+            // No spaces - the entire node content is the word (clean it first)
+            const cleanedWord = cleanKhmerWord(text);
+            if (!cleanedWord) return null;
+            return { word: cleanedWord, start: 0, end: text.length };
         }
         
         // For non-Khmer (e.g., English), use traditional word boundary detection
@@ -252,8 +311,8 @@ export function KhmerSpellCheckPlugin() {
                 return;
             }
 
-            // Clean the word (remove any ZWSP or other invisible chars)
-            const cleanWord = word.replace(/[\u200B\u200C\u200D\u2060]/g, '').trim();
+            // Clean the word (remove invisible chars, punctuation, etc.)
+            const cleanWord = cleanKhmerWord(word);
             
             if (!cleanWord) {
                 setSelectedWord(null);
