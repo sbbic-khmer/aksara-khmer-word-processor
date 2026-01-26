@@ -241,11 +241,7 @@ export function KhmerSpellCheckPlugin() {
             // For Khmer text, split by ZWSP/spaces FIRST (before cleaning), then check each word
             if (containsKhmer(text)) {
                 // Split by spaces or zero-width characters (ZWSP, ZWJ, ZWNJ) BEFORE cleaning
-                const hasZWSP = /[\u200B\u200C\u200D]/.test(text);
                 const words = text.split(/[\s\u200B\u200C\u200D]+/).filter(w => w.length > 0);
-                if (debugMode) {
-                    console.log('[v0] SpellCheck scan - text:', JSON.stringify(text), 'hasZWSP:', hasZWSP, 'words:', words);
-                }
                 for (const word of words) {
                     // Now clean each individual word segment
                     const cleanedWord = cleanKhmerWord(word);

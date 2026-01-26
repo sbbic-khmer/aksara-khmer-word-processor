@@ -141,12 +141,20 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
 
         // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
         const hasUserBreaks = containsUserBreaks(text)
-        console.log(`[v0] resegmentParagraph - text:`, JSON.stringify(text), 'hasUserBreaks:', hasUserBreaks, 'showBreaks:', showBreaks)
         if (hasUserBreaks) {
           if (isWordBreakerDebugEnabled()) {
             console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
           }
           resegmentWithUserBreaks(paragraph, text, cursorOffset, formatRanges)
+          return
+        }
+
+        // When showBreaks is false (auto-word-break disabled), don't auto-segment
+        // The text should remain as-is unless user manually inserts ZWSP
+        if (!showBreaks) {
+          if (isWordBreakerDebugEnabled()) {
+            console.log(`[v0:wb] Skipping auto-segmentation - showBreaks is false`)
+          }
           return
         }
 
@@ -269,11 +277,14 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         return adjustedPos
       })
       
-      // Combine user break positions and adjusted auto break positions, sort, and deduplicate
-      const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
+      // When showBreaks is true, combine user break positions and auto break positions
+      // When showBreaks is false, ONLY use user break positions (no auto-segmentation)
+      const allBreakPositions = showBreaks 
+        ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
+        : [...userBreakPositions].sort((a, b) => a - b)
       
       if (isWordBreakerDebugEnabled()) {
-        console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All: ${allBreakPositions.join(',')}`)
+        console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
       }
       
       // Now create text nodes, splitting at all break positions
@@ -289,8 +300,6 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         // the ZWSP and show visual break markers instead.
         const endPos = (!showBreaks && isUserBreak) ? breakPos + 1 : breakPos
         const segment = text.slice(lastPos, endPos)
-        
-        console.log(`[v0] resegmentWithUserBreaks segment ${i}: showBreaks=${showBreaks}, isUserBreak=${isUserBreak}, breakPos=${breakPos}, endPos=${endPos}, segment=`, JSON.stringify(segment))
         
         if (segment.length > 0) {
           // Get format at the start of this segment
