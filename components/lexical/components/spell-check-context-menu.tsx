@@ -98,9 +98,11 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
     }
   }, [isOpen, position]);
 
+  const { suggestionsLoaded } = useSpellCheck();
   const hasSpellingSuggestions = selectedWord && suggestions.length > 0;
   const hasMisspelledWord = !!selectedWord;
-  const isLoadingSuggestions = selectedWord && suggestions.length === 0 && !isLoading;
+  const isLoadingSuggestions = selectedWord && !suggestionsLoaded && !isLoading;
+  const noSuggestionsFound = selectedWord && suggestionsLoaded && suggestions.length === 0;
   const showMenu = isOpen && (hasMisspelledWord || isLoading || error);
 
   return (
@@ -148,6 +150,13 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
                 <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>កំពុងស្វែងរកពាក្យ...</span>
+                </div>
+              )}
+
+              {/* No suggestions found */}
+              {noSuggestionsFound && (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground italic">
+                  រកមិនឃើញពាក្យស្រដៀង
                 </div>
               )}
 

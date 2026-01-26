@@ -92,6 +92,7 @@ export function KhmerSpellCheckPlugin() {
         setIsLoading, 
         setError,
         debugMode,
+        setSuggestionsLoaded,
     } = useSpellCheck();
 
     const [typo, setTypo] = useState<Typo | null>(null);
@@ -177,6 +178,7 @@ export function KhmerSpellCheckPlugin() {
                     // Only update if this is still the pending request
                     if (pendingRequestRef.current === word) {
                         setSuggestions(suggestions || []);
+                        setSuggestionsLoaded(true);
                         pendingRequestRef.current = null;
                     }
                 }
@@ -197,7 +199,7 @@ export function KhmerSpellCheckPlugin() {
         } catch (err) {
             console.error('[SpellCheck] Failed to create worker:', err);
         }
-    }, [debugMode, setSuggestions]);
+    }, [debugMode, setSuggestions, setSuggestionsLoaded]);
 
     /**
      * Scan all text spans in the DOM and mark misspelled words visually
@@ -451,6 +453,7 @@ export function KhmerSpellCheckPlugin() {
                 // Use Web Worker for suggestions to prevent UI freeze
                 // This is especially important for complex Khmer words where suggest() can take 10+ seconds
                 setSuggestions([]); // Clear while loading
+                setSuggestionsLoaded(false); // Mark as loading
                 
                 if (workerRef.current && workerReady) {
                     // Use worker for non-blocking suggestions
@@ -480,6 +483,7 @@ export function KhmerSpellCheckPlugin() {
                             
                             if (lastWordRef.current === cleanWord) {
                                 setSuggestions(suggs.slice(0, 5));
+                                setSuggestionsLoaded(true);
                             }
                         } catch (err) {
                             if (debugMode) {
@@ -500,7 +504,7 @@ export function KhmerSpellCheckPlugin() {
                 lastDetected.current = null;
             }
         },
-        [editor, typo, setReplaceHandler, setSelectedWord, setSuggestions, debugMode, workerReady]
+        [editor, typo, setReplaceHandler, setSelectedWord, setSuggestions, setSuggestionsLoaded, debugMode, workerReady]
     );
 
     // Called when selection changes (debounced)
