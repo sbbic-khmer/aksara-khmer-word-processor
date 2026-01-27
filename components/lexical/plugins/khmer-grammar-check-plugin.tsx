@@ -143,8 +143,12 @@ export function KhmerGrammarCheckPlugin() {
                 return;
             }
             
+            // Debug: log span content to understand structure
+            console.log('[v0] GrammarCheck span:', JSON.stringify(text), 'length:', text.length);
+            
             // Split by spaces (both regular and ZWSP) to get individual words
             const words = text.split(/[\s\u200B]+/).filter(w => w.length > 0);
+            console.log('[v0] GrammarCheck words:', words.length, JSON.stringify(words));
             
             // Check each word in this span
             let hasNonStandard = false;
