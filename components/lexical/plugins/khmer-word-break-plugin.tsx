@@ -15,7 +15,7 @@ import {
   type LexicalNode,
   type ElementNode,
 } from "lexical"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useCallback } from "react"
 import { $createKhmerBreakNode, $isKhmerBreakNode } from "../nodes/khmer-break-node"
 import type { KhmerBreaker } from "@/lib/khmer-breaker"
 import { isWordBreakerDebugEnabled, isCursorDebugEnabled, cursorDebugLog } from "@/lib/debug"
@@ -43,14 +43,11 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const processedNodesRef = useRef(new WeakSet<TextNode>())
   const processedParagraphKeysRef = useRef(new Set<string>())
 
-useEffect(() => {
-  // Clear processed refs when showBreaks changes to allow re-processing
-  processedNodesRef.current = new WeakSet<TextNode>()
-  processedParagraphKeysRef.current = new Set<string>()
-  
-  // Force re-process all paragraphs when showBreaks changes
-  // We need to do this after a small delay to ensure the effect has set up transforms
-  const timeoutId = setTimeout(() => {
+// Track if we've done initial mount resegmentation
+  const hasInitialResegmentRef = useRef(false)
+
+  // Force resegment all paragraphs (used on mount and when showBreaks changes)
+  const forceResegmentAllParagraphs = useCallback(() => {
     editor.update(() => {
       const root = $getRoot()
       root.getChildren().forEach(child => {
@@ -68,6 +65,34 @@ useEffect(() => {
         }
       })
     })
+  }, [editor])
+
+  // Initial mount: force resegment all paragraphs to ensure proper word boundaries
+  useEffect(() => {
+    if (hasInitialResegmentRef.current) return
+    hasInitialResegmentRef.current = true
+    
+    // Clear processed refs to allow processing
+    processedNodesRef.current = new WeakSet<TextNode>()
+    processedParagraphKeysRef.current = new Set<string>()
+    
+    // Delay to ensure editor is ready
+    const timeoutId = setTimeout(() => {
+      forceResegmentAllParagraphs()
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
+  }, [forceResegmentAllParagraphs])
+
+useEffect(() => {
+  // Clear processed refs when showBreaks changes to allow re-processing
+  processedNodesRef.current = new WeakSet<TextNode>()
+  processedParagraphKeysRef.current = new Set<string>()
+  
+  // Force re-process all paragraphs when showBreaks changes
+  // We need to do this after a small delay to ensure the effect has set up transforms
+  const timeoutId = setTimeout(() => {
+    forceResegmentAllParagraphs()
   }, 50)
   
   // Store format info for each character position

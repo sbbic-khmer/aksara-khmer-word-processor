@@ -143,33 +143,28 @@ export function KhmerGrammarCheckPlugin() {
                 return;
             }
             
-            // Debug: log span content to understand structure
-            console.log('[v0] GrammarCheck span:', JSON.stringify(text), 'length:', text.length);
+            // Split text by whitespace to check word count (same as spell checker)
+            // This handles cases where Lexical merges multiple TextNodes into one DOM span
+            const words = text.split(/\s+/).filter(w => w.length > 0);
             
-            // Split by spaces (both regular and ZWSP) to get individual words
-            const words = text.split(/[\s\u200B]+/).filter(w => w.length > 0);
-            console.log('[v0] GrammarCheck words:', words.length, JSON.stringify(words));
-            
-            // Check each word in this span
-            let hasNonStandard = false;
-            
-            for (const word of words) {
-                const cleanWord = cleanKhmerWord(word);
-                
-                if (!cleanWord || !containsKhmer(cleanWord)) {
-                    continue;
-                }
-                
-                // Check if this word has a non-standard spelling
-                const rule = spellingRules.get(cleanWord);
-                
-                if (rule && rule.standard !== cleanWord) {
-                    hasNonStandard = true;
-                    break;
-                }
+            // If span contains multiple space-separated words, we can't accurately mark individual words
+            // So we skip grammar checking for multi-word spans (only check single-word spans)
+            if (words.length > 1) {
+                span.classList.remove(GRAMMAR_CLASS);
+                return;
             }
             
-            if (hasNonStandard) {
+            // Single word span - clean it and check against rules
+            const cleanWord = cleanKhmerWord(text);
+            if (!cleanWord || !containsKhmer(cleanWord)) {
+                span.classList.remove(GRAMMAR_CLASS);
+                return;
+            }
+            
+            // Check if this word has a non-standard spelling
+            const rule = spellingRules.get(cleanWord);
+            
+            if (rule && rule.standard !== cleanWord) {
                 span.classList.add(GRAMMAR_CLASS);
             } else {
                 span.classList.remove(GRAMMAR_CLASS);
@@ -192,15 +187,20 @@ export function KhmerGrammarCheckPlugin() {
             }, SCAN_DEBOUNCE_MS);
         });
 
-        // Initial scan when rules are loaded - use a small delay to ensure DOM is ready
+        // Initial scan when rules are loaded - delay to allow word break plugin to segment paragraphs first
         const initialScanTimeout = window.setTimeout(() => {
             scanAndMarkNonStandard();
-        }, 100);
+        }, 300);
         
-        // Second scan after a longer delay in case document is still loading
+        // Second scan after word break plugin has had more time to process
         const secondScanTimeout = window.setTimeout(() => {
             scanAndMarkNonStandard();
-        }, 500);
+        }, 800);
+        
+        // Third scan to catch any remaining unsegmented content
+        const thirdScanTimeout = window.setTimeout(() => {
+            scanAndMarkNonStandard();
+        }, 1500);
 
         return () => {
             if (scanDebounceRef.current) {
@@ -208,6 +208,7 @@ export function KhmerGrammarCheckPlugin() {
             }
             window.clearTimeout(initialScanTimeout);
             window.clearTimeout(secondScanTimeout);
+            window.clearTimeout(thirdScanTimeout);
             unregister();
         };
     }, [editor, spellingRules, scanAndMarkNonStandard]);
