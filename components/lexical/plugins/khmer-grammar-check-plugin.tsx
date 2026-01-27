@@ -82,38 +82,25 @@ export function KhmerGrammarCheckPlugin() {
     useEffect(() => {
         let mounted = true;
         
-        console.log('[v0] GrammarCheck: Starting to load spelling rules...');
-        
         async function loadSpellingRules() {
             try {
                 setIsLoading(true);
                 setError(null);
                 
-                console.log('[v0] GrammarCheck: Fetching /dictionaries/khmer-multiple-spellings.txt');
                 const response = await fetch('/dictionaries/khmer-multiple-spellings.txt');
-                console.log('[v0] GrammarCheck: Response status:', response.status);
                 
                 if (!response.ok) {
                     throw new Error(`Failed to load spelling rules: ${response.status}`);
                 }
                 
                 const content = await response.text();
-                console.log('[v0] GrammarCheck: Got content, length:', content.length);
                 
                 if (!mounted) return;
                 
                 const rules = parseSpellingRules(content);
-                console.log('[v0] GrammarCheck: Parsed', rules.size, 'spelling rules');
-                
-                // Debug: Check if អោយ is in the rules
-                const testWord = 'អោយ';
-                const testRule = rules.get(testWord);
-                console.log('[v0] GrammarCheck: Test word "អោយ" rule:', testRule);
-                
                 setSpellingRules(rules);
                 setIsLoading(false);
             } catch (err) {
-                console.error('[v0] GrammarCheck: Error loading rules:', err);
                 if (mounted) {
                     setIsLoading(false);
                     setError(err instanceof Error ? err.message : 'Failed to load spelling rules');
@@ -132,27 +119,12 @@ export function KhmerGrammarCheckPlugin() {
      * Scan all text spans and mark words with non-standard spellings
      */
     const scanAndMarkNonStandard = useCallback(() => {
-        console.log('[v0] GrammarCheck: scanAndMarkNonStandard called, rules size:', spellingRules.size, 'enabled:', grammarCheckEnabled);
-        
-        // Debug: log first 5 keys and test lookup
-        const keys = Array.from(spellingRules.keys()).slice(0, 10);
-        console.log('[v0] GrammarCheck: First 10 keys:', JSON.stringify(keys));
-        const testLookup = spellingRules.get('អោយ');
-        console.log('[v0] GrammarCheck: Direct lookup "អោយ":', testLookup ? JSON.stringify(testLookup) : 'NOT FOUND');
-        
-        if (spellingRules.size === 0) {
-            console.log('[v0] GrammarCheck: No rules loaded, skipping scan');
-            return;
-        }
+        if (spellingRules.size === 0) return;
         
         const rootEl = editor.getRootElement();
-        if (!rootEl) {
-            console.log('[v0] GrammarCheck: No root element');
-            return;
-        }
+        if (!rootEl) return;
         
         const spans = rootEl.querySelectorAll('span[data-lexical-text="true"]');
-        console.log('[v0] GrammarCheck: Found', spans.length, 'text spans');
         
         // If grammar check is disabled, remove all markers
         if (!grammarCheckEnabled) {
@@ -179,11 +151,6 @@ export function KhmerGrammarCheckPlugin() {
             for (const segment of segments) {
                 const cleanWord = cleanKhmerWord(segment);
                 
-                // Debug for អោយ
-                if (segment.includes('អោយ') || cleanWord.includes('អោយ')) {
-                    console.log('[v0] GrammarCheck: FOUND អោយ in segment! segment:', JSON.stringify(segment), 'cleanWord:', JSON.stringify(cleanWord));
-                }
-                
                 if (!cleanWord || !containsKhmer(cleanWord)) {
                     continue;
                 }
@@ -192,7 +159,6 @@ export function KhmerGrammarCheckPlugin() {
                 const rule = spellingRules.get(cleanWord);
                 
                 if (rule && rule.standard !== cleanWord) {
-                    console.log('[v0] GrammarCheck: MATCH FOUND for', cleanWord, '-> standard:', rule.standard);
                     hasNonStandard = true;
                     break;
                 }
@@ -200,7 +166,6 @@ export function KhmerGrammarCheckPlugin() {
             
             if (hasNonStandard) {
                 span.classList.add(GRAMMAR_CLASS);
-                console.log('[v0] GrammarCheck: Added blue underline to span containing:', text.substring(0, 50));
             } else {
                 span.classList.remove(GRAMMAR_CLASS);
             }
@@ -222,13 +187,16 @@ export function KhmerGrammarCheckPlugin() {
             }, SCAN_DEBOUNCE_MS);
         });
 
-        // Initial scan
-        scanAndMarkNonStandard();
+        // Initial scan when rules are loaded - use a small delay to ensure DOM is ready
+        const initialScanTimeout = window.setTimeout(() => {
+            scanAndMarkNonStandard();
+        }, 100);
 
         return () => {
             if (scanDebounceRef.current) {
                 window.clearTimeout(scanDebounceRef.current);
             }
+            window.clearTimeout(initialScanTimeout);
             unregister();
         };
     }, [editor, spellingRules, scanAndMarkNonStandard]);
