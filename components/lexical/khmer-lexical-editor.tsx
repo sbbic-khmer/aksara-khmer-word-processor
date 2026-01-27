@@ -20,6 +20,12 @@ import { KhmerWordBreakPlugin } from "./plugins/khmer-word-break-plugin"
 import { VoiceInputPlugin, INSERT_VOICE_TEXT_COMMAND } from "./plugins/voice-input-plugin"
 import { ToolbarPlugin, useToolbarCommands, type ActiveFormats } from "./plugins/toolbar-plugin"
 import { OnChangePlugin } from "./plugins/on-change-plugin"
+import { KhmerSpellCheckPlugin } from "./plugins/khmer-spell-check-plugin"
+import { SpellCheckProvider, useSpellCheck } from "./contexts/spell-check-context"
+import { SpellCheckContextMenu } from "./components/spell-check-context-menu"
+import { KhmerGrammarCheckPlugin } from "./plugins/khmer-grammar-check-plugin"
+import { GrammarCheckProvider, useGrammarCheck } from "./contexts/grammar-check-context"
+import { GrammarCheckContextMenu } from "./components/grammar-check-context-menu"
 import { $isKhmerBreakNode } from "./nodes/khmer-break-node"
 import { $isHeadingNode } from "@lexical/rich-text"
 import { $isListNode, $isListItemNode } from "@lexical/list"
@@ -305,6 +311,8 @@ function EditorContent({
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
+  const { debugMode: spellCheckDebugMode, setDebugMode: setSpellCheckDebugMode, spellCheckEnabled, setSpellCheckEnabled } = useSpellCheck()
+  const { grammarCheckEnabled, setGrammarCheckEnabled } = useGrammarCheck()
   const [activeFormats, setActiveFormats] = useState<ActiveFormats>({
     bold: false,
     italic: false,
@@ -401,6 +409,12 @@ function EditorContent({
     setCursorDebugEnabled(newValue)
     debugLog("Cursor Debug mode", newValue ? "enabled" : "disabled")
   }, [cursorDebugMode, setCursorDebugMode])
+
+  const handleToggleSpellCheckDebug = useCallback(() => {
+    const newValue = !spellCheckDebugMode
+    setSpellCheckDebugMode(newValue)
+    debugLog("Spell Check Debug mode", newValue ? "enabled" : "disabled")
+  }, [spellCheckDebugMode, setSpellCheckDebugMode])
 
   // Fix for clicks on paragraph elements (between words/on KhmerBreakNodes)
   // This intercepts clicks BEFORE the browser sets selection, preventing the visual flash
@@ -846,6 +860,8 @@ function EditorContent({
       <ToolbarPlugin onFormatsChange={handleFormatsChange} />
       <KhmerWordBreakPlugin breaker={breaker} showBreaks={showBreaks} />
       <VoiceInputPlugin />
+      <KhmerSpellCheckPlugin />
+      <KhmerGrammarCheckPlugin />
       <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
       <HistoryPlugin />
       <ListPlugin />
@@ -864,6 +880,8 @@ function EditorContent({
           onToggleWordBreakerDebug={handleToggleWordBreakerDebug}
           cursorDebugMode={cursorDebugMode}
           onToggleCursorDebug={handleToggleCursorDebug}
+          spellCheckDebugMode={spellCheckDebugMode}
+          onToggleSpellCheckDebug={handleToggleSpellCheckDebug}
           hasUnsavedChanges={documentState.hasUnsavedChanges}
           currentDocTitle={documentState.title}
         />
@@ -879,6 +897,10 @@ function EditorContent({
           onJoinWord={joinWord}
           showBreaks={showBreaks}
           onToggleBreaks={() => setShowBreaks(!showBreaks)}
+          spellCheckEnabled={spellCheckEnabled}
+          onToggleSpellCheck={() => setSpellCheckEnabled(!spellCheckEnabled)}
+          grammarCheckEnabled={grammarCheckEnabled}
+          onToggleGrammarCheck={() => setGrammarCheckEnabled(!grammarCheckEnabled)}
         />
 
         <div className="ml-auto flex items-center">
@@ -893,42 +915,46 @@ function EditorContent({
       </div>
 
       <div className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
-        <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative">
-          {isLoadingDocument ? (
-            <div className="flex items-start justify-center pt-32">
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Loading document...</span>
-              </div>
-            </div>
-          ) : (
-            <RichTextPlugin
-              contentEditable={
-                <ContentEditable
-                  className={cn(
-                    "min-h-[1056px] p-12 outline-none",
-                    "font-khmer text-lg leading-relaxed",
-                    "focus:outline-none",
-                  )}
-                  style={{
-                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                  }}
-                />
-              }
-              placeholder={
-                <div
-                  className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
-                  style={{
-                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                  }}
-                >
-                  វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
+        <SpellCheckContextMenu>
+          <GrammarCheckContextMenu>
+          <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative">
+            {isLoadingDocument ? (
+              <div className="flex items-start justify-center pt-32">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Loading document...</span>
                 </div>
-              }
-              ErrorBoundary={LexicalErrorBoundary}
-            />
-          )}
-        </div>
+              </div>
+            ) : (
+              <RichTextPlugin
+                contentEditable={
+                  <ContentEditable
+                    className={cn(
+                      "min-h-[1056px] p-12 outline-none",
+                      "font-khmer text-lg leading-relaxed",
+                      "focus:outline-none",
+                    )}
+                    style={{
+                      fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                    }}
+                  />
+                }
+                placeholder={
+                  <div
+                    className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
+                    style={{
+                      fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                    }}
+                  >
+                    វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
+                  </div>
+                }
+                ErrorBoundary={LexicalErrorBoundary}
+              />
+            )}
+          </div>
+          </GrammarCheckContextMenu>
+        </SpellCheckContextMenu>
       </div>
     </>
   )
@@ -1708,30 +1734,34 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
         />
 
         <LexicalComposer initialConfig={initialConfig}>
-          <EditorWrapper
-            breaker={breaker}
-            showBreaks={showBreaks}
-            setShowBreaks={setShowBreaks}
-            onActiveFormatsChange={setActiveFormats}
-            onTextChange={handleTextChange}
-            voiceInputRef={voiceInputRef}
-            applyReplacements={applyReplacements}
-            onExportOdt={handleExportOdt}
-            debugMode={debugMode}
-            setDebugMode={setDebugMode}
-            wordBreakerDebugMode={wordBreakerDebugMode}
-            setWordBreakerDebugMode={setWordBreakerDebugMode}
-            cursorDebugMode={cursorDebugMode}
-            setCursorDebugMode={setCursorDebugMode}
-            onVoiceStateChange={handleVoiceStateChange}
-            onPartialTranscriptChange={setPartialTranscript}
-            documentState={documentState}
-            setDocumentState={setDocumentState}
-            initialEditorState={initialEditorState || null}
-            lastOpenedDocumentId={preferences.last_opened_document_id}
-            updateLastOpenedDocumentId={updateLastOpenedDocumentId}
-            isLoadingPreferences={isLoadingPreferences}
-          />
+          <SpellCheckProvider>
+          <GrammarCheckProvider>
+            <EditorWrapper
+              breaker={breaker}
+              showBreaks={showBreaks}
+              setShowBreaks={setShowBreaks}
+              onActiveFormatsChange={setActiveFormats}
+              onTextChange={handleTextChange}
+              voiceInputRef={voiceInputRef}
+              applyReplacements={applyReplacements}
+              onExportOdt={handleExportOdt}
+              debugMode={debugMode}
+              setDebugMode={setDebugMode}
+              wordBreakerDebugMode={wordBreakerDebugMode}
+              setWordBreakerDebugMode={setWordBreakerDebugMode}
+              cursorDebugMode={cursorDebugMode}
+              setCursorDebugMode={setCursorDebugMode}
+              onVoiceStateChange={handleVoiceStateChange}
+              onPartialTranscriptChange={setPartialTranscript}
+              documentState={documentState}
+              setDocumentState={setDocumentState}
+              initialEditorState={initialEditorState || null}
+              lastOpenedDocumentId={preferences.last_opened_document_id}
+              updateLastOpenedDocumentId={updateLastOpenedDocumentId}
+              isLoadingPreferences={isLoadingPreferences}
+            />
+          </GrammarCheckProvider>
+          </SpellCheckProvider>
         </LexicalComposer>
 
         <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-500 dark:text-gray-400">

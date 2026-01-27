@@ -15,7 +15,7 @@ import {
   type LexicalNode,
   type ElementNode,
 } from "lexical"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useCallback } from "react"
 import { $createKhmerBreakNode, $isKhmerBreakNode } from "../nodes/khmer-break-node"
 import type { KhmerBreaker } from "@/lib/khmer-breaker"
 import { isWordBreakerDebugEnabled, isCursorDebugEnabled, cursorDebugLog } from "@/lib/debug"
@@ -43,9 +43,64 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const processedNodesRef = useRef(new WeakSet<TextNode>())
   const processedParagraphKeysRef = useRef(new Set<string>())
 
+// Track if we've done initial mount resegmentation
+  const hasInitialResegmentRef = useRef(false)
+
+  // Force resegment all paragraphs (used on mount and when showBreaks changes)
+  const forceResegmentAllParagraphs = useCallback(() => {
+    editor.update(() => {
+      const root = $getRoot()
+      const children = root.getChildren()
+      children.forEach((child) => {
+        if ($isParagraphNode(child)) {
+          // Get all text content and force a modification to trigger transform
+          const textContent = child.getTextContent()
+          if (textContent && textContent.length > 0) {
+            // Find first text node and mark it dirty
+            const firstTextNode = child.getChildren().find($isTextNode) as TextNode | undefined
+            if (firstTextNode) {
+              // Force a change by setting same text - this triggers the transform
+              firstTextNode.setTextContent(firstTextNode.getTextContent())
+            }
+          }
+        }
+      })
+    })
+  }, [editor])
+
+  // Initial mount: force resegment all paragraphs to ensure proper word boundaries
   useEffect(() => {
-    // Store format info for each character position
-    interface FormatRange {
+    if (hasInitialResegmentRef.current) return
+    hasInitialResegmentRef.current = true
+    
+    // Clear processed refs to allow processing
+    processedNodesRef.current = new WeakSet<TextNode>()
+    processedParagraphKeysRef.current = new Set<string>()
+    
+    // Delay to ensure editor is ready - clear processed refs again right before forcing
+    const timeoutId = setTimeout(() => {
+      // Clear again in case transforms already ran
+      processedNodesRef.current = new WeakSet<TextNode>()
+      processedParagraphKeysRef.current = new Set<string>()
+      forceResegmentAllParagraphs()
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
+  }, [forceResegmentAllParagraphs])
+
+useEffect(() => {
+  // Clear processed refs when showBreaks changes to allow re-processing
+  processedNodesRef.current = new WeakSet<TextNode>()
+  processedParagraphKeysRef.current = new Set<string>()
+  
+  // Force re-process all paragraphs when showBreaks changes
+  // We need to do this after a small delay to ensure the effect has set up transforms
+  const timeoutId = setTimeout(() => {
+    forceResegmentAllParagraphs()
+  }, 50)
+  
+  // Store format info for each character position
+  interface FormatRange {
       start: number
       end: number
       format: number
@@ -139,12 +194,82 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
 
         if (!text || text.length === 0) return
 
+        const hasUserBreaks = containsUserBreaks(text)
+        const hasSpaces = /\s/.test(text)
+
         // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
-        if (containsUserBreaks(text)) {
+        if (hasUserBreaks) {
           if (isWordBreakerDebugEnabled()) {
             console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
           }
           resegmentWithUserBreaks(paragraph, text, cursorOffset, formatRanges)
+          return
+        }
+
+        // When auto-word-break is disabled, still split by spaces for spell checking
+        // This creates separate TextNodes for each space-separated word without visual break markers
+        if (!showBreaks) {
+          // Check if text has spaces that need splitting
+          if (!hasSpaces) {
+            return // No spaces, nothing to split
+          }
+          
+          // Split by spaces, keeping the spaces as separate segments
+          const spaceSegments: string[] = []
+          let currentWord = ''
+          for (const char of text) {
+            if (/\s/.test(char)) {
+              if (currentWord) {
+                spaceSegments.push(currentWord)
+                currentWord = ''
+              }
+              spaceSegments.push(char) // Keep spaces as separate segments
+            } else {
+              currentWord += char
+            }
+          }
+          if (currentWord) {
+            spaceSegments.push(currentWord)
+          }
+          
+          if (spaceSegments.length <= 1) {
+            return // Only one segment, no need to split
+          }
+          
+          // Create separate TextNodes for each segment (words and spaces)
+          const newNodes: LexicalNode[] = []
+          let charPos = 0
+          
+          for (const segment of spaceSegments) {
+            const { format, style } = getFormatAtPosition(formatRanges, charPos)
+            const newTextNode = $createTextNode(segment)
+            newTextNode.setFormat(format)
+            newTextNode.setStyle(style)
+            processedNodesRef.current.add(newTextNode)
+            newNodes.push(newTextNode)
+            charPos += segment.length
+          }
+          
+          if (newNodes.length > 0) {
+            paragraph.clear()
+            newNodes.forEach((node) => paragraph.append(node))
+            
+            // Restore cursor position
+            if (cursorOffset !== null) {
+              let charCount = 0
+              for (const node of newNodes) {
+                if ($isTextNode(node)) {
+                  const nodeLength = node.getTextContentSize()
+                  if (charCount + nodeLength >= cursorOffset) {
+                    const offsetInNode = cursorOffset - charCount
+                    node.select(offsetInNode, offsetInNode)
+                    break
+                  }
+                  charCount += nodeLength
+                }
+              }
+            }
+          }
           return
         }
 
@@ -267,11 +392,23 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         return adjustedPos
       })
       
-      // Combine user break positions and adjusted auto break positions, sort, and deduplicate
-      const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
+      // Find space positions for splitting (needed for spell checking when showBreaks is false)
+      // We add break positions both before and after each space to create separate TextNodes
+      const spaceBreakPositions: number[] = []
+      for (let i = 0; i < text.length; i++) {
+        if (/\s/.test(text[i])) {
+          spaceBreakPositions.push(i) // Break before the space
+          spaceBreakPositions.push(i + 1) // Break after the space (creates space as own segment)
+        }
+      }
+      
+      // ALWAYS include auto breaks for creating separate TextNodes (needed for spell checking per-word)
+      // The visual break markers are controlled separately below (only shown when showBreaks=true or user break)
+      // Space breaks are also always included to ensure proper word boundaries
+      const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
       
       if (isWordBreakerDebugEnabled()) {
-        console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All: ${allBreakPositions.join(',')}`)
+        console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
       }
       
       // Now create text nodes, splitting at all break positions
@@ -288,12 +425,29 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           
           const newTextNode = $createTextNode(segment)
           newTextNode.setFormat(format)
-          newTextNode.setStyle(style)
+          
+          // For space segments, add a unique style to prevent Lexical from merging
+          // adjacent TextNodes into one DOM span. This is critical for spell/grammar
+          // checking to work on individual words.
+          const isSpaceSegment = /^\s+$/.test(segment)
+          if (isSpaceSegment) {
+            // Use a CSS custom property that has no visual effect but makes the style unique
+            newTextNode.setStyle(style ? `${style}; --space-segment: 1` : '--space-segment: 1')
+          } else {
+            newTextNode.setStyle(style)
+          }
+          
           processedNodesRef.current.add(newTextNode)
           newNodes.push(newTextNode)
           
-          // Add break node after this segment if there's more content and showBreaks is on
-          if (showBreaks && i < allBreakPositions.length) {
+          // Add break node after this segment if there's more content
+          // Show visual breaks when:
+          // - showBreaks is true (auto-word-break enabled) - show all breaks
+          // - OR this is a user-inserted break position (always show user breaks visually)
+          const currentBreakPos = i < allBreakPositions.length ? allBreakPositions[i] : -1
+          const isUserBreak = currentBreakPos >= 0 && userBreakPositions.includes(currentBreakPos)
+          
+          if ((showBreaks || isUserBreak) && i < allBreakPositions.length) {
             const nextEndPos = i + 1 < allBreakPositions.length ? allBreakPositions[i + 1] : text.length
             const nextSegment = text.slice(endPos, nextEndPos)
             
@@ -517,6 +671,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
     )
 
     return () => {
+      clearTimeout(timeoutId)
       removeTransform()
       removePasteCommand()
     }

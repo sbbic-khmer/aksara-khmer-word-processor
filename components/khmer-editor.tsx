@@ -49,6 +49,7 @@ export default function KhmerEditor() {
   const editorRef = useRef<HTMLDivElement>(null)
 
   const [debugMode, setDebugMode] = useState(false)
+  const [spellCheckEnabled, setSpellCheckEnabled] = useState(true)
 
   const isTypingRef = useRef(false)
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -1033,6 +1034,8 @@ export default function KhmerEditor() {
               onToggleBreaks={() => setShowBreaks(!showBreaks)}
               onApplyReplacements={handleApplyReplacements}
               replacementsLoading={replacementsLoading}
+              spellCheckEnabled={spellCheckEnabled}
+              onToggleSpellCheck={() => setSpellCheckEnabled(!spellCheckEnabled)}
             />
 
             <div className="flex-1" />

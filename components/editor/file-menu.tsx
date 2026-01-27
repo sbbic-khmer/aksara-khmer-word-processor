@@ -23,6 +23,8 @@ interface FileMenuProps {
   onToggleWordBreakerDebug: () => void
   cursorDebugMode: boolean
   onToggleCursorDebug: () => void
+  spellCheckDebugMode: boolean
+  onToggleSpellCheckDebug: () => void
   hasUnsavedChanges?: boolean
   currentDocTitle?: string
 }
@@ -40,6 +42,8 @@ export function FileMenu({
   onToggleWordBreakerDebug,
   cursorDebugMode,
   onToggleCursorDebug,
+  spellCheckDebugMode,
+  onToggleSpellCheckDebug,
   hasUnsavedChanges,
   currentDocTitle,
 }: FileMenuProps) {
@@ -91,6 +95,10 @@ export function FileMenu({
         <DropdownMenuItem onClick={onToggleCursorDebug}>
           {cursorDebugMode ? <BugOff className="h-4 w-4 mr-2" /> : <Bug className="h-4 w-4 mr-2" />}
           {cursorDebugMode ? "Disable Cursor Debug" : "Enable Cursor Debug"}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onToggleSpellCheckDebug}>
+          {spellCheckDebugMode ? <BugOff className="h-4 w-4 mr-2" /> : <Bug className="h-4 w-4 mr-2" />}
+          {spellCheckDebugMode ? "Disable Spell Check Debug" : "Enable Spell Check Debug"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

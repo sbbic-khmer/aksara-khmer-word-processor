@@ -7,3 +7,6 @@ export { VoiceInputPlugin, INSERT_VOICE_TEXT_COMMAND, useVoiceInsert } from "./p
 export { ToolbarPlugin, useToolbarCommands } from "./plugins/toolbar-plugin"
 export type { ActiveFormats } from "./plugins/toolbar-plugin"
 export { OnChangePlugin } from "./plugins/on-change-plugin"
+export { KhmerSpellCheckPlugin } from "./plugins/khmer-spell-check-plugin"
+export { SpellCheckProvider, useSpellCheck } from "./contexts/spell-check-context"
+export { SpellCheckContextMenu } from "./components/spell-check-context-menu"
