@@ -215,26 +215,29 @@ export function KhmerGrammarCheckPlugin() {
         scanAndMarkNonStandard();
     }, [grammarCheckEnabled, scanAndMarkNonStandard]);
 
-    // Handle right-click on grammar-marked words
+    // Handle right-click or click/tap on grammar-marked words
     useEffect(() => {
         if (!grammarCheckEnabled || spellingRules.size === 0) return;
 
         const rootEl = editor.getRootElement();
         if (!rootEl) return;
 
-        const handleContextMenu = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            
+        // Shared handler for setting up word data and replace handler
+        const setupWordData = (target: HTMLElement) => {
             // Check if clicked on a grammar-marked span
-            if (!target.classList.contains(GRAMMAR_CLASS)) {
+            const grammarElement = target.classList.contains(GRAMMAR_CLASS)
+                ? target
+                : target.closest(`.${GRAMMAR_CLASS}`) as HTMLElement | null;
+            
+            if (!grammarElement) {
                 setSelectedWord(null);
                 setStandardizedSpelling(null);
                 setAlternativeSpellings([]);
-                return;
+                return false;
             }
             
-            const text = target.textContent;
-            if (!text) return;
+            const text = grammarElement.textContent;
+            if (!text) return false;
             
             const cleanWord = cleanKhmerWord(text);
             const rule = spellingRules.get(cleanWord);
@@ -245,24 +248,17 @@ export function KhmerGrammarCheckPlugin() {
                 setAlternativeSpellings(rule.alternatives);
                 
                 // Get the Lexical node key from the clicked DOM element
-                // The span has data-lexical-text="true" and we need to find its node key
-                // Walk up to find the element with the lexical key, or use the target directly
-                const lexicalSpan = target.closest('span[data-lexical-text="true"]') as HTMLElement;
+                const lexicalSpan = grammarElement.closest('span[data-lexical-text="true"]') as HTMLElement;
                 
                 if (lexicalSpan) {
                     // Find the node key by reading the editor state
                     editor.getEditorState().read(() => {
-                        // Get all text nodes and find the one matching this DOM element
                         const root = editor.getRootElement();
                         if (!root) return;
                         
-                        // Find all text nodes by iterating through the DOM and matching
-                        const allSpans = root.querySelectorAll('span[data-lexical-text="true"]');
                         let targetNodeKey: string | null = null;
                         
-                        // We need to find which Lexical TextNode corresponds to this span
-                        // The DOM structure maps to Lexical nodes, so we can use $getNodeByKey 
-                        // after finding the key from the __lexicalKey property
+                        // Get the lexical key from the DOM element
                         const lexicalKey = (lexicalSpan as any).__lexicalKey;
                         
                         if (lexicalKey) {
@@ -280,15 +276,13 @@ export function KhmerGrammarCheckPlugin() {
                                 };
                             });
                         } else {
-                            // Fallback: store the DOM element reference and replace via DOM + sync
+                            // Fallback: find and update the node by matching text content
                             setReplaceHandler(() => {
                                 return (oldWord: string, newWord: string) => {
-                                    // Try to find and update the node by matching text content
                                     editor.update(() => {
                                         const root = $getRoot();
                                         const textNodes: TextNode[] = [];
                                         
-                                        // Collect all text nodes
                                         const collectTextNodes = (node: any) => {
                                             if ($isTextNode(node)) {
                                                 textNodes.push(node);
@@ -301,7 +295,6 @@ export function KhmerGrammarCheckPlugin() {
                                         };
                                         collectTextNodes(root);
                                         
-                                        // Find the node with matching text
                                         for (const textNode of textNodes) {
                                             const nodeText = textNode.getTextContent();
                                             const cleanNodeText = cleanKhmerWord(nodeText);
@@ -316,13 +309,26 @@ export function KhmerGrammarCheckPlugin() {
                         }
                     });
                 }
+                return true;
             }
+            return false;
+        };
+
+        const handleContextMenu = (e: MouseEvent) => {
+            setupWordData(e.target as HTMLElement);
+        };
+
+        // Handle click/tap for mobile support
+        const handleClick = (e: MouseEvent) => {
+            setupWordData(e.target as HTMLElement);
         };
 
         rootEl.addEventListener('contextmenu', handleContextMenu);
+        rootEl.addEventListener('click', handleClick);
         
         return () => {
             rootEl.removeEventListener('contextmenu', handleContextMenu);
+            rootEl.removeEventListener('click', handleClick);
         };
     }, [editor, grammarCheckEnabled, spellingRules, setSelectedWord, setStandardizedSpelling, setAlternativeSpellings, setReplaceHandler]);
 
