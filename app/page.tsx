@@ -118,8 +118,7 @@ export default function LandingPage() {
 
             {/* Subheadline */}
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-              Write beautiful Khmer documents with automatic word segmentation, voice-to-text input, and professional
-              formatting. Export to ODT with proper line-breaking for LibreOffice.
+              Write beautiful Khmer documents with automatic word segmentation, voice-to-text input, with Khmer pelling and grammar checkers. Export to ODT with proper line-breaking for LibreOffice.
             </p>
 
             {/* CTA buttons */}
