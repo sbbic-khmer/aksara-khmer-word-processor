@@ -474,6 +474,7 @@ const scanAndMarkMisspellings = useCallback(() => {
 
                 // Use Web Worker for suggestions to prevent UI freeze
                 // This is especially important for complex Khmer words where suggest() can take 10+ seconds
+                console.log('[v0] SpellCheck: preparing to fetch suggestions for:', cleanWord, 'workerReady:', workerReady, 'workerRef:', !!workerRef.current);
                 setSuggestions([]); // Clear while loading
                 setSuggestionsLoaded(false); // Mark as loading
                 
@@ -490,27 +491,25 @@ const scanAndMarkMisspellings = useCallback(() => {
                     });
                 } else {
                     // Fallback: run synchronously (may freeze for complex words)
-                    if (debugMode) {
-                        console.log('[SpellCheck] Worker not ready, using sync suggest for:', cleanWord);
-                    }
+                    console.log('[v0] SpellCheck: Worker not ready, using sync fallback for:', cleanWord);
                     setTimeout(() => {
                         try {
+                            console.log('[v0] SpellCheck: Starting sync suggest for:', cleanWord);
                             const suggestStart = performance.now();
                             const suggs = typo.suggest(cleanWord) || [];
                             const elapsed = performance.now() - suggestStart;
                             
-                            if (debugMode) {
-                                console.log('[SpellCheck] Sync typo.suggest() took', elapsed.toFixed(2), 'ms, found', suggs.length, 'suggestions');
-                            }
+                            console.log('[v0] SpellCheck: Sync typo.suggest() took', elapsed.toFixed(2), 'ms, found', suggs.length, 'suggestions');
                             
                             if (lastWordRef.current === cleanWord) {
+                                console.log('[v0] SpellCheck: Setting suggestions:', suggs.slice(0, 5));
                                 setSuggestions(suggs.slice(0, 5));
                                 setSuggestionsLoaded(true);
+                            } else {
+                                console.log('[v0] SpellCheck: Word changed, not setting suggestions. lastWordRef:', lastWordRef.current, 'cleanWord:', cleanWord);
                             }
                         } catch (err) {
-                            if (debugMode) {
-                                console.log('[SpellCheck] typo.suggest() error:', err);
-                            }
+                            console.log('[v0] SpellCheck: typo.suggest() error:', err);
                         }
                     }, 0);
                 }
