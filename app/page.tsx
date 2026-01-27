@@ -20,7 +20,7 @@ export default function LandingPage() {
           return
         }
       } catch (error) {
-        // Not authenticated, show landing page
+        // Not authenticated, show landing page 
       }
       setIsChecking(false)
     }
