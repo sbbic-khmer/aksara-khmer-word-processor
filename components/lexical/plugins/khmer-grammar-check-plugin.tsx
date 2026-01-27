@@ -143,28 +143,24 @@ export function KhmerGrammarCheckPlugin() {
                 return;
             }
             
-            // Split text by whitespace to check word count (same as spell checker)
-            // This handles cases where Lexical merges multiple TextNodes into one DOM span
-            const words = text.split(/\s+/).filter(w => w.length > 0);
+            // Split text by whitespace AND ZWSP to get individual words
+            const words = text.split(/[\s\u200B]+/).filter(w => w.length > 0);
             
-            // If span contains multiple space-separated words, we can't accurately mark individual words
-            // So we skip grammar checking for multi-word spans (only check single-word spans)
-            if (words.length > 1) {
-                span.classList.remove(GRAMMAR_CLASS);
-                return;
+            // Check each word in this span for non-standard spellings
+            let hasNonStandard = false;
+            
+            for (const word of words) {
+                const cleanWord = cleanKhmerWord(word);
+                if (!cleanWord || !containsKhmer(cleanWord)) continue;
+                
+                const rule = spellingRules.get(cleanWord);
+                if (rule && rule.standard !== cleanWord) {
+                    hasNonStandard = true;
+                    break;
+                }
             }
             
-            // Single word span - clean it and check against rules
-            const cleanWord = cleanKhmerWord(text);
-            if (!cleanWord || !containsKhmer(cleanWord)) {
-                span.classList.remove(GRAMMAR_CLASS);
-                return;
-            }
-            
-            // Check if this word has a non-standard spelling
-            const rule = spellingRules.get(cleanWord);
-            
-            if (rule && rule.standard !== cleanWord) {
+            if (hasNonStandard) {
                 span.classList.add(GRAMMAR_CLASS);
             } else {
                 span.classList.remove(GRAMMAR_CLASS);
