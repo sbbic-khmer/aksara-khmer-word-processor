@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Mic, FileText, Type, Download, Moon, Keyboard, ArrowRight, Check, Loader2 } from "lucide-react"
+import { Mic, FileText, Type, Download, Moon, Keyboard, ArrowRight, Check, Loader2, SpellCheck, BookCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function LandingPage() {
@@ -20,7 +20,7 @@ export default function LandingPage() {
           return
         }
       } catch (error) {
-        // Not authenticated, show landing page
+        // Not authenticated, show landing page 
       }
       setIsChecking(false)
     }
@@ -118,8 +118,7 @@ export default function LandingPage() {
 
             {/* Subheadline */}
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-              Write beautiful Khmer documents with automatic word segmentation, voice-to-text input, and professional
-              formatting. Export to ODT with proper line-breaking for LibreOffice.
+              Write beautiful Khmer documents with automatic word segmentation, voice-to-text input, with Khmer spelling and grammar checkers. Export to ODT with proper line-breaking for LibreOffice.
             </p>
 
             {/* CTA buttons */}
@@ -160,8 +159,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-foreground mb-2">Voice to Text</h3>
               <p className="text-muted-foreground">
-                Speak naturally and watch your words appear on screen. Powered by ElevenLabs for accurate Khmer
-                transcription.
+                Speak naturally in Khmer and watch your words appear on screen.
               </p>
             </div>
 
@@ -211,7 +209,31 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Feature 6 - Keyboard Shortcuts */}
+            {/* Feature 6 - Spell Check */}
+            <div className="bg-card rounded-2xl p-6 border border-border hover:border-primary/50 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center mb-4">
+                <SpellCheck className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-2">Khmer Spell Check</h3>
+              <p className="text-muted-foreground">
+                Real-time spell checking with a comprehensive Khmer dictionary. Misspelled words are underlined in red
+                with one-click suggestions.
+              </p>
+            </div>
+
+            {/* Feature 7 - Grammar/Standardization Check */}
+            <div className="bg-card rounded-2xl p-6 border border-border hover:border-primary/50 transition-colors">
+              <div className="w-12 h-12 rounded-xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center mb-4">
+                <BookCheck className="h-6 w-6 text-sky-600 dark:text-sky-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-2">Spelling Standardization</h3>
+              <p className="text-muted-foreground">
+                Identifies non-standard Khmer spellings and suggests the official standardized form. Ensures consistent
+                orthography across your documents.
+              </p>
+            </div>
+
+            {/* Feature 8 - Keyboard Shortcuts */}
             <div className="bg-card rounded-2xl p-6 border border-border hover:border-primary/50 transition-colors">
               <div className="w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center mb-4">
                 <Keyboard className="h-6 w-6 text-orange-600 dark:text-orange-400" />
