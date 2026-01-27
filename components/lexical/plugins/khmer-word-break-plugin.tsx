@@ -148,9 +148,56 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
           return
         }
 
-        // Skip auto-segmentation when showBreaks is false (auto-word-break disabled)
-        // User can still manually insert ZWSP for breaks (handled above)
+        // When auto-word-break is disabled, still split by spaces for spell checking
+        // This creates separate TextNodes for each space-separated word without visual break markers
         if (!showBreaks) {
+          // Check if text has spaces that need splitting
+          const hasSpaces = /\s/.test(text)
+          if (!hasSpaces) {
+            return // No spaces, nothing to split
+          }
+          
+          // Split by spaces, keeping the spaces as separate segments
+          const spaceSegments: string[] = []
+          let currentWord = ''
+          for (const char of text) {
+            if (/\s/.test(char)) {
+              if (currentWord) {
+                spaceSegments.push(currentWord)
+                currentWord = ''
+              }
+              spaceSegments.push(char) // Keep spaces as separate segments
+            } else {
+              currentWord += char
+            }
+          }
+          if (currentWord) {
+            spaceSegments.push(currentWord)
+          }
+          
+          if (spaceSegments.length <= 1) {
+            return // Only one segment, no need to split
+          }
+          
+          // Create separate TextNodes for each segment (words and spaces)
+          const newNodes: LexicalNode[] = []
+          let charPos = 0
+          
+          for (const segment of spaceSegments) {
+            const { format, style } = getFormatAtPosition(formatRanges, charPos)
+            const newTextNode = $createTextNode(segment)
+            newTextNode.setFormat(format)
+            newTextNode.setStyle(style)
+            processedNodesRef.current.add(newTextNode)
+            newNodes.push(newTextNode)
+            charPos += segment.length
+          }
+          
+          if (newNodes.length > 0) {
+            paragraph.clear()
+            newNodes.forEach((node) => paragraph.append(node))
+            restoreCursor(paragraph, cursorOffset)
+          }
           return
         }
 
