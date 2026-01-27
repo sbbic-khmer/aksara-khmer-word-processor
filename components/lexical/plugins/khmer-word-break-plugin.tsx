@@ -50,7 +50,10 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const forceResegmentAllParagraphs = useCallback(() => {
     editor.update(() => {
       const root = $getRoot()
-      root.getChildren().forEach(child => {
+      const children = root.getChildren()
+      const paragraphs = children.filter($isParagraphNode)
+      console.log('[v0] WordBreak: forceResegmentAllParagraphs - found', paragraphs.length, 'paragraphs')
+      children.forEach(child => {
         if ($isParagraphNode(child)) {
           // Get all text content and force a modification to trigger transform
           const textContent = child.getTextContent()
@@ -76,9 +79,12 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
     processedNodesRef.current = new WeakSet<TextNode>()
     processedParagraphKeysRef.current = new Set<string>()
     
-    // Delay to ensure editor is ready
+    // Delay to ensure editor is ready - clear processed refs again right before forcing
     const timeoutId = setTimeout(() => {
-      console.log('[v0] WordBreak: Initial mount - forcing resegmentation')
+      console.log('[v0] WordBreak: Initial mount - clearing refs and forcing resegmentation')
+      // Clear again in case transforms already ran
+      processedNodesRef.current = new WeakSet<TextNode>()
+      processedParagraphKeysRef.current = new Set<string>()
       forceResegmentAllParagraphs()
     }, 100)
     
