@@ -146,15 +146,6 @@ export function KhmerGrammarCheckPlugin() {
             // Split text by whitespace AND ZWSP to get individual words
             const words = text.split(/[\s\u200B]+/).filter(w => w.length > 0);
             
-            // Debug: check if this span contains អោយ
-            if (text.includes('អោយ')) {
-                console.log('[v0] GrammarCheck: Span contains អោយ, words:', JSON.stringify(words.slice(0, 5)));
-                const cleanedWords = words.map(w => cleanKhmerWord(w));
-                console.log('[v0] GrammarCheck: Cleaned words:', JSON.stringify(cleanedWords.slice(0, 5)));
-                const matches = cleanedWords.map(w => spellingRules.get(w));
-                console.log('[v0] GrammarCheck: Rule matches:', matches.slice(0, 5).map(m => m ? { standard: m.standard } : null));
-            }
-            
             // Check each word in this span for non-standard spellings
             let hasNonStandard = false;
             

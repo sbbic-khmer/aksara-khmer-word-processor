@@ -51,22 +51,16 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
     editor.update(() => {
       const root = $getRoot()
       const children = root.getChildren()
-      const paragraphs = children.filter($isParagraphNode)
-      console.log('[v0] WordBreak: forceResegmentAllParagraphs - found', paragraphs.length, 'paragraphs')
-      children.forEach((child, index) => {
+      children.forEach((child) => {
         if ($isParagraphNode(child)) {
           // Get all text content and force a modification to trigger transform
           const textContent = child.getTextContent()
-          console.log('[v0] WordBreak: Processing paragraph', index, 'textLength:', textContent?.length, 'preview:', textContent?.substring(0, 40))
           if (textContent && textContent.length > 0) {
             // Find first text node and mark it dirty
             const firstTextNode = child.getChildren().find($isTextNode) as TextNode | undefined
             if (firstTextNode) {
-              console.log('[v0] WordBreak: Triggering transform for paragraph', index)
               // Force a change by setting same text - this triggers the transform
               firstTextNode.setTextContent(firstTextNode.getTextContent())
-            } else {
-              console.log('[v0] WordBreak: No TextNode found in paragraph', index)
             }
           }
         }
@@ -85,7 +79,6 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
     
     // Delay to ensure editor is ready - clear processed refs again right before forcing
     const timeoutId = setTimeout(() => {
-      console.log('[v0] WordBreak: Initial mount - clearing refs and forcing resegmentation')
       // Clear again in case transforms already ran
       processedNodesRef.current = new WeakSet<TextNode>()
       processedParagraphKeysRef.current = new Set<string>()
@@ -203,8 +196,6 @@ useEffect(() => {
 
         const hasUserBreaks = containsUserBreaks(text)
         const hasSpaces = /\s/.test(text)
-        
-        console.log('[v0] WordBreak: resegmentParagraph - hasUserBreaks:', hasUserBreaks, 'hasSpaces:', hasSpaces, 'showBreaks:', showBreaks, 'text:', JSON.stringify(text.substring(0, 60)))
 
         // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
         if (hasUserBreaks) {
@@ -411,14 +402,10 @@ useEffect(() => {
         }
       }
       
-      console.log('[v0] WordBreak: text=', JSON.stringify(text.substring(0, 50)), 'spaceBreakPositions=', spaceBreakPositions)
-      
       // ALWAYS include auto breaks for creating separate TextNodes (needed for spell checking per-word)
       // The visual break markers are controlled separately below (only shown when showBreaks=true or user break)
       // Space breaks are also always included to ensure proper word boundaries
       const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
-      
-      console.log('[v0] WordBreak: allBreakPositions first 20:', allBreakPositions.slice(0, 20))
       
       if (isWordBreakerDebugEnabled()) {
         console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
@@ -481,13 +468,6 @@ useEffect(() => {
       }
 
       if (newNodes.length === 0) return
-      
-      // Debug: log the segments being created
-      const segmentTexts = newNodes.filter($isTextNode).map(n => (n as TextNode).getTextContent())
-      console.log('[v0] WordBreak: Creating', newNodes.length, 'nodes, segments:', JSON.stringify(segmentTexts.slice(0, 20)))
-      // Show which segments are spaces
-      const spaceIndicators = segmentTexts.slice(0, 20).map(s => /^\s+$/.test(s) ? '[SPACE]' : s.substring(0, 8))
-      console.log('[v0] WordBreak: Space check:', JSON.stringify(spaceIndicators))
 
       paragraph.clear()
       newNodes.forEach((node) => paragraph.append(node))
