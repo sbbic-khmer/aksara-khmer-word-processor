@@ -387,6 +387,8 @@ useEffect(() => {
         ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
         : [...new Set([...userBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
       
+      console.log('[v0] resegmentWithUserBreaks: showBreaks:', showBreaks, 'spaceBreakPositions:', spaceBreakPositions.length, 'allBreakPositions:', allBreakPositions.length)
+      
       if (isWordBreakerDebugEnabled()) {
         console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
       }
@@ -436,6 +438,7 @@ useEffect(() => {
         lastPos = endPos
       }
 
+      console.log('[v0] resegmentWithUserBreaks: created', newNodes.length, 'nodes')
       if (newNodes.length === 0) return
 
       paragraph.clear()
