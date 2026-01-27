@@ -145,15 +145,24 @@ export function KhmerGrammarCheckPlugin() {
                 return;
             }
             
-            // Split by ZWSP (zero-width space) which is how Khmer words are segmented
+            // Split by ZWSP (zero-width space) and regular spaces to handle all word boundaries
             const ZWSP = '\u200B';
-            const segments = text.split(ZWSP).filter(s => s.length > 0);
+            // First split by ZWSP, then split each segment by regular spaces
+            const zwspSegments = text.split(ZWSP);
+            const segments: string[] = [];
+            for (const seg of zwspSegments) {
+                // Also split by regular spaces
+                const spaceSplit = seg.split(/\s+/);
+                segments.push(...spaceSplit);
+            }
             
             // Check if any segment in this span is a non-standard spelling
             let hasNonStandard = false;
             let matchedWord = '';
             
             for (const segment of segments) {
+                if (!segment) continue;
+                
                 const cleanWord = cleanKhmerWord(segment);
                 
                 if (!cleanWord || !containsKhmer(cleanWord)) {
