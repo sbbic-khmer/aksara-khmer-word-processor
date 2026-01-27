@@ -8,6 +8,7 @@ export interface UserPreferences {
   vad_threshold: number
   preferred_mic_device_id: string | null
   show_breaks: boolean
+  spell_check_enabled: boolean
   theme: string
   stt_provider: string | null
   last_opened_document_id: string | null
@@ -18,6 +19,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   vad_threshold: 0.4,
   preferred_mic_device_id: null,
   show_breaks: true,
+  spell_check_enabled: true,
   theme: "light",
   stt_provider: null,
   last_opened_document_id: null,

@@ -75,7 +75,12 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
     const [misspelledNodeKeys, setMisspelledNodeKeys] = useState<Set<string>>(new Set());
     const [debugMode, setDebugMode] = useState(false);
     const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
-    const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
+    const [spellCheckEnabled, setSpellCheckEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem('khmer_editor_spell_check_enabled');
+    if (stored === null) return true;
+    return stored === 'true';
+  });
 
     // store the active Lexical replacement function
     const [replaceHandler, setReplaceHandler] = useState<

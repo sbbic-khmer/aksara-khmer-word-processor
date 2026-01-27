@@ -281,6 +281,8 @@ function EditorContent({
   onSaveAs,
   onContentChange,
   isLoadingDocument,
+  spellCheckEnabled,
+  onToggleSpellCheck,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -305,10 +307,12 @@ function EditorContent({
   onSaveAs: () => void
   onContentChange: () => void
   isLoadingDocument: boolean
+  spellCheckEnabled: boolean
+  onToggleSpellCheck: () => void
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
-  const { debugMode: spellCheckDebugMode, setDebugMode: setSpellCheckDebugMode, spellCheckEnabled, setSpellCheckEnabled } = useSpellCheck()
+  const { debugMode: spellCheckDebugMode, setDebugMode: setSpellCheckDebugMode } = useSpellCheck()
   const [activeFormats, setActiveFormats] = useState<ActiveFormats>({
     bold: false,
     italic: false,
@@ -890,11 +894,11 @@ function EditorContent({
           onRedo={redo}
           onInsertZWSP={insertZWSP}
           onJoinWord={joinWord}
-          showBreaks={showBreaks}
-          onToggleBreaks={() => setShowBreaks(!showBreaks)}
-          spellCheckEnabled={spellCheckEnabled}
-          onToggleSpellCheck={() => setSpellCheckEnabled(!spellCheckEnabled)}
-        />
+showBreaks={showBreaks}
+  onToggleBreaks={() => setShowBreaks(!showBreaks)}
+  spellCheckEnabled={spellCheckEnabled}
+  onToggleSpellCheck={onToggleSpellCheck}
+  />
 
         <div className="ml-auto flex items-center">
           <VoiceInput
@@ -974,6 +978,8 @@ function EditorWrapper({
   lastOpenedDocumentId,
   updateLastOpenedDocumentId,
   isLoadingPreferences,
+  spellCheckEnabledPref,
+  updateSpellCheckPreference,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -997,581 +1003,357 @@ function EditorWrapper({
   lastOpenedDocumentId: string | null
   updateLastOpenedDocumentId: (id: string | null) => void
   isLoadingPreferences: boolean
+  spellCheckEnabledPref: boolean
+  updateSpellCheckPreference: (enabled: boolean) => void
 }) {
   const [editor] = useLexicalComposerContext()
-  const [openDialogOpen, setOpenDialogOpen] = useState(false)
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
-  const [isSaveAs, setIsSaveAs] = useState(false)
-  const [isLoadingDocument, setIsLoadingDocument] = useState(true)
-  const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
-  const [conflictServerUpdatedAt, setConflictServerUpdatedAt] = useState<string | null>(null)
-  const initialLoadRef = useRef(false)
-  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const lastDocLoadedRef = useRef(false)
-  const documentStateRef = useRef(documentState)
-  const skipNextContentChangeRef = useRef(false)
+  const { spellCheckEnabled, setSpellCheckEnabled } = useSpellCheck()
+  const [isLoadingDocument, setIsLoadingDocument] = useState(false)
+  const [showOpenDialog, setShowOpenDialog] = useState(false)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [showConflictDialog, setShowConflictDialog] = useState(false)
+  const [conflictData, setConflictData] = useState<{
+    serverContent: string
+    serverUpdatedAt: Date
+  } | null>(null)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastSavedContentRef = useRef<string>("")
 
+  // Sync spellCheckEnabled with preferences when they load (database takes precedence)
   useEffect(() => {
-    documentStateRef.current = documentState
-  }, [documentState])
-
-  useEffect(() => {
-    console.log("[v0] EditorWrapper mounted - starting 10s global timeout")
-    // Set a 10 second timeout to stop loading spinner if something goes wrong
-    loadingTimeoutRef.current = setTimeout(() => {
-      console.log("[v0] Global timeout triggered - isLoadingDocument:", isLoadingDocument)
-      if (isLoadingDocument) {
-        console.log("[v0] Document loading timeout - falling back to new document")
-        setIsLoadingDocument(false)
-      }
-    }, 10000)
-
-    return () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current)
+    if (!isLoadingPreferences && spellCheckEnabledPref !== undefined) {
+      const dbValue = spellCheckEnabledPref
+      setSpellCheckEnabled(dbValue)
+      // Also update localStorage to keep in sync
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('khmer_editor_spell_check_enabled', String(dbValue))
       }
     }
-  }, []) // Only run once on mount
+  }, [isLoadingPreferences, spellCheckEnabledPref, setSpellCheckEnabled])
 
-  useEffect(() => {
-    if (lastDocLoadedRef.current) {
-      return
-    }
-
-    if (isLoadingPreferences) {
-      // Give preferences 5 seconds to load, then proceed anyway
-      const prefsTimeout = setTimeout(() => {
-        if (isLoadingPreferences && !lastDocLoadedRef.current) {
-          lastDocLoadedRef.current = true
-          setIsLoadingDocument(false)
-        }
-      }, 5000)
-      return () => clearTimeout(prefsTimeout)
-    }
-
-    lastDocLoadedRef.current = true
-
-    const validDocId = extractValidUUID(lastOpenedDocumentId)
-
-    if (validDocId) {
-      const controller = new AbortController()
-      const fetchTimeout = setTimeout(() => {
-        controller.abort()
-      }, 8000)
-
-      // Load the last document from preferences
-      fetch(`/api/documents/${validDocId}`, { signal: controller.signal })
-        .then((res) => {
-          clearTimeout(fetchTimeout)
-          if (res.ok) return res.json()
-          throw new Error("Document not found")
-        })
-        .then((doc) => {
-          try {
-            if (doc.editor_state) {
-              const state = editor.parseEditorState(doc.editor_state)
-              editor.setEditorState(state)
-            }
-            setDocumentState({
-              id: doc.id,
-              title: doc.title,
-              hasUnsavedChanges: false,
-              saveStatus: "idle",
-              lastSavedAt: doc.updated_at,
-            })
-          } catch {
-            // Clear the corrupted document reference
-            updateLastOpenedDocumentId(null)
-          }
-        })
-        .catch((error) => {
-          clearTimeout(fetchTimeout)
-          // Document was deleted, doesn't exist, or request timed out
-          updateLastOpenedDocumentId(null)
-        })
-        .finally(() => {
-          if (loadingTimeoutRef.current) {
-            clearTimeout(loadingTimeoutRef.current)
-          }
-          setIsLoadingDocument(false)
-        })
-    } else {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current)
+  // Wrapped setSpellCheckEnabled that also updates localStorage and database
+  const handleSetSpellCheckEnabled = useCallback(
+    (enabled: boolean) => {
+      setSpellCheckEnabled(enabled)
+      // Save to localStorage for immediate persistence
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('khmer_editor_spell_check_enabled', String(enabled))
       }
-      setIsLoadingDocument(false)
-    }
-  }, [editor, setDocumentState, lastOpenedDocumentId, updateLastOpenedDocumentId, isLoadingPreferences])
-
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current)
-      if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (documentState.id) {
-      updateLastOpenedDocumentId(documentState.id)
-    }
-  }, [documentState.id, updateLastOpenedDocumentId])
-
-  const handleNew = useCallback(() => {
-    if (documentState.hasUnsavedChanges) {
-      if (!confirm("You have unsaved changes. Create a new document anyway?")) {
-        return
-      }
-    }
-    skipNextContentChangeRef.current = true
-    editor.update(() => {
-      const root = $getRoot()
-      root.clear()
-    })
-    setDocumentState({ id: null, title: "Untitled", hasUnsavedChanges: false, saveStatus: "idle", lastSavedAt: null })
-    updateLastOpenedDocumentId(null)
-  }, [editor, documentState.hasUnsavedChanges, setDocumentState, updateLastOpenedDocumentId])
-
-  const performSave = useCallback(
-    async (
-      docId: string,
-      title: string,
-      forceOverwrite = false,
-    ): Promise<{ success: boolean; conflict?: boolean; serverUpdatedAt?: string; newUpdatedAt?: string }> => {
-      const currentState = documentStateRef.current
-      const editorState = JSON.stringify(editor.getEditorState().toJSON())
-      const content = editor.getEditorState().read(() => {
-        return $getRoot().getTextContent()
-      })
-
-      try {
-        const response = await fetch(`/api/documents/${docId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title,
-            content,
-            editorState,
-            lastSavedAt: currentState.lastSavedAt,
-            forceOverwrite,
-          }),
-        })
-
-        if (response.status === 409) {
-          // Conflict detected
-          const data = await response.json()
-          return { success: false, conflict: true, serverUpdatedAt: data.serverUpdatedAt }
-        }
-
-        if (response.ok) {
-          const data = await response.json()
-          // Return the server's updated_at timestamp to ensure sync
-          return { success: true, newUpdatedAt: data.updated_at }
-        }
-
-        return { success: false }
-      } catch (error) {
-        console.error("[v0] Error saving document:", error)
-        return { success: false }
-      }
+      // Save to database
+      updateSpellCheckPreference(enabled)
     },
-    [editor],
+    [setSpellCheckEnabled, updateSpellCheckPreference],
   )
 
-  const triggerAutoSave = useCallback(async () => {
-    const currentState = documentStateRef.current
-
-    if (!currentState.id && currentState.hasUnsavedChanges) {
-      console.log("[v0] triggerAutoSave: creating new document")
-      setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
-
-      const editorState = JSON.stringify(editor.getEditorState().toJSON())
-      const content = editor.getEditorState().read(() => {
-        return $getRoot().getTextContent()
-      })
-
-      try {
-        const response = await fetch("/api/documents", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: currentState.title, content, editorState }),
-        })
-
-        if (response.ok) {
-          const doc = await response.json()
-          console.log("[v0] triggerAutoSave: new document created:", doc.id)
-          setDocumentState({
-            id: doc.id,
-            title: doc.title,
-            hasUnsavedChanges: false,
-            saveStatus: "saved",
-            lastSavedAt: doc.updated_at,
-          })
-          updateLastOpenedDocumentId(doc.id)
-          if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
-          savedStatusTimeoutRef.current = setTimeout(() => {
-            setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-          }, 2000)
-        } else {
-          console.log("[v0] triggerAutoSave: failed to create document")
-          setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
-        }
-      } catch (error) {
-        console.error("[v0] Error creating document:", error)
-        setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
-      }
+  // Load initial document if specified in preferences
+  useEffect(() => {
+    if (isLoadingPreferences) return
+    
+    // Check if we have initialEditorState (from props) - use that first
+    if (initialEditorState) {
       return
     }
-
-    if (!currentState.id || !currentState.hasUnsavedChanges) {
-      console.log("[v0] triggerAutoSave skipped:", {
-        id: currentState.id,
-        hasUnsavedChanges: currentState.hasUnsavedChanges,
-      })
-      return
+    
+    // Otherwise check for last opened document
+    if (lastOpenedDocumentId) {
+      loadDocument(lastOpenedDocumentId)
     }
+  }, [isLoadingPreferences, lastOpenedDocumentId, initialEditorState])
 
-    console.log("[v0] triggerAutoSave starting for:", currentState.id)
-    setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
-
-    const result = await performSave(currentState.id, currentState.title)
-
-    if (result.conflict && result.serverUpdatedAt) {
-      // Show conflict dialog
-      setConflictServerUpdatedAt(result.serverUpdatedAt)
-      setConflictDialogOpen(true)
-      setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-    } else if (result.success && result.newUpdatedAt) {
-      setDocumentState((prev) => ({
-        ...prev,
-        hasUnsavedChanges: false,
-        saveStatus: "saved",
-        lastSavedAt: result.newUpdatedAt,
-      }))
-      if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
-      savedStatusTimeoutRef.current = setTimeout(() => {
-        setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-      }, 2000)
-    } else {
-      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
-    }
-  }, [editor, performSave, setDocumentState, updateLastOpenedDocumentId])
-
-  const handleSave = useCallback(async () => {
-    if (!documentState.id) {
-      setIsSaveAs(false)
-      setSaveDialogOpen(true)
-      return
-    }
-
-    setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
-    const result = await performSave(documentState.id, documentState.title)
-
-    if (result.conflict && result.serverUpdatedAt) {
-      // Show conflict dialog
-      setConflictServerUpdatedAt(result.serverUpdatedAt)
-      setConflictDialogOpen(true)
-      setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-    } else if (result.success && result.newUpdatedAt) {
-      setDocumentState((prev) => ({
-        ...prev,
-        hasUnsavedChanges: false,
-        saveStatus: "saved",
-        lastSavedAt: result.newUpdatedAt,
-      }))
-      if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
-      savedStatusTimeoutRef.current = setTimeout(() => {
-        setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-      }, 2000)
-    } else {
-      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
-    }
-  }, [documentState.id, documentState.title, performSave, setDocumentState])
-
-  const handleSaveAs = useCallback(() => {
-    setIsSaveAs(true)
-    setSaveDialogOpen(true)
-  }, [])
-
-  const handleSaveWithTitle = useCallback(
-    async (title: string) => {
-      setSaveDialogOpen(false)
-
-      if (isSaveAs || !documentState.id) {
-        // Create new document
-        setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
-        const editorState = JSON.stringify(editor.getEditorState().toJSON())
-        const content = editor.getEditorState().read(() => {
-          return $getRoot().getTextContent()
-        })
-
-        try {
-          const response = await fetch("/api/documents", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, content, editorState }),
-          })
-
-          if (response.ok) {
-            const doc = await response.json()
-            setDocumentState({
-              id: doc.id,
-              title: doc.title,
-              hasUnsavedChanges: false,
-              saveStatus: "saved",
-              lastSavedAt: doc.updated_at,
-            })
-            updateLastOpenedDocumentId(doc.id)
-            if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
-            savedStatusTimeoutRef.current = setTimeout(() => {
-              setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-            }, 2000)
-          } else {
-            setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
-          }
-        } catch (error) {
-          console.error("[v0] Error saving document:", error)
-          setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
-        }
-      } else {
-        // Update existing document title
-        setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
-        try {
-          const result = await performSave(documentState.id, title)
-          if (result.conflict && result.serverUpdatedAt) {
-            setConflictServerUpdatedAt(result.serverUpdatedAt)
-            setConflictDialogOpen(true)
-            setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-          } else if (result.success && result.newUpdatedAt) {
-            setDocumentState((prev) => ({
-              ...prev,
-              title,
-              hasUnsavedChanges: false,
-              saveStatus: "saved",
-              lastSavedAt: result.newUpdatedAt,
-            }))
-            if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
-            savedStatusTimeoutRef.current = setTimeout(() => {
-              setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-            }, 2000)
-          } else {
-            setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
-          }
-        } catch (error) {
-          console.error("[v0] Error saving document:", error)
-          setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
-        }
-      }
-    },
-    [
-      editor,
-      documentState.id,
-      isSaveAs,
-      setDocumentState,
-      updateLastOpenedDocumentId,
-      performSave,
-      documentState.title,
-    ],
-  )
-
-  const handleOpenDocument = useCallback(
-    async (docId: string) => {
-      if (documentState.hasUnsavedChanges) {
-        if (!confirm("You have unsaved changes. Open a different document anyway?")) {
-          return
-        }
-      }
-
-      try {
-        const response = await fetch(`/api/documents/${docId}`)
-        if (response.ok) {
-          const doc = await response.json()
-
-          skipNextContentChangeRef.current = true
-
-          if (doc.editor_state) {
-            try {
-              const state = editor.parseEditorState(doc.editor_state)
-              editor.setEditorState(state)
-            } catch (error) {
-              console.error("[v0] Error loading editor state:", error)
-            }
-          }
-
-          setDocumentState({
-            id: doc.id,
-            title: doc.title,
-            hasUnsavedChanges: false,
-            saveStatus: "idle",
-            lastSavedAt: doc.updated_at,
-          })
-          updateLastOpenedDocumentId(doc.id)
-          setOpenDialogOpen(false)
-        }
-      } catch (error) {
-        console.error("[v0] Error loading document:", error)
-      }
-    },
-    [editor, documentState.hasUnsavedChanges, setDocumentState, updateLastOpenedDocumentId],
-  )
-
-  const handleContentChange = useCallback(() => {
-    if (skipNextContentChangeRef.current) {
-      skipNextContentChangeRef.current = false
-      return
-    }
-
-    setDocumentState((prev) => ({ ...prev, hasUnsavedChanges: true, saveStatus: "idle" }))
-
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current)
-    }
-
-    autoSaveTimeoutRef.current = setTimeout(() => {
-      triggerAutoSave()
-    }, 5000)
-  }, [setDocumentState, triggerAutoSave])
-
-  const handleDeleteDocument = useCallback(
-    (id: string) => {
-      if (documentState.id === id) {
-        setDocumentState({
-          id: null,
-          title: "Untitled",
-          hasUnsavedChanges: false,
-          saveStatus: "idle",
-          lastSavedAt: null,
-        })
-        // Clear last opened document in preferences
-        updateLastOpenedDocumentId(null)
-        editor.update(() => {
-          const root = $getRoot()
-          root.clear()
-        })
-      }
-    },
-    [editor, documentState.id, setDocumentState, updateLastOpenedDocumentId],
-  )
-
-  const handleConflictOverwrite = useCallback(async () => {
-    if (!documentState.id) return
-    setConflictDialogOpen(false)
-    setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
-
-    const result = await performSave(documentState.id, documentState.title, true) // forceOverwrite = true
-
-    if (result.success && result.newUpdatedAt) {
-      setDocumentState((prev) => ({
-        ...prev,
-        hasUnsavedChanges: false,
-        saveStatus: "saved",
-        lastSavedAt: result.newUpdatedAt,
-      }))
-      if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
-      savedStatusTimeoutRef.current = setTimeout(() => {
-        setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
-      }, 2000)
-    } else {
-      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
-    }
-  }, [documentState.id, documentState.title, performSave, setDocumentState])
-
-  const handleConflictReload = useCallback(async () => {
-    if (!documentState.id) return
-    setConflictDialogOpen(false)
-
+  const loadDocument = async (id: string) => {
+    setIsLoadingDocument(true)
     try {
-      const response = await fetch(`/api/documents/${documentState.id}`)
+      const response = await fetch(`/api/documents/${id}`)
       if (response.ok) {
         const doc = await response.json()
-        if (doc.editor_state) {
-          const state = editor.parseEditorState(doc.editor_state)
-          editor.setEditorState(state)
-        }
+        const editorState = editor.parseEditorState(doc.content)
+        editor.setEditorState(editorState)
+        lastSavedContentRef.current = doc.content
         setDocumentState({
           id: doc.id,
           title: doc.title,
           hasUnsavedChanges: false,
-          saveStatus: "idle",
-          lastSavedAt: doc.updated_at,
+          saveStatus: "saved",
+          lastSavedAt: new Date(doc.updated_at),
         })
       }
     } catch (error) {
-      console.error("[v0] Error reloading document:", error)
+      console.error("Failed to load document:", error)
+    } finally {
+      setIsLoadingDocument(false)
     }
-  }, [editor, documentState.id, setDocumentState])
+  }
 
-  const handleConflictCancel = useCallback(() => {
-    setConflictDialogOpen(false)
-  }, [])
+  const handleNew = () => {
+    editor.update(() => {
+      const root = $getRoot()
+      root.clear()
+      const paragraph = $createParagraphNode()
+      root.append(paragraph)
+    })
+    lastSavedContentRef.current = ""
+    setDocumentState({
+      id: null,
+      title: "Untitled",
+      hasUnsavedChanges: false,
+      saveStatus: "idle",
+      lastSavedAt: null,
+    })
+    updateLastOpenedDocumentId(null)
+  }
+
+  const handleOpenDialog = () => {
+    setShowOpenDialog(true)
+  }
+
+  const handleOpenDocument = async (id: string) => {
+    setShowOpenDialog(false)
+    await loadDocument(id)
+    updateLastOpenedDocumentId(id)
+  }
+
+  const handleSave = async () => {
+    const content = JSON.stringify(editor.getEditorState().toJSON())
+    
+    if (!documentState.id) {
+      // No document yet, show save dialog
+      setShowSaveDialog(true)
+      return
+    }
+
+    setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
+    
+    try {
+      const response = await fetch(`/api/documents/${documentState.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content,
+          last_saved_at: documentState.lastSavedAt?.toISOString(),
+        }),
+      })
+
+      if (response.status === 409) {
+        // Conflict detected
+        const data = await response.json()
+        setConflictData({
+          serverContent: data.serverContent,
+          serverUpdatedAt: new Date(data.serverUpdatedAt),
+        })
+        setShowConflictDialog(true)
+        setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+        return
+      }
+
+      if (response.ok) {
+        const doc = await response.json()
+        lastSavedContentRef.current = content
+        setDocumentState((prev) => ({
+          ...prev,
+          hasUnsavedChanges: false,
+          saveStatus: "saved",
+          lastSavedAt: new Date(doc.updated_at),
+        }))
+      }
+    } catch (error) {
+      console.error("Failed to save document:", error)
+      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+    }
+  }
+
+  const handleSaveAs = () => {
+    setShowSaveDialog(true)
+  }
+
+  const handleSaveWithTitle = async (title: string) => {
+    const content = JSON.stringify(editor.getEditorState().toJSON())
+    setShowSaveDialog(false)
+    setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
+
+    try {
+      const response = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      })
+
+      if (response.ok) {
+        const doc = await response.json()
+        lastSavedContentRef.current = content
+        setDocumentState({
+          id: doc.id,
+          title: doc.title,
+          hasUnsavedChanges: false,
+          saveStatus: "saved",
+          lastSavedAt: new Date(doc.updated_at),
+        })
+        updateLastOpenedDocumentId(doc.id)
+      }
+    } catch (error) {
+      console.error("Failed to save document:", error)
+      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+    }
+  }
+
+  const handleContentChange = () => {
+    const content = JSON.stringify(editor.getEditorState().toJSON())
+    const hasChanges = content !== lastSavedContentRef.current
+    
+    setDocumentState((prev) => ({
+      ...prev,
+      hasUnsavedChanges: hasChanges,
+      saveStatus: hasChanges ? "idle" : prev.saveStatus,
+    }))
+
+    // Auto-save after 2 seconds of no changes
+    if (documentState.id && hasChanges) {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        handleSave()
+      }, 2000)
+    }
+  }
+
+  const handleResolveConflict = async (useServer: boolean) => {
+    setShowConflictDialog(false)
+    
+    if (useServer && conflictData) {
+      // Load server version
+      const editorState = editor.parseEditorState(conflictData.serverContent)
+      editor.setEditorState(editorState)
+      lastSavedContentRef.current = conflictData.serverContent
+      setDocumentState((prev) => ({
+        ...prev,
+        hasUnsavedChanges: false,
+        saveStatus: "saved",
+        lastSavedAt: conflictData.serverUpdatedAt,
+      }))
+    } else {
+      // Force save local version
+      const content = JSON.stringify(editor.getEditorState().toJSON())
+      try {
+        const response = await fetch(`/api/documents/${documentState.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, force: true }),
+        })
+        if (response.ok) {
+          const doc = await response.json()
+          lastSavedContentRef.current = content
+          setDocumentState((prev) => ({
+            ...prev,
+            hasUnsavedChanges: false,
+            saveStatus: "saved",
+            lastSavedAt: new Date(doc.updated_at),
+          }))
+        }
+      } catch (error) {
+        console.error("Failed to force save:", error)
+      }
+    }
+    
+    setConflictData(null)
+  }
 
   return (
     <>
-      {isLoadingDocument ? (
-        <div className="flex justify-center items-center flex-1">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-        </div>
-      ) : (
-        <>
-          <EditorContent
-            breaker={breaker}
-            showBreaks={showBreaks}
-            setShowBreaks={setShowBreaks}
-            onActiveFormatsChange={onActiveFormatsChange}
-            onTextChange={onTextChange}
-            voiceInputRef={voiceInputRef}
-            applyReplacements={applyReplacements}
-            onExportOdt={onExportOdt}
-            debugMode={debugMode}
-            setDebugMode={setDebugMode}
-            wordBreakerDebugMode={wordBreakerDebugMode}
-            setWordBreakerDebugMode={setWordBreakerDebugMode}
-            cursorDebugMode={cursorDebugMode}
-            setCursorDebugMode={setCursorDebugMode}
-            onVoiceStateChange={onVoiceStateChange}
-            onPartialTranscriptChange={onPartialTranscriptChange}
-            documentState={documentState}
-            onNew={handleNew}
-            onOpenDialog={() => setOpenDialogOpen(true)}
-            onSave={handleSave}
-            onSaveAs={handleSaveAs}
-            onContentChange={handleContentChange}
-            isLoadingDocument={isLoadingDocument}
-          />
-
-          <DocumentsDialog
-            open={openDialogOpen}
-            onOpenChange={setOpenDialogOpen}
-            onOpen={handleOpenDocument}
-            onDelete={handleDeleteDocument}
-          />
-
-          <SaveDialog
-            open={saveDialogOpen}
-            onOpenChange={setSaveDialogOpen}
-            onSave={handleSaveWithTitle}
-            defaultTitle={isSaveAs ? documentState.title : ""}
-          />
-
-          <ConflictDialog
-            open={conflictDialogOpen}
-            onOpenChange={setConflictDialogOpen}
-            serverUpdatedAt={conflictServerUpdatedAt || new Date().toISOString()}
-            onOverwrite={handleConflictOverwrite}
-            onReload={handleConflictReload}
-            onCancel={handleConflictCancel}
-          />
-        </>
-      )}
+      <EditorContent
+        breaker={breaker}
+        showBreaks={showBreaks}
+        setShowBreaks={setShowBreaks}
+        onActiveFormatsChange={onActiveFormatsChange}
+        onTextChange={onTextChange}
+        voiceInputRef={voiceInputRef}
+        applyReplacements={applyReplacements}
+        onExportOdt={onExportOdt}
+        debugMode={debugMode}
+        setDebugMode={setDebugMode}
+        wordBreakerDebugMode={wordBreakerDebugMode}
+        setWordBreakerDebugMode={setWordBreakerDebugMode}
+        cursorDebugMode={cursorDebugMode}
+        setCursorDebugMode={setCursorDebugMode}
+        onVoiceStateChange={onVoiceStateChange}
+        onPartialTranscriptChange={onPartialTranscriptChange}
+        documentState={documentState}
+        onNew={handleNew}
+        onOpenDialog={handleOpenDialog}
+        onSave={handleSave}
+        onSaveAs={handleSaveAs}
+        onContentChange={handleContentChange}
+        isLoadingDocument={isLoadingDocument}
+        spellCheckEnabled={spellCheckEnabled}
+        onToggleSpellCheck={() => handleSetSpellCheckEnabled(!spellCheckEnabled)}
+      />
+      
+      <OpenDialog
+        open={showOpenDialog}
+        onOpenChange={setShowOpenDialog}
+        onOpen={handleOpenDocument}
+      />
+      
+      <SaveDialog
+        open={showSaveDialog}
+        onOpenChange={setShowSaveDialog}
+        onSave={handleSaveWithTitle}
+        defaultTitle={documentState.title}
+      />
+      
+      <ConflictDialog
+        open={showConflictDialog}
+        onOpenChange={setShowConflictDialog}
+        onResolve={handleResolveConflict}
+        serverUpdatedAt={conflictData?.serverUpdatedAt}
+      />
     </>
   )
+}
+
+function extractValidUUID(value: unknown): string | null {
+  // If it's an object, try to extract string value
+  let str: unknown = value
+  if (value && typeof value === "object") {
+    // Some database drivers return UUID as {value: "uuid-string"} or similar
+    const obj = value as Record<string, unknown>
+    if ("value" in obj) str = obj.value
+    else if ("id" in obj)
+      str = obj.id // Try common 'id' property
+    else if ("toString" in obj && typeof obj.toString === "function") {
+      const stringified = obj.toString()
+      // Only use toString if it's not the default "[object Object]"
+      if (stringified !== "[object Object]") str = stringified
+    }
+  }
+
+  if (typeof str !== "string") return null
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str) ? str : null
+}
+
+// Helper to get initial value from localStorage with fallback
+function getLocalStorageBoolean(key: string, fallback: boolean): boolean {
+  if (typeof window === 'undefined') return fallback
+  const stored = localStorage.getItem(key)
+  if (stored === null) return fallback
+  return stored === 'true'
+}
+
+export interface KhmerLexicalEditorProps {
+  className?: string
+  initialEditorState?: string
+}
+
+export interface KhmerLexicalEditorHandle {
+  getEditorState: () => string
+  setEditorState: (state: string) => void
+  focus: () => void
 }
 
 export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexicalEditorProps>(
   function KhmerLexicalEditor({ className, initialEditorState }, ref) {
     const [breaker] = useState(() => new KhmerBreaker(KHMER_DICTIONARY))
-    const [showBreaks, setShowBreaks] = useState(true)
+    const [showBreaks, setShowBreaksState] = useState(() => getLocalStorageBoolean('khmer_editor_show_breaks', true))
     const [wordCount, setWordCount] = useState(0)
     const [charCount, setCharCount] = useState(0)
     const [currentText, setCurrentText] = useState("")
@@ -1602,6 +1384,32 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       },
       [updatePreference],
     )
+
+    // Handler that updates localStorage and database when showBreaks changes
+    const setShowBreaks = useCallback(
+      (show: boolean) => {
+        setShowBreaksState(show)
+        // Save to localStorage for immediate persistence
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('khmer_editor_show_breaks', String(show))
+        }
+        // Save to database
+        updatePreference('show_breaks', show)
+      },
+      [updatePreference],
+    )
+
+    // Sync showBreaks with preferences when they load (database takes precedence)
+    useEffect(() => {
+      if (!isLoadingPreferences && preferences.show_breaks !== undefined) {
+        const dbValue = preferences.show_breaks
+        setShowBreaksState(dbValue)
+        // Also update localStorage to keep in sync
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('khmer_editor_show_breaks', String(dbValue))
+        }
+      }
+    }, [isLoadingPreferences, preferences.show_breaks])
 
     useEffect(() => {
       setMounted(true)
@@ -1652,7 +1460,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
             await fetch(`/api/documents/${documentState.id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.JSON.stringify({ title: newTitle }),
+              body: JSON.stringify({ title: newTitle }),
             })
             setDocumentState((prev) => ({ ...prev, saveStatus: "saved", hasUnsavedChanges: false }))
           } else {
@@ -1665,54 +1473,65 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
                 content: "",
               }),
             })
+
             if (response.ok) {
               const doc = await response.json()
-              setDocumentState((prev) => ({
-                ...prev,
-                id: doc.id,
-                saveStatus: "saved",
-                hasUnsavedChanges: false,
-                lastSavedAt: doc.updated_at,
-              }))
-              updateLastOpenedDocumentId(doc.id)
+              const validId = extractValidUUID(doc.id)
+              if (validId) {
+                setDocumentState((prev) => ({
+                  ...prev,
+                  id: validId,
+                  saveStatus: "saved",
+                  hasUnsavedChanges: false,
+                }))
+                updateLastOpenedDocumentId(validId)
+              }
             }
           }
         } catch (error) {
-          console.error("[v0] Error saving document:", error)
+          console.error("Failed to save title:", error)
           setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
         }
       },
       [documentState.id, updateLastOpenedDocumentId],
     )
 
-    useImperativeHandle(ref, () => ({
-      insertText: (text: string) => {
-        // Will be implemented if needed
-      },
-      focus: () => {
-        editorRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus()
-      },
-    }))
-
     const initialConfig = {
       namespace: "KhmerEditor",
-      theme: lexicalTheme,
-      onError,
-      nodes: [HeadingNode, ListNode, ListItemNode, KhmerBreakNode],
+      theme: {
+        text: {
+          bold: "font-bold",
+          italic: "italic",
+          underline: "underline",
+          strikethrough: "line-through",
+        },
+        heading: {
+          h1: "text-4xl font-bold",
+          h2: "text-3xl font-bold",
+          h3: "text-2xl font-bold",
+          h4: "text-xl font-bold",
+          h5: "text-lg font-bold",
+          h6: "text-base font-bold",
+        },
+      },
+      nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode],
+      onError: (error: Error) => {
+        console.error("Lexical error:", error)
+      },
     }
 
     if (!mounted) {
       return (
-        <div className={cn("flex flex-col h-screen bg-gray-50 dark:bg-gray-900", className)}>
-          <div className="animate-pulse flex-1" />
+        <div className={cn("flex flex-col h-screen bg-gray-100 dark:bg-gray-950", className)}>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="animate-pulse text-gray-500">Loading editor...</div>
+          </div>
         </div>
       )
     }
 
     return (
-      <div ref={editorRef} className={cn("flex flex-col h-screen bg-gray-50 dark:bg-gray-900", className)}>
-        <VoiceIndicator isActive={isVoiceActive} partialTranscript={partialTranscript} />
-
+      <div ref={editorRef} className={cn("flex flex-col h-screen bg-gray-100 dark:bg-gray-950", className)}>
         <EditorHeader
           theme={colorTheme}
           setTheme={setTheme}
@@ -1749,6 +1568,8 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
               lastOpenedDocumentId={preferences.last_opened_document_id}
               updateLastOpenedDocumentId={updateLastOpenedDocumentId}
               isLoadingPreferences={isLoadingPreferences}
+              spellCheckEnabledPref={preferences.spell_check_enabled}
+              updateSpellCheckPreference={(enabled: boolean) => updatePreference('spell_check_enabled', enabled)}
             />
           </SpellCheckProvider>
         </LexicalComposer>
@@ -1763,24 +1584,3 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     )
   },
 )
-
-function extractValidUUID(value: unknown): string | null {
-  // If it's an object, try to extract string value
-  let str: unknown = value
-  if (value && typeof value === "object") {
-    // Some database drivers return UUID as {value: "uuid-string"} or similar
-    const obj = value as Record<string, unknown>
-    if ("value" in obj) str = obj.value
-    else if ("id" in obj)
-      str = obj.id // Try common 'id' property
-    else if ("toString" in obj && typeof obj.toString === "function") {
-      const stringified = obj.toString()
-      // Only use toString if it's not the default "[object Object]"
-      if (stringified !== "[object Object]") str = stringified
-    }
-  }
-
-  if (typeof str !== "string") return null
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  return uuidRegex.test(str) ? str : null
-}
