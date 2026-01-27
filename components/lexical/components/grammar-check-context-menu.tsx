@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useGrammarCheck } from '../contexts/grammar-check-context';
 import { cn } from '@/lib/utils';
-import { ArrowRight } from 'lucide-react';
+import { BookCheck } from 'lucide-react';
 
 interface GrammarCheckContextMenuProps {
     children: React.ReactNode;
@@ -119,7 +119,7 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
                 <div
                     ref={menuRef}
                     className={cn(
-                        "fixed z-50 min-w-[180px] overflow-hidden rounded-md border bg-popover shadow-lg",
+                        "fixed z-50 min-w-[180px] overflow-hidden rounded-md border bg-popover p-1 shadow-lg",
                         "animate-in fade-in-0 zoom-in-95",
                         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
                     )}
@@ -129,29 +129,35 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
                         fontFamily: '"Noto Sans Khmer", sans-serif',
                     }}
                 >
-                    {/* Main action button - most prominent */}
+                    {/* Header showing the non-standard word */}
+                    <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground border-b border-border mb-1">
+                        <BookCheck className="h-3 w-3 text-blue-500" />
+                        <span>អក្ខរាវិរុទ្ធមិនស្តង់ដារ៖</span>
+                        <span className="font-medium text-blue-600 dark:text-blue-400">{selectedWord}</span>
+                    </div>
+
+                    {/* Suggestion button */}
                     <button
                         onClick={handleSuggestionClick}
                         className={cn(
-                            "relative flex w-full cursor-pointer select-none items-center gap-2 px-3 py-2.5 text-sm outline-none",
-                            "hover:bg-accent",
+                            "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none",
+                            "hover:bg-accent hover:text-accent-foreground",
+                            "focus:bg-accent focus:text-accent-foreground",
                             "transition-colors"
                         )}
                         style={{
                             fontFamily: '"Noto Sans Khmer", sans-serif',
                         }}
                     >
-                        <span className="text-muted-foreground line-through">{selectedWord}</span>
-                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-blue-600 dark:text-blue-400 font-medium">{standardizedSpelling}</span>
+                        {standardizedSpelling}
                     </button>
 
                     {/* Ignore button */}
-                    <div className="border-t border-border">
+                    <div className="border-t border-border mt-1 pt-1">
                         <button
                             onClick={() => setIsOpen(false)}
                             className={cn(
-                                "relative flex w-full cursor-pointer select-none items-center px-3 py-2 text-xs outline-none",
+                                "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none",
                                 "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                                 "transition-colors"
                             )}

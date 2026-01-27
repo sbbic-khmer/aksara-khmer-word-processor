@@ -126,6 +126,8 @@ export function KhmerGrammarCheckPlugin() {
         
         const spans = rootEl.querySelectorAll('span[data-lexical-text="true"]');
         
+        console.log('[v0] GrammarCheck: Scanning', spans.length, 'spans, enabled:', grammarCheckEnabled);
+        
         // If grammar check is disabled, remove all markers
         if (!grammarCheckEnabled) {
             spans.forEach(span => {
@@ -133,6 +135,8 @@ export function KhmerGrammarCheckPlugin() {
             });
             return;
         }
+        
+        let markedCount = 0;
         
         spans.forEach((span) => {
             const text = span.textContent;
@@ -147,6 +151,7 @@ export function KhmerGrammarCheckPlugin() {
             
             // Check if any segment in this span is a non-standard spelling
             let hasNonStandard = false;
+            let matchedWord = '';
             
             for (const segment of segments) {
                 const cleanWord = cleanKhmerWord(segment);
@@ -160,16 +165,21 @@ export function KhmerGrammarCheckPlugin() {
                 
                 if (rule && rule.standard !== cleanWord) {
                     hasNonStandard = true;
+                    matchedWord = cleanWord;
                     break;
                 }
             }
             
             if (hasNonStandard) {
                 span.classList.add(GRAMMAR_CLASS);
+                markedCount++;
+                console.log('[v0] GrammarCheck: Marked word:', matchedWord, 'in span:', text.substring(0, 30));
             } else {
                 span.classList.remove(GRAMMAR_CLASS);
             }
         });
+        
+        console.log('[v0] GrammarCheck: Scan complete, marked', markedCount, 'spans');
     }, [editor, spellingRules, grammarCheckEnabled]);
 
     // Register update listener to scan on content change
@@ -189,14 +199,22 @@ export function KhmerGrammarCheckPlugin() {
 
         // Initial scan when rules are loaded - use a small delay to ensure DOM is ready
         const initialScanTimeout = window.setTimeout(() => {
+            console.log('[v0] GrammarCheck: Running initial scan');
             scanAndMarkNonStandard();
         }, 100);
+        
+        // Second scan after a longer delay in case document is still loading
+        const secondScanTimeout = window.setTimeout(() => {
+            console.log('[v0] GrammarCheck: Running second scan');
+            scanAndMarkNonStandard();
+        }, 500);
 
         return () => {
             if (scanDebounceRef.current) {
                 window.clearTimeout(scanDebounceRef.current);
             }
             window.clearTimeout(initialScanTimeout);
+            window.clearTimeout(secondScanTimeout);
             unregister();
         };
     }, [editor, spellingRules, scanAndMarkNonStandard]);
