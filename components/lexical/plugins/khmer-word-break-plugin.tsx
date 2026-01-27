@@ -374,14 +374,10 @@ useEffect(() => {
         }
       }
       
-      console.log('[v0] resegmentWithUserBreaks: text length:', text.length, 'spaceBreakPositions:', spaceBreakPositions, 'userBreakPositions:', userBreakPositions)
-      
       // ALWAYS include auto breaks for creating separate TextNodes (needed for spell checking per-word)
       // The visual break markers are controlled separately below (only shown when showBreaks=true or user break)
       // Space breaks are also always included to ensure proper word boundaries
       const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
-      
-      console.log('[v0] resegmentWithUserBreaks: allBreakPositions:', allBreakPositions)
       
       if (isWordBreakerDebugEnabled()) {
         console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
@@ -390,14 +386,12 @@ useEffect(() => {
       // Now create text nodes, splitting at all break positions
       const newNodes: LexicalNode[] = []
       let lastPos = 0
-      const segmentsCreated: string[] = []
       
       for (let i = 0; i <= allBreakPositions.length; i++) {
         const endPos = i < allBreakPositions.length ? allBreakPositions[i] : text.length
         const segment = text.slice(lastPos, endPos)
         
         if (segment.length > 0) {
-          segmentsCreated.push(`"${segment.substring(0, 10)}"(${segment.length})`)
           // Get format at the start of this segment
           const { format, style } = getFormatAtPosition(formatRanges, lastPos)
           
@@ -434,11 +428,8 @@ useEffect(() => {
         lastPos = endPos
       }
 
-      console.log('[v0] resegmentWithUserBreaks: created segments:', segmentsCreated.join(', '))
-      console.log('[v0] resegmentWithUserBreaks: showBreaks:', showBreaks, 'newNodes.length:', newNodes.length)
       if (newNodes.length === 0) return
 
-      console.log('[v0] resegmentWithUserBreaks: UPDATING DOM - clearing paragraph and appending', newNodes.length, 'nodes')
       paragraph.clear()
       newNodes.forEach((node) => paragraph.append(node))
 

@@ -227,49 +227,46 @@ const scanAndMarkMisspellings = useCallback(() => {
             console.log('[SpellCheck] Scanning', spans.length, 'text spans');
         }
         
-        console.log('[v0] SpellCheck: checking', spans.length, 'spans');
-        spans.forEach((span, idx) => {
+        spans.forEach((span) => {
             const text = span.textContent;
-            if (idx < 5) {
-                console.log('[v0] SpellCheck span', idx, 'text:', text?.substring(0, 20), 'len:', text?.length);
-            }
             if (!text || /^\s+$/.test(text)) {
                 span.classList.remove(MISSPELLED_CLASS);
                 return;
             }
 
-            // Clean the word (remove invisible characters, punctuation, etc.)
+            // Split text by spaces to check each word individually
+            // This handles cases where Lexical merges multiple TextNodes into one DOM span
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+            
+            // If span contains multiple space-separated words, we can't accurately mark individual words
+            // So we skip spell checking for multi-word spans (only check single-word spans)
+            if (words.length > 1) {
+                // Multi-word span: remove any existing misspelled marker since we can't be accurate
+                span.classList.remove(MISSPELLED_CLASS);
+                return;
+            }
+            
+            // Single word span - check if it's misspelled
             const cleanWord = cleanKhmerWord(text);
             if (!cleanWord) {
                 span.classList.remove(MISSPELLED_CLASS);
                 return;
             }
-
+            
             let isMisspelled = false;
-
-            // For Khmer text, we may have multiple words separated by spaces
-            // Split by spaces and check each word
+            
+            // For Khmer text, check the cleaned word
             if (containsKhmer(cleanWord)) {
-                const words = cleanWord.split(/\s+/).filter(w => w.length > 0);
+                const inDict = typo.check(cleanWord);
                 if (debugMode) {
-                    console.log('[SpellCheck] Khmer text split into words:', words.length, 'words from:', cleanWord.substring(0, 50));
+                    console.log('[SpellCheck] Checking Khmer word:', cleanWord, 'inDict:', inDict);
                 }
-                for (const word of words) {
-                    const cleanedWord = cleanKhmerWord(word);
-                    const inDict = cleanedWord ? typo.check(cleanedWord) : true;
-                    if (debugMode) {
-                        console.log('[SpellCheck] Checking word:', cleanedWord, 'inDict:', inDict);
-                    }
-                    if (cleanedWord && !inDict) {
-                        isMisspelled = true;
-                        break;
-                    }
-                }
+                isMisspelled = !inDict;
             } else {
                 // For non-Khmer, check individual words
-                const words = cleanWord.match(/\b[\w]+\b/g);
-                if (words) {
-                    for (const word of words) {
+                const nonKhmerWords = cleanWord.match(/\b[\w]+\b/g);
+                if (nonKhmerWords) {
+                    for (const word of nonKhmerWords) {
                         if (!typo.check(word)) {
                             isMisspelled = true;
                             break;
