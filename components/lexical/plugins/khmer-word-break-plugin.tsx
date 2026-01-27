@@ -163,10 +163,16 @@ useEffect(() => {
       try {
         const { text, hasBreakNodes, formatRanges } = collectParagraphText(paragraph)
 
+        console.log('[v0] WordBreak: processing paragraph, showBreaks:', showBreaks, 'textLen:', text?.length)
+
         if (!text || text.length === 0) return
 
+        const hasUserBreaks = containsUserBreaks(text)
+        const hasSpaces = /\s/.test(text)
+        console.log('[v0] WordBreak: hasUserBreaks:', hasUserBreaks, 'hasSpaces:', hasSpaces)
+
         // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
-        if (containsUserBreaks(text)) {
+        if (hasUserBreaks) {
           if (isWordBreakerDebugEnabled()) {
             console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
           }
@@ -177,9 +183,10 @@ useEffect(() => {
         // When auto-word-break is disabled, still split by spaces for spell checking
         // This creates separate TextNodes for each space-separated word without visual break markers
         if (!showBreaks) {
+          console.log('[v0] WordBreak: showBreaks=false, will split by spaces')
           // Check if text has spaces that need splitting
-          const hasSpaces = /\s/.test(text)
           if (!hasSpaces) {
+            console.log('[v0] WordBreak: no spaces found, returning')
             return // No spaces, nothing to split
           }
           
