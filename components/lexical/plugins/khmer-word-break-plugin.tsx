@@ -435,8 +435,10 @@ useEffect(() => {
       }
 
       console.log('[v0] resegmentWithUserBreaks: created segments:', segmentsCreated.join(', '))
+      console.log('[v0] resegmentWithUserBreaks: showBreaks:', showBreaks, 'newNodes.length:', newNodes.length)
       if (newNodes.length === 0) return
 
+      console.log('[v0] resegmentWithUserBreaks: UPDATING DOM - clearing paragraph and appending', newNodes.length, 'nodes')
       paragraph.clear()
       newNodes.forEach((node) => paragraph.append(node))
 
