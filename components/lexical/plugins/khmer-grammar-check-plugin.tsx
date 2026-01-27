@@ -169,39 +169,38 @@ export function KhmerGrammarCheckPlugin() {
                 return;
             }
             
-            // Split by spaces to check each word
-            const words = text.split(/\s+/).filter(w => w.length > 0);
+            // Split by ZWSP (zero-width space) which is how Khmer words are segmented
+            const ZWSP = '\u200B';
+            const segments = text.split(ZWSP).filter(s => s.length > 0);
             
-            // Only check single-word spans
-            if (words.length > 1) {
-                span.classList.remove(GRAMMAR_CLASS);
-                return;
-            }
+            // Check if any segment in this span is a non-standard spelling
+            let hasNonStandard = false;
             
-            const cleanWord = cleanKhmerWord(text);
-            
-            // Special debug for អោយ
-            if (text.includes('អោយ') || cleanWord.includes('អោយ')) {
-                console.log('[v0] GrammarCheck: FOUND អោយ! text:', JSON.stringify(text), 'cleanWord:', JSON.stringify(cleanWord));
-            }
-            
-            if (!cleanWord || !containsKhmer(cleanWord)) {
-                span.classList.remove(GRAMMAR_CLASS);
-                return;
-            }
-            
-            // Check if this word has a non-standard spelling
-            const rule = spellingRules.get(cleanWord);
-            
-            // Only log when we find a match or for specific test words
-            if (rule) {
-                console.log('[v0] GrammarCheck: MATCH FOUND for', cleanWord, '-> standard:', rule.standard);
-                if (rule.standard !== cleanWord) {
-                    span.classList.add(GRAMMAR_CLASS);
-                    console.log('[v0] GrammarCheck: Added blue underline to:', cleanWord);
-                } else {
-                    span.classList.remove(GRAMMAR_CLASS);
+            for (const segment of segments) {
+                const cleanWord = cleanKhmerWord(segment);
+                
+                // Debug for អោយ
+                if (segment.includes('អោយ') || cleanWord.includes('អោយ')) {
+                    console.log('[v0] GrammarCheck: FOUND អោយ in segment! segment:', JSON.stringify(segment), 'cleanWord:', JSON.stringify(cleanWord));
                 }
+                
+                if (!cleanWord || !containsKhmer(cleanWord)) {
+                    continue;
+                }
+                
+                // Check if this word has a non-standard spelling
+                const rule = spellingRules.get(cleanWord);
+                
+                if (rule && rule.standard !== cleanWord) {
+                    console.log('[v0] GrammarCheck: MATCH FOUND for', cleanWord, '-> standard:', rule.standard);
+                    hasNonStandard = true;
+                    break;
+                }
+            }
+            
+            if (hasNonStandard) {
+                span.classList.add(GRAMMAR_CLASS);
+                console.log('[v0] GrammarCheck: Added blue underline to span containing:', text.substring(0, 50));
             } else {
                 span.classList.remove(GRAMMAR_CLASS);
             }
