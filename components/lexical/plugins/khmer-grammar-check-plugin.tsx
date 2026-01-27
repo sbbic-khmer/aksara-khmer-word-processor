@@ -126,8 +126,6 @@ export function KhmerGrammarCheckPlugin() {
         
         const spans = rootEl.querySelectorAll('span[data-lexical-text="true"]');
         
-        console.log('[v0] GrammarCheck: Scanning', spans.length, 'spans, enabled:', grammarCheckEnabled);
-        
         // If grammar check is disabled, remove all markers
         if (!grammarCheckEnabled) {
             spans.forEach(span => {
@@ -136,7 +134,7 @@ export function KhmerGrammarCheckPlugin() {
             return;
         }
         
-        let markedCount = 0;
+        
         
         spans.forEach((span) => {
             const text = span.textContent;
@@ -145,50 +143,33 @@ export function KhmerGrammarCheckPlugin() {
                 return;
             }
             
-            // Split by ZWSP (zero-width space) and regular spaces to handle all word boundaries
-            const ZWSP = '\u200B';
-            // First split by ZWSP, then split each segment by regular spaces
-            const zwspSegments = text.split(ZWSP);
-            const segments: string[] = [];
-            for (const seg of zwspSegments) {
-                // Also split by regular spaces
-                const spaceSplit = seg.split(/\s+/);
-                segments.push(...spaceSplit);
+            // Split by regular spaces to check word count
+            // Like the spell checker, skip multi-word spans since we can't accurately mark individual words
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+            
+            if (words.length > 1) {
+                // Multi-word span: can't accurately mark individual words
+                span.classList.remove(GRAMMAR_CLASS);
+                return;
             }
             
-            // Check if any segment in this span is a non-standard spelling
-            let hasNonStandard = false;
-            let matchedWord = '';
+            // Single word span - clean and check it
+            const cleanWord = cleanKhmerWord(text);
             
-            for (const segment of segments) {
-                if (!segment) continue;
-                
-                const cleanWord = cleanKhmerWord(segment);
-                
-                if (!cleanWord || !containsKhmer(cleanWord)) {
-                    continue;
-                }
-                
-                // Check if this word has a non-standard spelling
-                const rule = spellingRules.get(cleanWord);
-                
-                if (rule && rule.standard !== cleanWord) {
-                    hasNonStandard = true;
-                    matchedWord = cleanWord;
-                    break;
-                }
+            if (!cleanWord || !containsKhmer(cleanWord)) {
+                span.classList.remove(GRAMMAR_CLASS);
+                return;
             }
             
-            if (hasNonStandard) {
+            // Check if this word has a non-standard spelling
+            const rule = spellingRules.get(cleanWord);
+            
+            if (rule && rule.standard !== cleanWord) {
                 span.classList.add(GRAMMAR_CLASS);
-                markedCount++;
-                console.log('[v0] GrammarCheck: Marked word:', matchedWord, 'in span:', text.substring(0, 30));
             } else {
                 span.classList.remove(GRAMMAR_CLASS);
             }
         });
-        
-        console.log('[v0] GrammarCheck: Scan complete, marked', markedCount, 'spans');
     }, [editor, spellingRules, grammarCheckEnabled]);
 
     // Register update listener to scan on content change
@@ -208,13 +189,11 @@ export function KhmerGrammarCheckPlugin() {
 
         // Initial scan when rules are loaded - use a small delay to ensure DOM is ready
         const initialScanTimeout = window.setTimeout(() => {
-            console.log('[v0] GrammarCheck: Running initial scan');
             scanAndMarkNonStandard();
         }, 100);
         
         // Second scan after a longer delay in case document is still loading
         const secondScanTimeout = window.setTimeout(() => {
-            console.log('[v0] GrammarCheck: Running second scan');
             scanAndMarkNonStandard();
         }, 500);
 
