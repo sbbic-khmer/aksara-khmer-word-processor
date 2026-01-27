@@ -143,28 +143,29 @@ export function KhmerGrammarCheckPlugin() {
                 return;
             }
             
-            // Split by regular spaces to check word count
-            // Like the spell checker, skip multi-word spans since we can't accurately mark individual words
-            const words = text.split(/\s+/).filter(w => w.length > 0);
+            // Split by spaces (both regular and ZWSP) to get individual words
+            const words = text.split(/[\s\u200B]+/).filter(w => w.length > 0);
             
-            if (words.length > 1) {
-                // Multi-word span: can't accurately mark individual words
-                span.classList.remove(GRAMMAR_CLASS);
-                return;
+            // Check each word in this span
+            let hasNonStandard = false;
+            
+            for (const word of words) {
+                const cleanWord = cleanKhmerWord(word);
+                
+                if (!cleanWord || !containsKhmer(cleanWord)) {
+                    continue;
+                }
+                
+                // Check if this word has a non-standard spelling
+                const rule = spellingRules.get(cleanWord);
+                
+                if (rule && rule.standard !== cleanWord) {
+                    hasNonStandard = true;
+                    break;
+                }
             }
             
-            // Single word span - clean and check it
-            const cleanWord = cleanKhmerWord(text);
-            
-            if (!cleanWord || !containsKhmer(cleanWord)) {
-                span.classList.remove(GRAMMAR_CLASS);
-                return;
-            }
-            
-            // Check if this word has a non-standard spelling
-            const rule = spellingRules.get(cleanWord);
-            
-            if (rule && rule.standard !== cleanWord) {
+            if (hasNonStandard) {
                 span.classList.add(GRAMMAR_CLASS);
             } else {
                 span.classList.remove(GRAMMAR_CLASS);
