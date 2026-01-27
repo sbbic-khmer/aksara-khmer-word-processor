@@ -376,12 +376,10 @@ useEffect(() => {
       
       console.log('[v0] resegmentWithUserBreaks: text length:', text.length, 'spaceBreakPositions:', spaceBreakPositions, 'userBreakPositions:', userBreakPositions)
       
-      // When showBreaks is true (auto-word-break enabled): combine user + auto + space breaks
-      // When showBreaks is false (auto-word-break disabled): use user breaks + space breaks (for spell checking)
-      // Space breaks are ALWAYS included to ensure proper word boundaries for spell checking
-      const allBreakPositions = showBreaks 
-        ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
-        : [...new Set([...userBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
+      // ALWAYS include auto breaks for creating separate TextNodes (needed for spell checking per-word)
+      // The visual break markers are controlled separately below (only shown when showBreaks=true or user break)
+      // Space breaks are also always included to ensure proper word boundaries
+      const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
       
       console.log('[v0] resegmentWithUserBreaks: allBreakPositions:', allBreakPositions)
       
