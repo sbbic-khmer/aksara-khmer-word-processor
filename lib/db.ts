@@ -24,7 +24,6 @@ export interface UserPreferences {
   vad_threshold: number
   preferred_mic_device_id: string | null
   show_breaks: boolean
-  spell_check_enabled: boolean
   theme: string
   created_at: Date
   updated_at: Date

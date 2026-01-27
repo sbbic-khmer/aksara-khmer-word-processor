@@ -25,7 +25,6 @@ export async function GET() {
         vad_threshold,
         preferred_mic_device_id,
         show_breaks,
-        spell_check_enabled,
         theme,
         stt_provider,
         last_opened_document_id::text as last_opened_document_id
@@ -53,21 +52,19 @@ export async function PUT(request: NextRequest) {
       vad_threshold,
       preferred_mic_device_id,
       show_breaks,
-      spell_check_enabled,
       theme,
       stt_provider,
       last_opened_document_id,
     } = body
 
     const result = await sql`
-      INSERT INTO user_preferences (user_id, vad_silence_threshold, vad_threshold, preferred_mic_device_id, show_breaks, spell_check_enabled, theme, stt_provider, last_opened_document_id)
-      VALUES (${user.id}, ${vad_silence_threshold ?? 1.0}, ${vad_threshold ?? 0.4}, ${preferred_mic_device_id ?? null}, ${show_breaks ?? true}, ${spell_check_enabled ?? true}, ${theme ?? "light"}, ${stt_provider ?? "browser"}, ${last_opened_document_id ?? null})
+      INSERT INTO user_preferences (user_id, vad_silence_threshold, vad_threshold, preferred_mic_device_id, show_breaks, theme, stt_provider, last_opened_document_id)
+      VALUES (${user.id}, ${vad_silence_threshold ?? 1.0}, ${vad_threshold ?? 0.4}, ${preferred_mic_device_id ?? null}, ${show_breaks ?? true}, ${theme ?? "light"}, ${stt_provider ?? "browser"}, ${last_opened_document_id ?? null})
       ON CONFLICT (user_id) DO UPDATE SET
         vad_silence_threshold = COALESCE(${vad_silence_threshold}, user_preferences.vad_silence_threshold),
         vad_threshold = COALESCE(${vad_threshold}, user_preferences.vad_threshold),
         preferred_mic_device_id = COALESCE(${preferred_mic_device_id}, user_preferences.preferred_mic_device_id),
         show_breaks = COALESCE(${show_breaks}, user_preferences.show_breaks),
-        spell_check_enabled = COALESCE(${spell_check_enabled}, user_preferences.spell_check_enabled),
         theme = COALESCE(${theme}, user_preferences.theme),
         stt_provider = COALESCE(${stt_provider}, user_preferences.stt_provider),
         last_opened_document_id = COALESCE(${last_opened_document_id}, user_preferences.last_opened_document_id)
