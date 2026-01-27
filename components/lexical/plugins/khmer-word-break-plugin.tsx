@@ -43,9 +43,35 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const processedNodesRef = useRef(new WeakSet<TextNode>())
   const processedParagraphKeysRef = useRef(new Set<string>())
 
-  useEffect(() => {
-    // Store format info for each character position
-    interface FormatRange {
+useEffect(() => {
+  // Clear processed refs when showBreaks changes to allow re-processing
+  processedNodesRef.current = new WeakSet<TextNode>()
+  processedParagraphKeysRef.current = new Set<string>()
+  
+  // Force re-process all paragraphs when showBreaks changes
+  // We need to do this after a small delay to ensure the effect has set up transforms
+  const timeoutId = setTimeout(() => {
+    editor.update(() => {
+      const root = $getRoot()
+      root.getChildren().forEach(child => {
+        if ($isParagraphNode(child)) {
+          // Get all text content and force a modification to trigger transform
+          const textContent = child.getTextContent()
+          if (textContent && textContent.length > 0) {
+            // Find first text node and mark it dirty
+            const firstTextNode = child.getChildren().find($isTextNode) as TextNode | undefined
+            if (firstTextNode) {
+              // Force a change by setting same text - this triggers the transform
+              firstTextNode.setTextContent(firstTextNode.getTextContent())
+            }
+          }
+        }
+      })
+    })
+  }, 50)
+  
+  // Store format info for each character position
+  interface FormatRange {
       start: number
       end: number
       format: number
@@ -151,10 +177,8 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         // When auto-word-break is disabled, still split by spaces for spell checking
         // This creates separate TextNodes for each space-separated word without visual break markers
         if (!showBreaks) {
-          console.log('[v0] showBreaks=false, checking for spaces in text:', text.length, 'chars')
           // Check if text has spaces that need splitting
           const hasSpaces = /\s/.test(text)
-          console.log('[v0] hasSpaces:', hasSpaces)
           if (!hasSpaces) {
             return // No spaces, nothing to split
           }
@@ -177,7 +201,6 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
             spaceSegments.push(currentWord)
           }
           
-          console.log('[v0] spaceSegments:', spaceSegments.length, spaceSegments)
           if (spaceSegments.length <= 1) {
             return // Only one segment, no need to split
           }
@@ -196,7 +219,6 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
             charPos += segment.length
           }
           
-          console.log('[v0] Creating', newNodes.length, 'TextNodes for space-separated segments')
           if (newNodes.length > 0) {
             paragraph.clear()
             newNodes.forEach((node) => paragraph.append(node))
@@ -598,6 +620,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
     )
 
     return () => {
+      clearTimeout(timeoutId)
       removeTransform()
       removePasteCommand()
     }
