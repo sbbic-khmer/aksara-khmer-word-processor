@@ -458,6 +458,10 @@ useEffect(() => {
       }
 
       if (newNodes.length === 0) return
+      
+      // Debug: log the segments being created
+      const segmentTexts = newNodes.filter($isTextNode).map(n => (n as TextNode).getTextContent())
+      console.log('[v0] WordBreak: Creating', newNodes.length, 'nodes, segments:', JSON.stringify(segmentTexts.slice(0, 10)))
 
       paragraph.clear()
       newNodes.forEach((node) => paragraph.append(node))
