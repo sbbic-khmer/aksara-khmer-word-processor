@@ -78,6 +78,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
     
     // Delay to ensure editor is ready
     const timeoutId = setTimeout(() => {
+      console.log('[v0] WordBreak: Initial mount - forcing resegmentation')
       forceResegmentAllParagraphs()
     }, 100)
     
@@ -192,6 +193,8 @@ useEffect(() => {
 
         const hasUserBreaks = containsUserBreaks(text)
         const hasSpaces = /\s/.test(text)
+        
+        console.log('[v0] WordBreak: resegmentParagraph - hasUserBreaks:', hasUserBreaks, 'hasSpaces:', hasSpaces, 'showBreaks:', showBreaks, 'text:', JSON.stringify(text.substring(0, 60)))
 
         // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
         if (hasUserBreaks) {
@@ -389,15 +392,16 @@ useEffect(() => {
       })
       
       // Find space positions for splitting (needed for spell checking when showBreaks is false)
+      // We add break positions both before and after each space to create separate TextNodes
       const spaceBreakPositions: number[] = []
       for (let i = 0; i < text.length; i++) {
         if (/\s/.test(text[i])) {
           spaceBreakPositions.push(i) // Break before the space
-          if (i + 1 < text.length) {
-            spaceBreakPositions.push(i + 1) // Break after the space
-          }
+          spaceBreakPositions.push(i + 1) // Break after the space (creates space as own segment)
         }
       }
+      
+      console.log('[v0] WordBreak: text=', JSON.stringify(text.substring(0, 50)), 'spaceBreakPositions=', spaceBreakPositions)
       
       // ALWAYS include auto breaks for creating separate TextNodes (needed for spell checking per-word)
       // The visual break markers are controlled separately below (only shown when showBreaks=true or user break)
