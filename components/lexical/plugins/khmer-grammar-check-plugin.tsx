@@ -6,6 +6,7 @@ import {
     $isRangeSelection,
     $isTextNode,
     $getNodeByKey,
+    $getRoot,
     type TextNode,
 } from 'lexical';
 import { useEffect, useRef, useCallback } from 'react';
@@ -243,26 +244,78 @@ export function KhmerGrammarCheckPlugin() {
                 setStandardizedSpelling(rule.standard);
                 setAlternativeSpellings(rule.alternatives);
                 
-                // Set up replace handler
-                editor.update(() => {
-                    const selection = $getSelection();
-                    if (!$isRangeSelection(selection)) return;
-                    
-                    const anchorNode = selection.anchor.getNode();
-                    if (!$isTextNode(anchorNode)) return;
-                    
-                    const nodeKey = anchorNode.getKey();
-                    
-                    setReplaceHandler(() => {
-                        return (oldWord: string, newWord: string) => {
-                            editor.update(() => {
-                                const maybeNode = $getNodeByKey(nodeKey);
-                                if (!$isTextNode(maybeNode)) return;
-                                maybeNode.setTextContent(newWord);
+                // Get the Lexical node key from the clicked DOM element
+                // The span has data-lexical-text="true" and we need to find its node key
+                // Walk up to find the element with the lexical key, or use the target directly
+                const lexicalSpan = target.closest('span[data-lexical-text="true"]') as HTMLElement;
+                
+                if (lexicalSpan) {
+                    // Find the node key by reading the editor state
+                    editor.getEditorState().read(() => {
+                        // Get all text nodes and find the one matching this DOM element
+                        const root = editor.getRootElement();
+                        if (!root) return;
+                        
+                        // Find all text nodes by iterating through the DOM and matching
+                        const allSpans = root.querySelectorAll('span[data-lexical-text="true"]');
+                        let targetNodeKey: string | null = null;
+                        
+                        // We need to find which Lexical TextNode corresponds to this span
+                        // The DOM structure maps to Lexical nodes, so we can use $getNodeByKey 
+                        // after finding the key from the __lexicalKey property
+                        const lexicalKey = (lexicalSpan as any).__lexicalKey;
+                        
+                        if (lexicalKey) {
+                            targetNodeKey = lexicalKey;
+                        }
+                        
+                        if (targetNodeKey) {
+                            setReplaceHandler(() => {
+                                return (oldWord: string, newWord: string) => {
+                                    editor.update(() => {
+                                        const maybeNode = $getNodeByKey(targetNodeKey!);
+                                        if (!$isTextNode(maybeNode)) return;
+                                        maybeNode.setTextContent(newWord);
+                                    });
+                                };
                             });
-                        };
+                        } else {
+                            // Fallback: store the DOM element reference and replace via DOM + sync
+                            setReplaceHandler(() => {
+                                return (oldWord: string, newWord: string) => {
+                                    // Try to find and update the node by matching text content
+                                    editor.update(() => {
+                                        const root = $getRoot();
+                                        const textNodes: TextNode[] = [];
+                                        
+                                        // Collect all text nodes
+                                        const collectTextNodes = (node: any) => {
+                                            if ($isTextNode(node)) {
+                                                textNodes.push(node);
+                                            }
+                                            if (node.getChildren) {
+                                                for (const child of node.getChildren()) {
+                                                    collectTextNodes(child);
+                                                }
+                                            }
+                                        };
+                                        collectTextNodes(root);
+                                        
+                                        // Find the node with matching text
+                                        for (const textNode of textNodes) {
+                                            const nodeText = textNode.getTextContent();
+                                            const cleanNodeText = cleanKhmerWord(nodeText);
+                                            if (cleanNodeText === oldWord) {
+                                                textNode.setTextContent(newWord);
+                                                break;
+                                            }
+                                        }
+                                    });
+                                };
+                            });
+                        }
                     });
-                });
+                }
             }
         };
 
