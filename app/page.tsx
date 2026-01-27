@@ -160,8 +160,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold text-foreground mb-2">Voice to Text</h3>
               <p className="text-muted-foreground">
-                Speak naturally and watch your words appear on screen. Powered by ElevenLabs for accurate Khmer
-                transcription.
+                Speak naturally in Khmer and watch your words appear on screen.
               </p>
             </div>
 
