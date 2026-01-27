@@ -6,6 +6,7 @@ import {
     $isRangeSelection,
     $isTextNode,
     $getNodeByKey,
+    $getRoot,
     type TextNode,
 } from 'lexical';
 import { useEffect, useRef, useCallback } from 'react';
@@ -214,26 +215,29 @@ export function KhmerGrammarCheckPlugin() {
         scanAndMarkNonStandard();
     }, [grammarCheckEnabled, scanAndMarkNonStandard]);
 
-    // Handle right-click on grammar-marked words
+    // Handle right-click or click/tap on grammar-marked words
     useEffect(() => {
         if (!grammarCheckEnabled || spellingRules.size === 0) return;
 
         const rootEl = editor.getRootElement();
         if (!rootEl) return;
 
-        const handleContextMenu = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            
+        // Shared handler for setting up word data and replace handler
+        const setupWordData = (target: HTMLElement) => {
             // Check if clicked on a grammar-marked span
-            if (!target.classList.contains(GRAMMAR_CLASS)) {
+            const grammarElement = target.classList.contains(GRAMMAR_CLASS)
+                ? target
+                : target.closest(`.${GRAMMAR_CLASS}`) as HTMLElement | null;
+            
+            if (!grammarElement) {
                 setSelectedWord(null);
                 setStandardizedSpelling(null);
                 setAlternativeSpellings([]);
-                return;
+                return false;
             }
             
-            const text = target.textContent;
-            if (!text) return;
+            const text = grammarElement.textContent;
+            if (!text) return false;
             
             const cleanWord = cleanKhmerWord(text);
             const rule = spellingRules.get(cleanWord);
@@ -243,33 +247,88 @@ export function KhmerGrammarCheckPlugin() {
                 setStandardizedSpelling(rule.standard);
                 setAlternativeSpellings(rule.alternatives);
                 
-                // Set up replace handler
-                editor.update(() => {
-                    const selection = $getSelection();
-                    if (!$isRangeSelection(selection)) return;
-                    
-                    const anchorNode = selection.anchor.getNode();
-                    if (!$isTextNode(anchorNode)) return;
-                    
-                    const nodeKey = anchorNode.getKey();
-                    
-                    setReplaceHandler(() => {
-                        return (oldWord: string, newWord: string) => {
-                            editor.update(() => {
-                                const maybeNode = $getNodeByKey(nodeKey);
-                                if (!$isTextNode(maybeNode)) return;
-                                maybeNode.setTextContent(newWord);
+                // Get the Lexical node key from the clicked DOM element
+                const lexicalSpan = grammarElement.closest('span[data-lexical-text="true"]') as HTMLElement;
+                
+                if (lexicalSpan) {
+                    // Find the node key by reading the editor state
+                    editor.getEditorState().read(() => {
+                        const root = editor.getRootElement();
+                        if (!root) return;
+                        
+                        let targetNodeKey: string | null = null;
+                        
+                        // Get the lexical key from the DOM element
+                        const lexicalKey = (lexicalSpan as any).__lexicalKey;
+                        
+                        if (lexicalKey) {
+                            targetNodeKey = lexicalKey;
+                        }
+                        
+                        if (targetNodeKey) {
+                            setReplaceHandler(() => {
+                                return (oldWord: string, newWord: string) => {
+                                    editor.update(() => {
+                                        const maybeNode = $getNodeByKey(targetNodeKey!);
+                                        if (!$isTextNode(maybeNode)) return;
+                                        maybeNode.setTextContent(newWord);
+                                    });
+                                };
                             });
-                        };
+                        } else {
+                            // Fallback: find and update the node by matching text content
+                            setReplaceHandler(() => {
+                                return (oldWord: string, newWord: string) => {
+                                    editor.update(() => {
+                                        const root = $getRoot();
+                                        const textNodes: TextNode[] = [];
+                                        
+                                        const collectTextNodes = (node: any) => {
+                                            if ($isTextNode(node)) {
+                                                textNodes.push(node);
+                                            }
+                                            if (node.getChildren) {
+                                                for (const child of node.getChildren()) {
+                                                    collectTextNodes(child);
+                                                }
+                                            }
+                                        };
+                                        collectTextNodes(root);
+                                        
+                                        for (const textNode of textNodes) {
+                                            const nodeText = textNode.getTextContent();
+                                            const cleanNodeText = cleanKhmerWord(nodeText);
+                                            if (cleanNodeText === oldWord) {
+                                                textNode.setTextContent(newWord);
+                                                break;
+                                            }
+                                        }
+                                    });
+                                };
+                            });
+                        }
                     });
-                });
+                }
+                return true;
             }
+            return false;
+        };
+
+        const handleContextMenu = (e: MouseEvent) => {
+            setupWordData(e.target as HTMLElement);
+        };
+
+        // Handle click/tap for mobile support
+        const handleClick = (e: MouseEvent) => {
+            setupWordData(e.target as HTMLElement);
         };
 
         rootEl.addEventListener('contextmenu', handleContextMenu);
+        rootEl.addEventListener('click', handleClick);
         
         return () => {
             rootEl.removeEventListener('contextmenu', handleContextMenu);
+            rootEl.removeEventListener('click', handleClick);
         };
     }, [editor, grammarCheckEnabled, spellingRules, setSelectedWord, setStandardizedSpelling, setAlternativeSpellings, setReplaceHandler]);
 

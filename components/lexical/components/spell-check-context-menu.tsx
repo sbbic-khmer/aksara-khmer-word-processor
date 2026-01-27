@@ -21,8 +21,21 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
   const menuRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Handle right-click
+  // Handle right-click or tap on misspelled word
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    // Only show spell check menu if right-clicking directly on a misspelled word
+    const target = e.target as HTMLElement;
+    const misspelledElement = target.classList?.contains('spellcheck-misspelled') 
+      ? target 
+      : target.closest?.('.spellcheck-misspelled') as HTMLElement | null;
+    
+    if (!misspelledElement) {
+      // Not clicking on a misspelled word - don't show spell check menu
+      // Let the browser's default context menu or other handlers take over
+      setIsOpen(false);
+      return;
+    }
+    
     // Prevent the browser's default context menu
     e.preventDefault();
     
@@ -31,6 +44,37 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
     setPosition({ x: e.clientX, y: e.clientY });
     setIsOpen(true);
   }, []);
+
+  // Handle click/tap on misspelled word (for mobile support)
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const misspelledElement = target.classList?.contains('spellcheck-misspelled') 
+      ? target 
+      : target.closest?.('.spellcheck-misspelled') as HTMLElement | null;
+    
+    if (!misspelledElement) {
+      // Clicking elsewhere - close the menu if open
+      if (isOpen) {
+        setIsOpen(false);
+      }
+      return;
+    }
+    
+    // Clicked on a misspelled word - show the context menu
+    // Get the bounding rect of the misspelled word for positioning
+    const rect = misspelledElement.getBoundingClientRect();
+    
+    // Position the menu below the word
+    setPosition({ 
+      x: rect.left, 
+      y: rect.bottom + 4 
+    });
+    setIsOpen(true);
+    
+    // Prevent default to avoid moving cursor
+    e.preventDefault();
+    e.stopPropagation();
+  }, [isOpen]);
 
   // Handle clicking a suggestion
   const handleSuggestionClick = useCallback((suggestion: string) => {
@@ -106,7 +150,7 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
   const showMenu = isOpen && (hasMisspelledWord || isLoading || error);
 
   return (
-    <div ref={containerRef} onContextMenu={handleContextMenu} className="contents">
+    <div ref={containerRef} onContextMenu={handleContextMenu} onClick={handleClick} className="contents">
       {children}
 
       {showMenu && (
