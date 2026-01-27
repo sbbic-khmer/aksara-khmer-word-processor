@@ -23,6 +23,18 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
 
   // Handle right-click
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    // Only show spell check menu if right-clicking directly on a misspelled word
+    const target = e.target as HTMLElement;
+    const isMisspelledWord = target.classList?.contains('spellcheck-misspelled') ||
+                             target.closest?.('.spellcheck-misspelled');
+    
+    if (!isMisspelledWord) {
+      // Not clicking on a misspelled word - don't show spell check menu
+      // Let the browser's default context menu or other handlers take over
+      setIsOpen(false);
+      return;
+    }
+    
     // Prevent the browser's default context menu
     e.preventDefault();
     
