@@ -24,6 +24,7 @@ import {
   WrapText,
   SpellCheck,
   SpellCheck2,
+  BookCheck,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
@@ -62,6 +63,8 @@ interface FormattingToolbarProps {
   onToggleBreaks: () => void
   spellCheckEnabled: boolean
   onToggleSpellCheck: () => void
+  grammarCheckEnabled: boolean
+  onToggleGrammarCheck: () => void
 }
 
 export function FormattingToolbar({
@@ -75,6 +78,8 @@ export function FormattingToolbar({
   onToggleBreaks,
   spellCheckEnabled,
   onToggleSpellCheck,
+  grammarCheckEnabled,
+  onToggleGrammarCheck,
 }: FormattingToolbarProps) {
   return (
     <TooltipProvider>
@@ -419,13 +424,31 @@ export function FormattingToolbar({
               onClick={onToggleSpellCheck}
               className={cn(
                 "h-8 w-8 p-0",
-                spellCheckEnabled && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
+                spellCheckEnabled && "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300",
               )}
             >
               {spellCheckEnabled ? <SpellCheck className="h-4 w-4" /> : <SpellCheck2 className="h-4 w-4" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{spellCheckEnabled ? "Disable spell check" : "Enable spell check"}</TooltipContent>
+          <TooltipContent>{spellCheckEnabled ? "បិទត្រួតពិនិត្យអក្ខរាវិរុទ្ធ" : "បើកត្រួតពិនិត្យអក្ខរាវិរុទ្ធ"}</TooltipContent>
+        </Tooltip>
+
+        {/* Grammar Check Toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleGrammarCheck}
+              className={cn(
+                "h-8 w-8 p-0",
+                grammarCheckEnabled && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
+              )}
+            >
+              <BookCheck className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{grammarCheckEnabled ? "បិទត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ" : "បើកត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ"}</TooltipContent>
         </Tooltip>
       </>
     </TooltipProvider>

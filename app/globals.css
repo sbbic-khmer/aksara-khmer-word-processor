@@ -210,3 +210,15 @@
 .dark .spellcheck-misspelled {
   text-decoration-color: oklch(0.65 0.22 25);
 }
+
+/* Grammar check - Blue squiggly underline for non-standard spellings */
+.grammar-nonstandard {
+  text-decoration: underline wavy;
+  text-decoration-color: oklch(0.55 0.2 250); /* blue */
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+.dark .grammar-nonstandard {
+  text-decoration-color: oklch(0.65 0.2 250);
+}
