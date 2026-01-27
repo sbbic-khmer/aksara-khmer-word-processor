@@ -35,7 +35,11 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
         const target = e.target as HTMLElement;
         
         // Only show grammar menu if clicking on a grammar-marked word
-        if (!target.classList.contains('grammar-nonstandard')) {
+        const grammarElement = target.classList?.contains('grammar-nonstandard')
+            ? target
+            : target.closest?.('.grammar-nonstandard') as HTMLElement | null;
+            
+        if (!grammarElement) {
             return;
         }
         
@@ -43,6 +47,37 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
         setPosition({ x: e.clientX, y: e.clientY });
         setIsOpen(true);
     }, []);
+
+    // Handle click/tap on grammar-marked word (for mobile support)
+    const handleClick = useCallback((e: React.MouseEvent) => {
+        const target = e.target as HTMLElement;
+        const grammarElement = target.classList?.contains('grammar-nonstandard')
+            ? target
+            : target.closest?.('.grammar-nonstandard') as HTMLElement | null;
+        
+        if (!grammarElement) {
+            // Clicking elsewhere - close the menu if open
+            if (isOpen) {
+                setIsOpen(false);
+            }
+            return;
+        }
+        
+        // Clicked on a grammar-marked word - show the context menu
+        // Get the bounding rect of the word for positioning
+        const rect = grammarElement.getBoundingClientRect();
+        
+        // Position the menu below the word
+        setPosition({ 
+            x: rect.left, 
+            y: rect.bottom + 4 
+        });
+        setIsOpen(true);
+        
+        // Prevent default to avoid moving cursor
+        e.preventDefault();
+        e.stopPropagation();
+    }, [isOpen]);
 
     // Handle clicking the suggestion
     const handleSuggestionClick = useCallback(() => {
@@ -112,7 +147,7 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
     const showMenu = isOpen && grammarCheckEnabled && hasNonStandardWord;
 
     return (
-        <div ref={containerRef} onContextMenu={handleContextMenu} className="contents">
+        <div ref={containerRef} onContextMenu={handleContextMenu} onClick={handleClick} className="contents">
             {children}
 
             {showMenu && (
