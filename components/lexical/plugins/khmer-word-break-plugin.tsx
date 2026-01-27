@@ -374,12 +374,16 @@ useEffect(() => {
         }
       }
       
+      console.log('[v0] resegmentWithUserBreaks: text length:', text.length, 'spaceBreakPositions:', spaceBreakPositions, 'userBreakPositions:', userBreakPositions)
+      
       // When showBreaks is true (auto-word-break enabled): combine user + auto + space breaks
       // When showBreaks is false (auto-word-break disabled): use user breaks + space breaks (for spell checking)
       // Space breaks are ALWAYS included to ensure proper word boundaries for spell checking
       const allBreakPositions = showBreaks 
         ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
         : [...new Set([...userBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
+      
+      console.log('[v0] resegmentWithUserBreaks: allBreakPositions:', allBreakPositions)
       
       if (isWordBreakerDebugEnabled()) {
         console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
@@ -388,12 +392,14 @@ useEffect(() => {
       // Now create text nodes, splitting at all break positions
       const newNodes: LexicalNode[] = []
       let lastPos = 0
+      const segmentsCreated: string[] = []
       
       for (let i = 0; i <= allBreakPositions.length; i++) {
         const endPos = i < allBreakPositions.length ? allBreakPositions[i] : text.length
         const segment = text.slice(lastPos, endPos)
         
         if (segment.length > 0) {
+          segmentsCreated.push(`"${segment.substring(0, 10)}"(${segment.length})`)
           // Get format at the start of this segment
           const { format, style } = getFormatAtPosition(formatRanges, lastPos)
           
@@ -430,6 +436,7 @@ useEffect(() => {
         lastPos = endPos
       }
 
+      console.log('[v0] resegmentWithUserBreaks: created segments:', segmentsCreated.join(', '))
       if (newNodes.length === 0) return
 
       paragraph.clear()
