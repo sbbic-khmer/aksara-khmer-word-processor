@@ -53,16 +53,20 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       const children = root.getChildren()
       const paragraphs = children.filter($isParagraphNode)
       console.log('[v0] WordBreak: forceResegmentAllParagraphs - found', paragraphs.length, 'paragraphs')
-      children.forEach(child => {
+      children.forEach((child, index) => {
         if ($isParagraphNode(child)) {
           // Get all text content and force a modification to trigger transform
           const textContent = child.getTextContent()
+          console.log('[v0] WordBreak: Processing paragraph', index, 'textLength:', textContent?.length, 'preview:', textContent?.substring(0, 40))
           if (textContent && textContent.length > 0) {
             // Find first text node and mark it dirty
             const firstTextNode = child.getChildren().find($isTextNode) as TextNode | undefined
             if (firstTextNode) {
+              console.log('[v0] WordBreak: Triggering transform for paragraph', index)
               // Force a change by setting same text - this triggers the transform
               firstTextNode.setTextContent(firstTextNode.getTextContent())
+            } else {
+              console.log('[v0] WordBreak: No TextNode found in paragraph', index)
             }
           }
         }
@@ -414,6 +418,8 @@ useEffect(() => {
       // Space breaks are also always included to ensure proper word boundaries
       const allBreakPositions = [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
       
+      console.log('[v0] WordBreak: allBreakPositions first 20:', allBreakPositions.slice(0, 20))
+      
       if (isWordBreakerDebugEnabled()) {
         console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
       }
@@ -432,7 +438,18 @@ useEffect(() => {
           
           const newTextNode = $createTextNode(segment)
           newTextNode.setFormat(format)
-          newTextNode.setStyle(style)
+          
+          // For space segments, add a unique style to prevent Lexical from merging
+          // adjacent TextNodes into one DOM span. This is critical for spell/grammar
+          // checking to work on individual words.
+          const isSpaceSegment = /^\s+$/.test(segment)
+          if (isSpaceSegment) {
+            // Use a CSS custom property that has no visual effect but makes the style unique
+            newTextNode.setStyle(style ? `${style}; --space-segment: 1` : '--space-segment: 1')
+          } else {
+            newTextNode.setStyle(style)
+          }
+          
           processedNodesRef.current.add(newTextNode)
           newNodes.push(newTextNode)
           
@@ -467,7 +484,10 @@ useEffect(() => {
       
       // Debug: log the segments being created
       const segmentTexts = newNodes.filter($isTextNode).map(n => (n as TextNode).getTextContent())
-      console.log('[v0] WordBreak: Creating', newNodes.length, 'nodes, segments:', JSON.stringify(segmentTexts.slice(0, 10)))
+      console.log('[v0] WordBreak: Creating', newNodes.length, 'nodes, segments:', JSON.stringify(segmentTexts.slice(0, 20)))
+      // Show which segments are spaces
+      const spaceIndicators = segmentTexts.slice(0, 20).map(s => /^\s+$/.test(s) ? '[SPACE]' : s.substring(0, 8))
+      console.log('[v0] WordBreak: Space check:', JSON.stringify(spaceIndicators))
 
       paragraph.clear()
       newNodes.forEach((node) => paragraph.append(node))
