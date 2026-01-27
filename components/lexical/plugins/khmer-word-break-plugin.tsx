@@ -44,6 +44,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const processedParagraphKeysRef = useRef(new Set<string>())
 
 useEffect(() => {
+  console.log('[v0] WordBreak useEffect running, showBreaks:', showBreaks)
   // Clear processed refs when showBreaks changes to allow re-processing
   processedNodesRef.current = new WeakSet<TextNode>()
   processedParagraphKeysRef.current = new Set<string>()
@@ -51,6 +52,7 @@ useEffect(() => {
   // Force re-process all paragraphs when showBreaks changes
   // We need to do this after a small delay to ensure the effect has set up transforms
   const timeoutId = setTimeout(() => {
+    console.log('[v0] WordBreak timeout executing, forcing re-process')
     editor.update(() => {
       const root = $getRoot()
       root.getChildren().forEach(child => {
@@ -464,6 +466,7 @@ useEffect(() => {
     }
 
     const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
+      console.log('[v0] WordBreak transform triggered, showBreaks:', showBreaks)
       if (processedNodesRef.current.has(textNode)) return
 
       if (processingParagraphRef.current) return
