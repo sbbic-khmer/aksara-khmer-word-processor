@@ -361,11 +361,22 @@ useEffect(() => {
         return adjustedPos
       })
       
+      // Find space positions for splitting (needed for spell checking when showBreaks is false)
+      const spaceBreakPositions: number[] = []
+      for (let i = 0; i < text.length; i++) {
+        if (/\s/.test(text[i])) {
+          spaceBreakPositions.push(i) // Break before the space
+          if (i + 1 < text.length) {
+            spaceBreakPositions.push(i + 1) // Break after the space
+          }
+        }
+      }
+      
       // When showBreaks is true (auto-word-break enabled): combine user + auto breaks
-      // When showBreaks is false (auto-word-break disabled): only use user breaks
+      // When showBreaks is false (auto-word-break disabled): use user breaks + space breaks (for spell checking)
       const allBreakPositions = showBreaks 
         ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
-        : [...userBreakPositions].sort((a, b) => a - b)
+        : [...new Set([...userBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
       
       if (isWordBreakerDebugEnabled()) {
         console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
