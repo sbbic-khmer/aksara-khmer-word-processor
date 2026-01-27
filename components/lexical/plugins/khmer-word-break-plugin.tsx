@@ -151,8 +151,10 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
         // When auto-word-break is disabled, still split by spaces for spell checking
         // This creates separate TextNodes for each space-separated word without visual break markers
         if (!showBreaks) {
+          console.log('[v0] showBreaks=false, checking for spaces in text:', text.length, 'chars')
           // Check if text has spaces that need splitting
           const hasSpaces = /\s/.test(text)
+          console.log('[v0] hasSpaces:', hasSpaces)
           if (!hasSpaces) {
             return // No spaces, nothing to split
           }
@@ -175,6 +177,7 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
             spaceSegments.push(currentWord)
           }
           
+          console.log('[v0] spaceSegments:', spaceSegments.length, spaceSegments)
           if (spaceSegments.length <= 1) {
             return // Only one segment, no need to split
           }
@@ -193,10 +196,26 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
             charPos += segment.length
           }
           
+          console.log('[v0] Creating', newNodes.length, 'TextNodes for space-separated segments')
           if (newNodes.length > 0) {
             paragraph.clear()
             newNodes.forEach((node) => paragraph.append(node))
-            restoreCursor(paragraph, cursorOffset)
+            
+            // Restore cursor position
+            if (cursorOffset !== null) {
+              let charCount = 0
+              for (const node of newNodes) {
+                if ($isTextNode(node)) {
+                  const nodeLength = node.getTextContentSize()
+                  if (charCount + nodeLength >= cursorOffset) {
+                    const offsetInNode = cursorOffset - charCount
+                    node.select(offsetInNode, offsetInNode)
+                    break
+                  }
+                  charCount += nodeLength
+                }
+              }
+            }
           }
           return
         }
