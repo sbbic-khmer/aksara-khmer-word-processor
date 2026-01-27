@@ -227,10 +227,8 @@ const scanAndMarkMisspellings = useCallback(() => {
             console.log('[SpellCheck] Scanning', spans.length, 'text spans');
         }
         
-        console.log('[v0] SpellCheck: found', spans.length, 'spans to check');
-        spans.forEach((span, idx) => {
+        spans.forEach((span) => {
             const text = span.textContent;
-            console.log('[v0] SpellCheck span', idx, ':', text?.substring(0, 30), 'len:', text?.length);
             if (!text || /^\s+$/.test(text)) {
                 span.classList.remove(MISSPELLED_CLASS);
                 return;

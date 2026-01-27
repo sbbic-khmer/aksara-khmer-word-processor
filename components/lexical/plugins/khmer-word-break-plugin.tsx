@@ -44,7 +44,6 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const processedParagraphKeysRef = useRef(new Set<string>())
 
 useEffect(() => {
-  console.log('[v0] WordBreak useEffect running, showBreaks:', showBreaks)
   // Clear processed refs when showBreaks changes to allow re-processing
   processedNodesRef.current = new WeakSet<TextNode>()
   processedParagraphKeysRef.current = new Set<string>()
@@ -52,7 +51,6 @@ useEffect(() => {
   // Force re-process all paragraphs when showBreaks changes
   // We need to do this after a small delay to ensure the effect has set up transforms
   const timeoutId = setTimeout(() => {
-    console.log('[v0] WordBreak timeout executing, forcing re-process')
     editor.update(() => {
       const root = $getRoot()
       root.getChildren().forEach(child => {
@@ -165,13 +163,10 @@ useEffect(() => {
       try {
         const { text, hasBreakNodes, formatRanges } = collectParagraphText(paragraph)
 
-        console.log('[v0] WordBreak: processing paragraph, showBreaks:', showBreaks, 'textLen:', text?.length)
-
         if (!text || text.length === 0) return
 
         const hasUserBreaks = containsUserBreaks(text)
         const hasSpaces = /\s/.test(text)
-        console.log('[v0] WordBreak: hasUserBreaks:', hasUserBreaks, 'hasSpaces:', hasSpaces)
 
         // Check for any user-defined break characters (ZWSP, ZWJ, ZWNJ)
         if (hasUserBreaks) {
@@ -185,10 +180,8 @@ useEffect(() => {
         // When auto-word-break is disabled, still split by spaces for spell checking
         // This creates separate TextNodes for each space-separated word without visual break markers
         if (!showBreaks) {
-          console.log('[v0] WordBreak: showBreaks=false, will split by spaces')
           // Check if text has spaces that need splitting
           if (!hasSpaces) {
-            console.log('[v0] WordBreak: no spaces found, returning')
             return // No spaces, nothing to split
           }
           
@@ -381,13 +374,12 @@ useEffect(() => {
         }
       }
       
-      // When showBreaks is true (auto-word-break enabled): combine user + auto breaks
+      // When showBreaks is true (auto-word-break enabled): combine user + auto + space breaks
       // When showBreaks is false (auto-word-break disabled): use user breaks + space breaks (for spell checking)
+      // Space breaks are ALWAYS included to ensure proper word boundaries for spell checking
       const allBreakPositions = showBreaks 
-        ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions])].sort((a, b) => a - b)
+        ? [...new Set([...userBreakPositions, ...adjustedAutoBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
         : [...new Set([...userBreakPositions, ...spaceBreakPositions])].sort((a, b) => a - b)
-      
-      console.log('[v0] resegmentWithUserBreaks: showBreaks:', showBreaks, 'spaceBreakPositions:', spaceBreakPositions.length, 'allBreakPositions:', allBreakPositions.length)
       
       if (isWordBreakerDebugEnabled()) {
         console.log(`[v0:wb] Auto breaks: ${autoBreakPositions.join(',')}, Adjusted: ${adjustedAutoBreakPositions.join(',')}, All (showBreaks=${showBreaks}): ${allBreakPositions.join(',')}`)
@@ -438,7 +430,6 @@ useEffect(() => {
         lastPos = endPos
       }
 
-      console.log('[v0] resegmentWithUserBreaks: created', newNodes.length, 'nodes')
       if (newNodes.length === 0) return
 
       paragraph.clear()
@@ -469,7 +460,6 @@ useEffect(() => {
     }
 
     const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
-      console.log('[v0] WordBreak transform triggered, showBreaks:', showBreaks)
       if (processedNodesRef.current.has(textNode)) return
 
       if (processingParagraphRef.current) return
