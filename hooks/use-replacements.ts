@@ -12,7 +12,23 @@ interface ReplacementsData {
   combined: Record<string, { correct_word: string; source: string }>
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = async (url: string) => {
+  console.log("[v0] useReplacements fetcher: Starting fetch...")
+  const res = await fetch(url)
+  if (!res.ok) {
+    console.log("[v0] useReplacements fetcher: Fetch failed with status", res.status)
+    throw new Error(`Fetch failed: ${res.status}`)
+  }
+  const json = await res.json()
+  console.log("[v0] useReplacements fetcher: Received response, combined keys:", Object.keys(json?.combined || {}).length)
+  
+  // Check if ជីវឹត rule exists in fetched data
+  const keys = Object.keys(json?.combined || {})
+  const jeevitRules = keys.filter((k: string) => k.includes('ជីវ'))
+  console.log("[v0] useReplacements fetcher: Rules containing 'ជីវ':", jeevitRules)
+  
+  return json
+}
 
 export function useReplacements() {
   const { data, error, isLoading, mutate } = useSWR<ReplacementsData>("/api/replacements", fetcher, {
