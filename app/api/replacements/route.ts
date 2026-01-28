@@ -29,6 +29,11 @@ export async function GET() {
     // Order: master first, then user - so user's values override master's
     const replacementMap: Record<string, { correct_word: string; source: string }> = {}
 
+    // Debug: Check for ជីវឹត rule
+    const jeevitRule = masterReplacements.find((r: { incorrect_word: string }) => r.incorrect_word.includes('ជីវ'))
+    console.log("[v0] API: Found ជីវ rules in master:", masterReplacements.filter((r: { incorrect_word: string }) => r.incorrect_word.includes('ជីវ')).map((r: { incorrect_word: string, correct_word: string }) => `${r.incorrect_word} -> ${r.correct_word}`))
+    console.log("[v0] API: Total master replacements:", masterReplacements.length)
+
     // Add master replacements first
     for (const r of masterReplacements) {
       replacementMap[r.incorrect_word] = { correct_word: r.correct_word, source: "master" }

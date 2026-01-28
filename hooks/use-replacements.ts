@@ -41,12 +41,30 @@ export function useReplacements() {
       console.log("[v0] applyReplacements: Text codepoints:", [...text].map(c => c.codePointAt(0)?.toString(16)).join(' '))
       console.log("[v0] applyReplacements: Number of replacement rules:", sortedIncorrect.length)
       
-      // Check if ជីវឹត rule exists
+      // Check if ជីវឹត rule exists - target codepoints: 1787 17b8 179c 17b9 178f
+      const targetWord = "ជីវឹត"
+      const targetCodepoints = [...targetWord].map(c => c.codePointAt(0)?.toString(16)).join(' ')
+      console.log("[v0] applyReplacements: Looking for target word codepoints:", targetCodepoints)
+      
+      // Check if exact match exists
+      const hasExactRule = sortedIncorrect.includes(targetWord)
+      console.log("[v0] applyReplacements: Has exact 'ជីវឹត' rule?", hasExactRule)
+      
+      // Check for any rules containing ជីវ
       const hasJeevitRule = sortedIncorrect.some(r => r.includes('ជីវ'))
       console.log("[v0] applyReplacements: Has any ជីវ rule?", hasJeevitRule)
       if (hasJeevitRule) {
         const jeevitRules = sortedIncorrect.filter(r => r.includes('ជីវ'))
-        console.log("[v0] applyReplacements: ជីវ rules found:", jeevitRules.map(r => `${r} -> ${data.combined[r].correct_word}`))
+        console.log("[v0] applyReplacements: ជីវ rules found:", jeevitRules.map(r => {
+          const codepoints = [...r].map(c => c.codePointAt(0)?.toString(16)).join(' ')
+          return `${r} (${codepoints}) -> ${data.combined[r].correct_word}`
+        }))
+      }
+      
+      // Check if text contains the target word
+      if (text.includes('ជីវ')) {
+        console.log("[v0] applyReplacements: Text contains ជីវ, checking for exact match...")
+        console.log("[v0] applyReplacements: Text includes targetWord?", text.includes(targetWord))
       }
 
       for (const incorrect of sortedIncorrect) {
