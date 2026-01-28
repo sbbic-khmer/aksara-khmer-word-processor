@@ -28,6 +28,7 @@ export function useReplacements() {
   const applyReplacements = useCallback(
     (text: string): string => {
       if (!data?.combined || Object.keys(data.combined).length === 0) {
+        console.log("[v0] applyReplacements: No replacements data available")
         return text
       }
 
@@ -36,8 +37,19 @@ export function useReplacements() {
       // Sort by length (longest first) to handle overlapping replacements
       const sortedIncorrect = Object.keys(data.combined).sort((a, b) => b.length - a.length)
 
+      console.log("[v0] applyReplacements: Processing text:", JSON.stringify(text))
+      console.log("[v0] applyReplacements: Text codepoints:", [...text].map(c => c.codePointAt(0)?.toString(16)).join(' '))
+      console.log("[v0] applyReplacements: Number of replacement rules:", sortedIncorrect.length)
+
       for (const incorrect of sortedIncorrect) {
         const { correct_word } = data.combined[incorrect]
+        
+        // Debug: Check if this is our target word
+        if (incorrect.includes('ជីវ') || text.includes('ជីវ')) {
+          console.log("[v0] applyReplacements: Checking rule:", JSON.stringify(incorrect), "->", JSON.stringify(correct_word))
+          console.log("[v0] applyReplacements: Incorrect codepoints:", [...incorrect].map(c => c.codePointAt(0)?.toString(16)).join(' '))
+          console.log("[v0] applyReplacements: Text includes incorrect?", text.includes(incorrect))
+        }
         
         // Build a smart regex that avoids double-replacement
         // If correct_word extends incorrect (e.g., ព្រះយេស៊ូ → ព្រះយេស៊ូវ),
@@ -52,7 +64,12 @@ export function useReplacements() {
         }
         
         const regex = new RegExp(pattern, "g")
+        const beforeReplace = result
         result = result.replace(regex, correct_word)
+        
+        if (beforeReplace !== result) {
+          console.log("[v0] applyReplacements: Made replacement!", incorrect, "->", correct_word)
+        }
       }
 
       return result
