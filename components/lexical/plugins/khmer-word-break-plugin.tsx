@@ -28,25 +28,9 @@ const ZWNJ = "\u200C" // Zero-width non-joiner
 const USER_BREAK_CHARS = [ZWSP, ZWJ, ZWNJ]
 const USER_BREAK_REGEX = /[\u200B\u200C\u200D]/
 
-// Khmer and common sentence-ending punctuation that should have a space after them
-// - ។ (U+17D4) KHMER SIGN KHAN - full stop/period
-// - ៕ (U+17D5) KHMER SIGN BARIYOOSAN - paragraph end  
-// - ៖ (U+17D6) KHMER SIGN CAMNUC PII KUUH - colon
-// - ? Question mark
-// - ! Exclamation mark
-const END_PUNCTUATION_REGEX = /([។៕៖?!])([^\s។៕៖?!\u200B])/g
-
 const containsWhitespace = (str: string): boolean => /\s/.test(str)
 const isWhitespaceOnly = (str: string): boolean => /^\s+$/.test(str)
 const containsUserBreaks = (str: string): boolean => USER_BREAK_REGEX.test(str)
-
-/**
- * Ensures a normal space exists after sentence-ending punctuation marks.
- * This is important for Khmer text readability and proper word separation.
- */
-const ensureSpaceAfterPunctuation = (text: string): string => {
-  return text.replace(END_PUNCTUATION_REGEX, '$1 $2')
-}
 
 interface KhmerWordBreakPluginProps {
   breaker: KhmerBreaker
@@ -123,7 +107,7 @@ useEffect(() => {
       style: string
     }
 
-    const collectParagraphText = (paragraph: ElementNode): { text: string; hasBreakNodes: boolean; formatRanges: FormatRange[]; wasModified: boolean } => {
+    const collectParagraphText = (paragraph: ElementNode): { text: string; hasBreakNodes: boolean; formatRanges: FormatRange[] } => {
       let text = ""
       let hasBreakNodes = false
       const formatRanges: FormatRange[] = []
@@ -145,23 +129,7 @@ useEffect(() => {
         }
       }
 
-      // Ensure spaces after sentence-ending punctuation
-      const originalText = text
-      text = ensureSpaceAfterPunctuation(text)
-      const wasModified = text !== originalText
-      
-      // If text was modified, we need to adjust format ranges to account for inserted spaces
-      if (wasModified) {
-        // Recalculate format ranges based on original positions
-        // For simplicity, we'll expand the last format range to cover any new characters
-        // This is a reasonable approximation since spaces don't typically need special formatting
-        const lastRange = formatRanges[formatRanges.length - 1]
-        if (lastRange) {
-          lastRange.end = text.length
-        }
-      }
-
-      return { text, hasBreakNodes, formatRanges, wasModified }
+      return { text, hasBreakNodes, formatRanges }
     }
 
     // Get format and style for a given character position
