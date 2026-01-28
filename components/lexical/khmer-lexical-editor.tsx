@@ -25,6 +25,7 @@ import { SpellCheckProvider, useSpellCheck } from "./contexts/spell-check-contex
 import { SpellCheckContextMenu } from "./components/spell-check-context-menu"
 import { KhmerGrammarCheckPlugin } from "./plugins/khmer-grammar-check-plugin"
 import { ClickSelectionPlugin } from "./plugins/click-selection-plugin"
+import { PunctuationSpacingPlugin } from "./plugins/punctuation-spacing-plugin"
 import { GrammarCheckProvider, useGrammarCheck } from "./contexts/grammar-check-context"
 import { GrammarCheckContextMenu } from "./components/grammar-check-context-menu"
 import { $isKhmerBreakNode } from "./nodes/khmer-break-node"
@@ -864,6 +865,7 @@ function EditorContent({
       <KhmerSpellCheckPlugin />
 <KhmerGrammarCheckPlugin />
 <ClickSelectionPlugin />
+<PunctuationSpacingPlugin />
 <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
       <HistoryPlugin />
       <ListPlugin />
