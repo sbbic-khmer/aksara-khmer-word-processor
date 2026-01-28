@@ -22,9 +22,15 @@ export function ClickSelectionPlugin() {
     const handleMouseDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement
       
+      console.log("[v0] ClickSelectionPlugin mousedown - target:", target.tagName, target.className)
+      console.log("[v0] ClickSelectionPlugin mousedown - rootElement:", rootElement.tagName)
+      console.log("[v0] ClickSelectionPlugin mousedown - target === rootElement:", target === rootElement)
+      
       // Only handle clicks directly on the root contentEditable element
       // (not on child elements like paragraphs or text)
       if (target !== rootElement) return
+
+      console.log("[v0] ClickSelectionPlugin mousedown - PASSED root check")
 
       // Get click coordinates
       const clickX = event.clientX
