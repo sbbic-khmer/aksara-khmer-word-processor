@@ -864,7 +864,7 @@ function EditorContent({
       <KhmerSpellCheckPlugin />
 <KhmerGrammarCheckPlugin />
 <ClickSelectionPlugin />
-  <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
+<OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
       <HistoryPlugin />
       <ListPlugin />
 
