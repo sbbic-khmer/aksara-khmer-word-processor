@@ -230,6 +230,19 @@ class KhmerCharSets {
   }
 
   /**
+   * Check if character is punctuation (Khmer or common).
+   * Khmer punctuation: ។ ៕ ៖ ៗ ៘ ៙ ៚ (U+17D4-U+17DA)
+   */
+  isPunctuation(char: string): boolean {
+    const code = char.codePointAt(0)!
+    // Khmer punctuation range
+    if (code >= 0x17d4 && code <= 0x17da) return true
+    // Common punctuation
+    if ('.,;:!?()[]{}"\'-–—…'.includes(char)) return true
+    return false
+  }
+
+  /**
    * Find end of syllable starting at index.
    */
   findSyllableEnd(text: string, index: number): number {
