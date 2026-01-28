@@ -1,17 +1,13 @@
 /**
  * Khmer Text Breaking Utility
- * 
- * Uses Viterbi/Dynamic Programming algorithm for globally optimal word segmentation.
- * Key features:
- * - KCC (Khmer Character Cluster) extraction for valid break positions
- * - DP-based scoring that considers word frequency and length
- * - Intl.Segmenter as secondary validation signal
+ * Uses Bidirectional Maximum Matching algorithm for word segmentation.
+ * Also supports Intl.Segmenter as secondary validation when available.
  *
  * Based on Unicode's Khmer orthographic syllable structure:
- * KCC (Khmer Character Cluster) ::= Base (COENG + Consonant)* (DependentVowels | Signs)*
- * where Base = consonant | independent vowel
+ * Khmer-syllable ::= (K H)* K M*
+ * where K = consonant/independent vowel, H = COENG (្), M = combining marks
  *
- * CRITICAL RULE: You can NEVER break within a KCC - only between KCCs.
+ * CRITICAL RULE: You can NEVER break after a COENG (្, U+17D2).
  */
 
 import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
@@ -309,81 +305,6 @@ class KhmerCharSets {
     }
     return count || 1
   }
-
-  /**
-   * Extract all Khmer Character Clusters (KCCs) from text.
-   * A KCC is the smallest unit that cannot be broken - similar to a grapheme cluster.
-   * 
-   * KCC structure: Base (COENG + Consonant)* (DependentVowels | Signs)*
-   * Where Base = Consonant | IndependentVowel
-   * 
-   * This is the foundation for word segmentation - we can only break BETWEEN KCCs, never within.
-   */
-  extractKCCs(text: string): string[] {
-    const kccs: string[] = []
-    let pos = 0
-    
-    while (pos < text.length) {
-      const char = text[pos]
-      
-      // Non-Khmer characters are their own "cluster"
-      if (!this.isKhmerChar(char)) {
-        kccs.push(char)
-        pos++
-        continue
-      }
-      
-      // Start of a KCC - must begin with a base character (consonant or independent vowel)
-      if (this.isBase(char)) {
-        const kccEnd = this.findSyllableEnd(text, pos)
-        kccs.push(text.substring(pos, kccEnd))
-        pos = kccEnd
-      } else {
-        // Orphaned combining mark or other - take it as its own unit
-        // This handles malformed text gracefully
-        kccs.push(char)
-        pos++
-      }
-    }
-    
-    return kccs
-  }
-
-  /**
-   * Get valid break positions in text (positions between KCCs where we CAN break).
-   * Returns array of character indices where a break is allowed.
-   */
-  getValidBreakPositions(text: string): number[] {
-    const positions: number[] = []
-    let pos = 0
-    
-    while (pos < text.length) {
-      const char = text[pos]
-      
-      if (!this.isKhmerChar(char)) {
-        pos++
-        if (pos < text.length) {
-          positions.push(pos)
-        }
-        continue
-      }
-      
-      if (this.isBase(char)) {
-        const kccEnd = this.findSyllableEnd(text, pos)
-        pos = kccEnd
-        if (pos < text.length) {
-          positions.push(pos)
-        }
-      } else {
-        pos++
-        if (pos < text.length) {
-          positions.push(pos)
-        }
-      }
-    }
-    
-    return positions
-  }
 }
 
 function isPunctuation(char: string): boolean {
@@ -567,17 +488,17 @@ export class KhmerBreaker {
             // WJ characters will be preserved in the text for future segmentations
             coreSegments.push(region.text)
           } else {
-            // This region has no WJ - segment it using Viterbi/DP for globally optimal result
-            const viterbiSegments = this.viterbiSegment(region.text)
-            
-            // If Intl.Segmenter is available, use it as a validation signal
-            let finalSegments = viterbiSegments
+            // This region has no WJ - segment it normally using bidirectional maximum matching
+            const dictSegments = this.bidirectionalSegment(region.text)
+
+            // If Intl.Segmenter is available, use it to validate/improve our result
+            let finalSegments = dictSegments
             if (this.useIntlSegmenter) {
               try {
                 const intlSegments = this.segmentWithIntl(region.text)
-                finalSegments = this.improveWithIntlHints(viterbiSegments, intlSegments, region.text)
+                finalSegments = this.improveWithIntlHints(dictSegments, intlSegments, region.text)
               } catch {
-                // Fall through to Viterbi result
+                // Fall through to dictionary result
               }
             }
             coreSegments.push(...finalSegments)
@@ -693,17 +614,17 @@ export class KhmerBreaker {
   }
 
   /**
-   * Improve Viterbi segments with Intl.Segmenter hints.
-   * Viterbi (dictionary-based DP) takes priority, but Intl can help with unknown words.
+   * Improve dictionary-based segments with Intl.Segmenter hints.
+   * Dictionary takes priority, but Intl can help with unknown words.
    */
-  private improveWithIntlHints(viterbiSegments: string[], intlSegments: string[], originalText: string): string[] {
-    // If Viterbi produced good results (mostly known words), use them
-    const knownWordCount = viterbiSegments.filter((s) => this.trie.hasWord(s)).length
-    const knownWordRatio = knownWordCount / viterbiSegments.length
+  private improveWithIntlHints(dictSegments: string[], intlSegments: string[], originalText: string): string[] {
+    // If dictionary produced good results (mostly known words), use them
+    const knownWordCount = dictSegments.filter((s) => this.trie.hasWord(s)).length
+    const knownWordRatio = knownWordCount / dictSegments.length
 
-    // If most segments are known dictionary words, trust Viterbi
+    // If most segments are known dictionary words, trust the dictionary
     if (knownWordRatio >= 0.5) {
-      return viterbiSegments
+      return dictSegments
     }
 
     // Otherwise, try to use Intl segments but validate against dictionary
@@ -746,117 +667,8 @@ export class KhmerBreaker {
   }
 
   /**
-   * Viterbi/Dynamic Programming segmentation algorithm.
-   * Finds the globally optimal segmentation by considering all possible paths.
-   * 
-   * Uses a scoring function that rewards:
-   * - Dictionary words (especially high-frequency ones)
-   * - Longer words (fewer segments)
-   * - Penalizes unknown/OOV segments
-   * 
-   * Time complexity: O(n * m) where n = text length, m = max word length
-   */
-  private viterbiSegment(text: string): string[] {
-    if (!text || text.length === 0) return []
-    
-    const n = text.length
-    
-    // Get valid break positions (between KCCs)
-    const validBreaks = new Set<number>([0, ...this.charSets.getValidBreakPositions(text)])
-    
-    // dp[i] = { score: best score to reach position i, prev: previous position, word: word ending at i }
-    const dp: Array<{ score: number; prev: number; word: string }> = new Array(n + 1)
-    dp[0] = { score: 0, prev: -1, word: "" }
-    
-    // Initialize all positions with very low score
-    for (let i = 1; i <= n; i++) {
-      dp[i] = { score: -Infinity, prev: -1, word: "" }
-    }
-    
-    // Fill DP table
-    for (let i = 0; i < n; i++) {
-      if (dp[i].score === -Infinity) continue
-      if (!validBreaks.has(i)) continue // Can only start words at valid break positions
-      
-      // Try all possible words starting at position i
-      const maxLen = Math.min(this.trie.maxWordLength, n - i)
-      
-      for (let len = 1; len <= maxLen; len++) {
-        const endPos = i + len
-        
-        // Check if this is a valid end position (must be at a KCC boundary)
-        if (endPos < n && !validBreaks.has(endPos)) continue
-        
-        const candidate = text.substring(i, endPos)
-        const score = this.scoreSegment(candidate)
-        const totalScore = dp[i].score + score
-        
-        if (totalScore > dp[endPos].score) {
-          dp[endPos] = { score: totalScore, prev: i, word: candidate }
-        }
-      }
-    }
-    
-    // Backtrack to get the segmentation
-    const segments: string[] = []
-    let pos = n
-    
-    while (pos > 0 && dp[pos].prev !== -1) {
-      segments.unshift(dp[pos].word)
-      pos = dp[pos].prev
-    }
-    
-    // Handle case where DP didn't reach the end (shouldn't happen with valid input)
-    if (pos > 0) {
-      segments.unshift(text.substring(0, pos))
-    }
-    
-    if (isWordBreakerDebugEnabled()) {
-      console.log(`[v0] viterbiSegment result: [${segments.map((s) => `"${s}"`).join(", ")}]`)
-    }
-    
-    return segments
-  }
-
-  /**
-   * Score a potential segment for the Viterbi algorithm.
-   * Higher score = better segment.
-   * 
-   * Scoring factors:
-   * - Dictionary words get positive scores based on frequency
-   * - Longer dictionary words are preferred (log scale)
-   * - Unknown words get negative scores (penalty)
-   * - Single-character unknown segments are heavily penalized
-   */
-  private scoreSegment(segment: string): number {
-    const freq = this.trie.getFrequency(segment)
-    const len = segment.length
-    const syllableCount = this.charSets.countSyllables(segment)
-    
-    if (freq > 0) {
-      // Known dictionary word
-      // Score = log(frequency) + length bonus
-      // Length bonus encourages longer words (fewer segments)
-      const freqScore = Math.log10(freq + 1) * 2
-      const lengthBonus = Math.log2(len + 1)
-      return freqScore + lengthBonus
-    } else {
-      // Unknown word - apply penalty
-      // Single syllable unknowns are worse than multi-syllable
-      // (multi-syllable might be a real word not in dictionary)
-      if (syllableCount === 1) {
-        return -3 - (1 / len) // Heavy penalty for single-syllable OOV
-      } else {
-        return -1 - (1 / (len * syllableCount)) // Lighter penalty for multi-syllable OOV
-      }
-    }
-  }
-
-  /**
    * Bidirectional Maximum Matching algorithm.
    * Compares forward and backward maximum matching and picks the better result.
-   * 
-   * Note: This is kept as a fallback but viterbiSegment is now preferred.
    */
   private bidirectionalSegment(text: string): string[] {
     const forward = this.forwardMaximumMatch(text)
