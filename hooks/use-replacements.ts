@@ -2,6 +2,8 @@
 
 import { useCallback } from "react"
 import useSWR from "swr"
+import { KhmerBreaker } from "@/lib/khmer-breaker"
+import { KHMER_DICTIONARY } from "@/lib/khmer-dictionary-data"
 
 interface Replacement {
   incorrect_word: string
@@ -20,6 +22,15 @@ const fetcher = async (url: string) => {
   return res.json()
 }
 
+// Create a singleton breaker instance for word segmentation
+let breakerInstance: KhmerBreaker | null = null
+function getBreaker(): KhmerBreaker {
+  if (!breakerInstance) {
+    breakerInstance = new KhmerBreaker(KHMER_DICTIONARY)
+  }
+  return breakerInstance
+}
+
 export function useReplacements() {
   const { data, error, isLoading, mutate } = useSWR<ReplacementsData>("/api/replacements", fetcher, {
     // Revalidate on focus so that when user adds replacements in settings and comes back,
@@ -31,9 +42,10 @@ export function useReplacements() {
     dedupingInterval: 5000,
   })
 
-  // Apply replacements to text using greedy longest-match algorithm
-  // This is essential for Khmer which has no spaces between words - 
-  // we must prevent shorter rules from matching inside longer correct words
+  // Apply replacements to text using word-based matching
+  // This segments the text into words first, then applies replacements to WHOLE words only
+  // This prevents shorter rules from matching inside longer correct words
+  // (e.g., prevents "វិត" -> "វឹត" from corrupting "ជីវិត")
   const applyReplacements = useCallback(
     (text: string): string => {
       if (!data?.combined || Object.keys(data.combined).length === 0) {
@@ -41,53 +53,23 @@ export function useReplacements() {
       }
 
       const rules = data.combined
-      const ruleKeys = Object.keys(rules)
+      const breaker = getBreaker()
       
-      // Sort keys by length (longest first) for greedy matching
-      const sortedKeys = ruleKeys.sort((a, b) => b.length - a.length)
+      // Segment the text into words
+      const segments = breaker.getSegments(text)
       
-      // Build result by processing text position by position
-      // At each position, find the longest matching rule and apply it
-      // This prevents shorter rules from corrupting parts of correct words
-      let result = ""
-      let pos = 0
-      
-      while (pos < text.length) {
-        let matched = false
-        
-        // Try to match the longest rule first at current position
-        for (const incorrect of sortedKeys) {
-          // Check if text at current position starts with this incorrect pattern
-          if (text.substring(pos, pos + incorrect.length) === incorrect) {
-            const { correct_word } = rules[incorrect]
-            
-            // Handle case where correct_word extends incorrect (e.g., ព្រះយេស៊ូ → ព្រះយេស៊ូវ)
-            // Don't replace if the suffix is already there
-            if (correct_word.startsWith(incorrect) && correct_word.length > incorrect.length) {
-              const suffix = correct_word.slice(incorrect.length)
-              const textAfterMatch = text.substring(pos + incorrect.length, pos + correct_word.length)
-              if (textAfterMatch === suffix) {
-                // The correct form is already there, skip this rule
-                continue
-              }
-            }
-            
-            // Apply the replacement
-            result += correct_word
-            pos += incorrect.length
-            matched = true
-            break // Move to next position after replacement
-          }
+      // Apply replacements to each segment (whole word matching)
+      const replacedSegments = segments.map(segment => {
+        // Check if this exact segment has a replacement rule
+        if (rules[segment]) {
+          const { correct_word } = rules[segment]
+          return correct_word
         }
-        
-        // If no rule matched at this position, copy the character as-is
-        if (!matched) {
-          result += text[pos]
-          pos++
-        }
-      }
-
-      return result
+        return segment
+      })
+      
+      // Join segments back together (no spaces - Khmer doesn't use spaces between words)
+      return replacedSegments.join("")
     },
     [data?.combined],
   )
@@ -129,9 +111,4 @@ export function useReplacements() {
     addUserReplacement,
     refresh: mutate,
   }
-}
-
-// Helper to escape special regex characters
-function escapeRegex(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
