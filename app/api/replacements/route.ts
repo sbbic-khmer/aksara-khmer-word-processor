@@ -29,10 +29,18 @@ export async function GET() {
     // Order: master first, then user - so user's values override master's
     const replacementMap: Record<string, { correct_word: string; source: string }> = {}
 
-    // Debug: Check for ជីវឹត rule
-    const jeevitRule = masterReplacements.find((r: { incorrect_word: string }) => r.incorrect_word.includes('ជីវ'))
-    console.log("[v0] API: Found ជីវ rules in master:", masterReplacements.filter((r: { incorrect_word: string }) => r.incorrect_word.includes('ជីវ')).map((r: { incorrect_word: string, correct_word: string }) => `${r.incorrect_word} -> ${r.correct_word}`))
+    // Debug: Check for ជីវឹត rule with codepoints
+    const jeevitRules = masterReplacements.filter((r: { incorrect_word: string }) => r.incorrect_word.includes('ជីវ'))
+    console.log("[v0] API: Found ជីវ rules in master:", jeevitRules.map((r: { incorrect_word: string, correct_word: string }) => {
+      const incorrectCodepoints = [...r.incorrect_word].map(c => c.codePointAt(0)?.toString(16)).join(' ')
+      const correctCodepoints = [...r.correct_word].map(c => c.codePointAt(0)?.toString(16)).join(' ')
+      return `${r.incorrect_word} (${incorrectCodepoints}) -> ${r.correct_word} (${correctCodepoints})`
+    }))
     console.log("[v0] API: Total master replacements:", masterReplacements.length)
+    
+    // Expected codepoints for ជីវឹត (incorrect): 1787 17b8 179c 17b9 178f
+    // Expected codepoints for ជីវិត (correct): 1787 17b8 179c 17b7 178f
+    // The difference is 17b9 (KHMER VOWEL SIGN OE) vs 17b7 (KHMER VOWEL SIGN I)
 
     // Add master replacements first
     for (const r of masterReplacements) {
