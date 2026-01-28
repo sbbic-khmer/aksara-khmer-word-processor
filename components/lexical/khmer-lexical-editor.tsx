@@ -24,6 +24,7 @@ import { KhmerSpellCheckPlugin } from "./plugins/khmer-spell-check-plugin"
 import { SpellCheckProvider, useSpellCheck } from "./contexts/spell-check-context"
 import { SpellCheckContextMenu } from "./components/spell-check-context-menu"
 import { KhmerGrammarCheckPlugin } from "./plugins/khmer-grammar-check-plugin"
+import { ClickSelectionPlugin } from "./plugins/click-selection-plugin"
 import { GrammarCheckProvider, useGrammarCheck } from "./contexts/grammar-check-context"
 import { GrammarCheckContextMenu } from "./components/grammar-check-context-menu"
 import { $isKhmerBreakNode } from "./nodes/khmer-break-node"
@@ -861,8 +862,9 @@ function EditorContent({
       <KhmerWordBreakPlugin breaker={breaker} showBreaks={showBreaks} />
       <VoiceInputPlugin />
       <KhmerSpellCheckPlugin />
-      <KhmerGrammarCheckPlugin />
-      <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
+<KhmerGrammarCheckPlugin />
+<ClickSelectionPlugin />
+<OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
       <HistoryPlugin />
       <ListPlugin />
 
