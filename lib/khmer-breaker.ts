@@ -1,6 +1,6 @@
 /**
  * Khmer Text Breaking Utility
- * Uses Bidirectional Maximum Matching algorithm for word segmentation.
+ * Uses Beam Search algorithm for word segmentation with frequency dictionary.
  * Also supports Intl.Segmenter as secondary validation when available.
  *
  * Based on Unicode's Khmer orthographic syllable structure:
@@ -123,6 +123,30 @@ class KhmerTrie {
     }
 
     return lastMatch
+  }
+
+  /**
+   * Find ALL dictionary matches starting at position (not just longest).
+   * Returns array of { length, frequency } for each match found.
+   * Used by beam search to explore multiple segmentation paths.
+   */
+  findAllMatches(text: string, startIndex: number, maxLength: number): Array<{ length: number; frequency: number }> {
+    const matches: Array<{ length: number; frequency: number }> = []
+    let node = this.root
+    let currentLength = 0
+
+    for (let i = startIndex; i < text.length && currentLength < maxLength; i++) {
+      const char = text[i]
+
+      if (!node.children.has(char)) break
+      node = node.children.get(char)!
+      currentLength++
+
+      if (node.isWord) {
+        matches.push({ length: currentLength, frequency: node.frequency })
+      }
+    }
+    return matches
   }
 
   hasWord(word: string): boolean {
@@ -525,17 +549,17 @@ export class KhmerBreaker {
             // WJ characters will be preserved in the text for future segmentations
             coreSegments.push(region.text)
           } else {
-            // This region has no WJ - segment using Viterbi/DP for globally optimal result
-            const viterbiSegments = this.viterbiSegment(region.text)
+            // This region has no WJ - segment using beam search for globally optimal result
+            const beamSegments = this.beamSegment(region.text)
 
             // If Intl.Segmenter is available, use it to validate/improve our result
-            let finalSegments = viterbiSegments
+            let finalSegments = beamSegments
             if (this.useIntlSegmenter) {
               try {
                 const intlSegments = this.segmentWithIntl(region.text)
-                finalSegments = this.improveWithIntlHints(viterbiSegments, intlSegments, region.text)
+                finalSegments = this.improveWithIntlHints(beamSegments, intlSegments, region.text)
               } catch {
-                // Fall through to Viterbi result
+                // Fall through to beam search result
               }
             }
             coreSegments.push(...finalSegments)
@@ -651,17 +675,17 @@ export class KhmerBreaker {
   }
 
   /**
-   * Improve Viterbi segments with Intl.Segmenter hints.
-   * Viterbi (DP-based) takes priority, but Intl can help with unknown words.
+   * Improve beam search segments with Intl.Segmenter hints.
+   * Beam search takes priority, but Intl can help with unknown words.
    */
-  private improveWithIntlHints(viterbiSegments: string[], intlSegments: string[], originalText: string): string[] {
-    // If Viterbi produced good results (mostly known words), use them
-    const knownWordCount = viterbiSegments.filter((s) => this.trie.hasWord(s)).length
-    const knownWordRatio = knownWordCount / viterbiSegments.length
+  private improveWithIntlHints(beamSegments: string[], intlSegments: string[], originalText: string): string[] {
+    // If beam search produced good results (mostly known words), use them
+    const knownWordCount = beamSegments.filter((s) => this.trie.hasWord(s)).length
+    const knownWordRatio = knownWordCount / beamSegments.length
 
-    // If most segments are known dictionary words, trust Viterbi
+    // If most segments are known dictionary words, trust beam search
     if (knownWordRatio >= 0.5) {
-      return viterbiSegments
+      return beamSegments
     }
 
     // Otherwise, try to use Intl segments but validate against dictionary
@@ -703,120 +727,135 @@ export class KhmerBreaker {
     return result
   }
 
-  // ============ Viterbi/DP Scoring Constants ============
+  // ============ Beam Search Scoring Constants ============
   // Tuned to prevent over-splitting into syllables
-  private static readonly VITERBI_OOV_PENALTY = 6.0          // Cost for unknown token
-  private static readonly VITERBI_BOUNDARY_PENALTY = 2.5     // Cost per token boundary (anti-splitting)
-  private static readonly VITERBI_LENGTH_BONUS = 0.35        // Reward longer tokens (per cluster)
-  private static readonly VITERBI_EXACT_MATCH_BONUS = 5.0    // Reward dictionary hits
-  private static readonly VITERBI_MIN_OOV_CLUSTERS = 2       // Minimum clusters for OOV tokens
-  private static readonly VITERBI_MAX_WORD_CLUSTERS = 24     // Maximum clusters to consider for a word
+  private static readonly BEAM_WIDTH = 8                     // Number of top paths to keep
+  private static readonly MAX_WORD_LEN = 20                  // Maximum word length in characters
+  private static readonly OOV_PENALTY = 6.0                  // Cost for unknown token
+  private static readonly OOV_SINGLE_CLUSTER_PENALTY = 12.0  // Heavy cost for single-cluster OOV
+  private static readonly BOUNDARY_PENALTY = 2.0             // Cost per token boundary
+  private static readonly LENGTH_BONUS = 0.25                // Reward per character for longer tokens
 
   /**
-   * Viterbi/Dynamic Programming segmentation algorithm.
-   * Finds the globally optimal segmentation by considering all possible paths.
+   * Beam search segmentation algorithm.
+   * Explores multiple segmentation paths and keeps the top N best ones.
    * 
-   * Works on KCC (Khmer Character Clusters) to ensure we never break within a cluster.
-   * Uses tuned scoring to prevent over-splitting into syllables.
+   * Simpler than full Viterbi but captures most of its benefit.
+   * Key insight: greedy fails when you need to look 2-4 words ahead.
    */
-  private viterbiSegment(text: string): string[] {
+  private beamSegment(text: string): string[] {
     if (!text || text.length === 0) return []
     
-    // Extract clusters - these are atomic units we can't break within
-    const clusters = this.charSets.extractClusters(text)
-    const n = clusters.length
+    const endPos = text.length
     
-    if (n === 0) return []
-    if (n === 1) return [text] // Single cluster, return as-is
+    // State: { pos: current position, score: cumulative score, pieces: tokens so far }
+    type BeamState = { pos: number; score: number; pieces: string[] }
+    let states: BeamState[] = [{ pos: 0, score: 0, pieces: [] }]
     
-    // Build cluster position map: clusterIndex -> character position
-    const clusterPos: number[] = [0]
-    let charPos = 0
-    for (const cluster of clusters) {
-      charPos += cluster.length
-      clusterPos.push(charPos)
-    }
-    
-    // dp[i] = { score: best score to reach cluster i, prev: previous cluster index }
-    const dp: Array<{ score: number; prev: number }> = new Array(n + 1)
-    dp[0] = { score: 0, prev: -1 }
-    
-    for (let i = 1; i <= n; i++) {
-      dp[i] = { score: -Infinity, prev: -1 }
-    }
-    
-    // Fill DP table - for each ending position, try all possible starting positions
-    for (let end = 1; end <= n; end++) {
-      const maxStart = Math.max(0, end - KhmerBreaker.VITERBI_MAX_WORD_CLUSTERS)
+    while (states.length > 0) {
+      // If every state finished, break
+      if (states.every(s => s.pos >= endPos)) break
       
-      for (let start = maxStart; start < end; start++) {
-        if (dp[start].score === -Infinity) continue
-        
-        // Get the candidate word (from cluster start to cluster end)
-        const startChar = clusterPos[start]
-        const endChar = clusterPos[end]
-        const candidate = text.substring(startChar, endChar)
-        const numClusters = end - start
-        
-        // Score this candidate
-        const freq = this.trie.getFrequency(candidate)
-        const isOov = freq === 0
-        
-        // Block tiny OOV tokens (single cluster unknowns)
-        if (isOov && numClusters < KhmerBreaker.VITERBI_MIN_OOV_CLUSTERS) {
+      const nextStates: BeamState[] = []
+      
+      for (const s of states) {
+        if (s.pos >= endPos) {
+          nextStates.push(s)
           continue
         }
         
-        let score = 0
+        const ch = text[s.pos]
         
-        // Frequency score
-        score += Math.log(freq + 1)
-        
-        // OOV penalty or exact match bonus
-        if (isOov) {
-          score -= KhmerBreaker.VITERBI_OOV_PENALTY
-        } else {
-          score += KhmerBreaker.VITERBI_EXACT_MATCH_BONUS
+        // Handle whitespace as its own token
+        if (ch === ' ' || ch === '\t' || ch === '\n') {
+          nextStates.push({
+            pos: s.pos + 1,
+            score: s.score,
+            pieces: [...s.pieces, ch],
+          })
+          continue
         }
         
-        // Length bonus (reward longer tokens)
-        score += KhmerBreaker.VITERBI_LENGTH_BONUS * numClusters
-        
-        // Boundary penalty (discourage over-splitting)
-        if (start > 0) {
-          score -= KhmerBreaker.VITERBI_BOUNDARY_PENALTY
+        // Handle punctuation as its own token
+        if (this.charSets.isPunctuation(ch)) {
+          nextStates.push({
+            pos: s.pos + 1,
+            score: s.score,
+            pieces: [...s.pieces, ch],
+          })
+          continue
         }
         
-        const totalScore = dp[start].score + score
+        // Handle non-Khmer characters (Latin, numbers, etc.)
+        if (!this.charSets.isKhmerChar(ch)) {
+          // Consume entire non-Khmer run
+          let runEnd = s.pos + 1
+          while (runEnd < endPos && !this.charSets.isKhmerChar(text[runEnd]) && 
+                 text[runEnd] !== ' ' && !this.charSets.isPunctuation(text[runEnd])) {
+            runEnd++
+          }
+          nextStates.push({
+            pos: runEnd,
+            score: s.score,
+            pieces: [...s.pieces, text.slice(s.pos, runEnd)],
+          })
+          continue
+        }
         
-        if (totalScore > dp[end].score) {
-          dp[end] = { score: totalScore, prev: start }
+        // Khmer text - find dictionary matches
+        const maxLen = Math.min(KhmerBreaker.MAX_WORD_LEN, endPos - s.pos)
+        const matches = this.trie.findAllMatches(text, s.pos, maxLen)
+        
+        // Build candidate tokens
+        const candidates: Array<{ len: number; score: number }> = []
+        
+        // Add dictionary matches as candidates
+        for (const m of matches) {
+          let sc = Math.log((m.frequency || 1) + 1)
+          sc += KhmerBreaker.LENGTH_BONUS * m.length
+          sc -= KhmerBreaker.BOUNDARY_PENALTY
+          candidates.push({ len: m.length, score: sc })
+        }
+        
+        // OOV fallback: consume one cluster
+        const clusterEnd = this.charSets.findSyllableEnd(text, s.pos)
+        const oovLen = Math.max(1, clusterEnd - s.pos)
+        
+        // Check if this OOV is just a single cluster
+        const oovPenalty = oovLen <= 2 
+          ? KhmerBreaker.OOV_SINGLE_CLUSTER_PENALTY 
+          : KhmerBreaker.OOV_PENALTY
+        
+        candidates.push({
+          len: oovLen,
+          score: -oovPenalty - KhmerBreaker.BOUNDARY_PENALTY,
+        })
+        
+        // Expand states with all candidates
+        for (const c of candidates) {
+          const piece = text.slice(s.pos, s.pos + c.len)
+          nextStates.push({
+            pos: s.pos + c.len,
+            score: s.score + c.score,
+            pieces: [...s.pieces, piece],
+          })
         }
       }
+      
+      // Keep top BEAM_WIDTH states, favoring higher scores and further progress
+      nextStates.sort((a, b) => (b.score - a.score) || (b.pos - a.pos))
+      states = nextStates.slice(0, KhmerBreaker.BEAM_WIDTH)
     }
     
-    // Backtrack to get the segmentation
-    const segments: string[] = []
-    let pos = n
-    
-    while (pos > 0 && dp[pos].prev !== -1) {
-      const startCluster = dp[pos].prev
-      const startChar = clusterPos[startCluster]
-      const endChar = clusterPos[pos]
-      segments.unshift(text.substring(startChar, endChar))
-      pos = startCluster
-    }
-    
-    // Handle any remaining text at the start
-    if (pos > 0) {
-      segments.unshift(text.substring(0, clusterPos[pos]))
-    }
+    // Choose best finished state (furthest position, then highest score)
+    states.sort((a, b) => (b.pos - a.pos) || (b.score - a.score))
+    const result = states[0]?.pieces ?? [text]
     
     if (isWordBreakerDebugEnabled()) {
-      console.log(`[v0] viterbiSegment: "${text}" -> [${segments.map((s) => `"${s}"`).join(", ")}]`)
+      console.log(`[v0] beamSegment: "${text}" -> [${result.map((s) => `"${s}"`).join(", ")}]`)
     }
     
-    return segments
+    return result
   }
 
   /**
