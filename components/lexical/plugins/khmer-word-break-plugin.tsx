@@ -28,9 +28,37 @@ const ZWNJ = "\u200C" // Zero-width non-joiner
 const USER_BREAK_CHARS = [ZWSP, ZWJ, ZWNJ]
 const USER_BREAK_REGEX = /[\u200B\u200C\u200D]/
 
+// Khmer and common sentence-ending punctuation that should have a normal space after them:
+// - ។ (U+17D4) KHMER SIGN KHAN - full stop/period
+// - ៕ (U+17D5) KHMER SIGN BARIYOOSAN - paragraph end  
+// - ៖ (U+17D6) KHMER SIGN CAMNUC PII KUUH - colon
+// - ? Question mark
+// - ! Exclamation mark
+// Pattern matches: punctuation followed by a non-space, non-punctuation, non-ZWSP character
+const END_PUNCTUATION_SPACING_REGEX = /([។៕៖?!])([^\s។៕៖?!\u200B])/g
+
 const containsWhitespace = (str: string): boolean => /\s/.test(str)
 const isWhitespaceOnly = (str: string): boolean => /^\s+$/.test(str)
 const containsUserBreaks = (str: string): boolean => USER_BREAK_REGEX.test(str)
+
+/**
+ * Ensures a normal space exists after sentence-ending punctuation marks.
+ * Returns the modified text and a list of positions where spaces were inserted.
+ * This is needed to properly adjust cursor position after the fix.
+ */
+function ensureSpaceAfterPunctuation(text: string): { text: string; insertedPositions: number[] } {
+  const insertedPositions: number[] = []
+  let offset = 0
+  
+  const newText = text.replace(END_PUNCTUATION_SPACING_REGEX, (match, punct, nextChar, index) => {
+    // Track where we're inserting a space (adjusted for previous insertions)
+    insertedPositions.push(index + 1 + offset)
+    offset += 1 // Each replacement adds one character (the space)
+    return punct + ' ' + nextChar
+  })
+  
+  return { text: newText, insertedPositions }
+}
 
 interface KhmerWordBreakPluginProps {
   breaker: KhmerBreaker
@@ -107,7 +135,12 @@ useEffect(() => {
       style: string
     }
 
-    const collectParagraphText = (paragraph: ElementNode): { text: string; hasBreakNodes: boolean; formatRanges: FormatRange[] } => {
+    const collectParagraphText = (paragraph: ElementNode): { 
+      text: string; 
+      hasBreakNodes: boolean; 
+      formatRanges: FormatRange[];
+      punctuationSpacesInserted: number[];
+    } => {
       let text = ""
       let hasBreakNodes = false
       const formatRanges: FormatRange[] = []
@@ -129,7 +162,28 @@ useEffect(() => {
         }
       }
 
-      return { text, hasBreakNodes, formatRanges }
+      // Apply punctuation spacing fix - add normal space after sentence-ending punctuation
+      const { text: fixedText, insertedPositions } = ensureSpaceAfterPunctuation(text)
+      
+      // If text was modified, adjust format ranges to account for inserted spaces
+      if (insertedPositions.length > 0) {
+        text = fixedText
+        // Adjust format range end positions for each inserted space
+        for (const insertPos of insertedPositions) {
+          for (const range of formatRanges) {
+            // If insert position is within or before this range, extend the range
+            if (insertPos <= range.end) {
+              range.end += 1
+            }
+            // If insert position is before this range's start, shift the range
+            if (insertPos < range.start) {
+              range.start += 1
+            }
+          }
+        }
+      }
+
+      return { text, hasBreakNodes, formatRanges, punctuationSpacesInserted: insertedPositions }
     }
 
     // Get format and style for a given character position
@@ -150,7 +204,9 @@ useEffect(() => {
     const createSegmentedNodes = (text: string, format: number, style: string): LexicalNode[] => {
       if (!text || text.length === 0) return []
 
-      const segments = breaker.getSegments(text)
+      // Apply punctuation spacing fix before segmenting
+      const { text: fixedText } = ensureSpaceAfterPunctuation(text)
+      const segments = breaker.getSegments(fixedText)
       const newNodes: LexicalNode[] = []
 
       segments.forEach((segment, i) => {
@@ -190,9 +246,23 @@ useEffect(() => {
       processedParagraphKeysRef.current.add(paragraphKey)
 
       try {
-        const { text, hasBreakNodes, formatRanges } = collectParagraphText(paragraph)
+        const { text, hasBreakNodes, formatRanges, punctuationSpacesInserted } = collectParagraphText(paragraph)
 
         if (!text || text.length === 0) return
+
+        // Adjust cursor offset if spaces were inserted before the cursor position
+        let adjustedCursorOffset = cursorOffset
+        if (cursorOffset !== null && punctuationSpacesInserted.length > 0) {
+          for (const insertPos of punctuationSpacesInserted) {
+            // If a space was inserted before or at the cursor position, shift cursor forward
+            if (insertPos <= cursorOffset) {
+              adjustedCursorOffset = (adjustedCursorOffset ?? 0) + 1
+            }
+          }
+          if (isWordBreakerDebugEnabled() && adjustedCursorOffset !== cursorOffset) {
+            console.log(`[v0:wb] Cursor adjusted for punctuation spacing: ${cursorOffset} -> ${adjustedCursorOffset}`)
+          }
+        }
 
         const hasUserBreaks = containsUserBreaks(text)
         const hasSpaces = /\s/.test(text)
@@ -202,7 +272,7 @@ useEffect(() => {
           if (isWordBreakerDebugEnabled()) {
             console.log(`[v0:wb] Text contains user break chars, using resegmentWithUserBreaks`)
           }
-          resegmentWithUserBreaks(paragraph, text, cursorOffset, formatRanges)
+          resegmentWithUserBreaks(paragraph, text, adjustedCursorOffset, formatRanges)
           return
         }
 
@@ -254,14 +324,14 @@ useEffect(() => {
             paragraph.clear()
             newNodes.forEach((node) => paragraph.append(node))
             
-            // Restore cursor position
-            if (cursorOffset !== null) {
+            // Restore cursor position (using adjusted offset that accounts for inserted punctuation spaces)
+            if (adjustedCursorOffset !== null) {
               let charCount = 0
               for (const node of newNodes) {
                 if ($isTextNode(node)) {
                   const nodeLength = node.getTextContentSize()
-                  if (charCount + nodeLength >= cursorOffset) {
-                    const offsetInNode = cursorOffset - charCount
+                  if (charCount + nodeLength >= adjustedCursorOffset) {
+                    const offsetInNode = adjustedCursorOffset - charCount
                     node.select(offsetInNode, offsetInNode)
                     break
                   }
@@ -316,17 +386,17 @@ useEffect(() => {
         paragraph.clear()
         newNodes.forEach((node) => paragraph.append(node))
 
-        if (cursorOffset !== null) {
+        if (adjustedCursorOffset !== null) {
           if (isCursorDebugEnabled()) {
-            cursorDebugLog("resegmentParagraph - RESTORING cursor", { cursorOffset, nodeCount: newNodes.length })
+            cursorDebugLog("resegmentParagraph - RESTORING cursor", { adjustedCursorOffset, nodeCount: newNodes.length })
           }
           let charCount = 0
           let cursorRestored = false
           for (const node of newNodes) {
             if ($isTextNode(node)) {
               const nodeLength = node.getTextContentSize()
-              if (charCount + nodeLength >= cursorOffset) {
-                const offsetInNode = cursorOffset - charCount
+              if (charCount + nodeLength >= adjustedCursorOffset) {
+                const offsetInNode = adjustedCursorOffset - charCount
                 node.select(offsetInNode, offsetInNode)
                 cursorRestored = true
                 if (isCursorDebugEnabled()) {
@@ -338,11 +408,11 @@ useEffect(() => {
             }
           }
           if (!cursorRestored && isCursorDebugEnabled()) {
-            cursorDebugLog("resegmentParagraph - WARNING: Cursor NOT restored! charCount:", charCount, "cursorOffset:", cursorOffset)
+            cursorDebugLog("resegmentParagraph - WARNING: Cursor NOT restored! charCount:", charCount, "adjustedCursorOffset:", adjustedCursorOffset)
           }
         } else {
           if (isCursorDebugEnabled()) {
-            cursorDebugLog("resegmentParagraph - NO cursor restoration (cursorOffset is null)")
+            cursorDebugLog("resegmentParagraph - NO cursor restoration (adjustedCursorOffset is null)")
           }
         }
       } finally {
