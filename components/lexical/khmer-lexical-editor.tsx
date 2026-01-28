@@ -917,7 +917,7 @@ function EditorContent({
       <div className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
         <SpellCheckContextMenu>
           <GrammarCheckContextMenu>
-          <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative">
+          <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative flex flex-col">
             {isLoadingDocument ? (
               <div className="flex items-start justify-center pt-32">
                 <div className="flex flex-col items-center gap-3">
@@ -930,7 +930,7 @@ function EditorContent({
                 contentEditable={
                   <ContentEditable
                     className={cn(
-                      "min-h-[1056px] p-12 outline-none",
+                      "min-h-[1056px] flex-1 p-12 outline-none",
                       "font-khmer text-lg leading-relaxed",
                       "focus:outline-none",
                     )}
