@@ -29,9 +29,11 @@ export function PunctuationSpacingPlugin() {
   const [editor] = useLexicalComposerContext()
 
   useEffect(() => {
+    console.log("[v0] PunctuationSpacingPlugin: Registered")
     // Listen for text node mutations to detect when punctuation is followed by non-space
     return editor.registerNodeTransform(TextNode, (node) => {
       const text = node.getTextContent()
+      console.log("[v0] PunctuationSpacingPlugin: Checking text:", JSON.stringify(text))
       
       // Find patterns where punctuation is followed by a non-space, non-punctuation character
       // We need to be careful not to add space:
@@ -44,19 +46,30 @@ export function PunctuationSpacingPlugin() {
       // We also include Latin letters for mixed text
       const pattern = /([។៕៖?!])([^\s។៕៖?!\u200B])/g
       
+      // Test if pattern matches
+      const testMatch = text.match(pattern)
+      console.log("[v0] PunctuationSpacingPlugin: Pattern match result:", testMatch)
+      
       let match
       let newText = text
       let offset = 0
+      
+      // Reset regex lastIndex
+      pattern.lastIndex = 0
       
       while ((match = pattern.exec(text)) !== null) {
         const punctuation = match[1]
         const nextChar = match[2]
         const insertPos = match.index + 1 + offset
         
+        console.log("[v0] PunctuationSpacingPlugin: Found match - punctuation:", punctuation, "nextChar:", nextChar)
+        
         // Insert a space after the punctuation
         newText = newText.slice(0, insertPos) + " " + newText.slice(insertPos)
         offset += 1 // Account for the added space in subsequent matches
       }
+      
+      console.log("[v0] PunctuationSpacingPlugin: newText:", JSON.stringify(newText), "changed:", newText !== text)
       
       // Only update if we made changes
       if (newText !== text) {
