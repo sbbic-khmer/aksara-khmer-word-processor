@@ -147,6 +147,7 @@
 }
 
 /* Document editor styles */
+
 .prose h1 {
   @apply text-3xl font-bold mb-4 mt-6;
 }

@@ -24,6 +24,7 @@ import { KhmerSpellCheckPlugin } from "./plugins/khmer-spell-check-plugin"
 import { SpellCheckProvider, useSpellCheck } from "./contexts/spell-check-context"
 import { SpellCheckContextMenu } from "./components/spell-check-context-menu"
 import { KhmerGrammarCheckPlugin } from "./plugins/khmer-grammar-check-plugin"
+import { ClickSelectionPlugin } from "./plugins/click-selection-plugin"
 import { GrammarCheckProvider, useGrammarCheck } from "./contexts/grammar-check-context"
 import { GrammarCheckContextMenu } from "./components/grammar-check-context-menu"
 import { $isKhmerBreakNode } from "./nodes/khmer-break-node"
@@ -861,8 +862,9 @@ function EditorContent({
       <KhmerWordBreakPlugin breaker={breaker} showBreaks={showBreaks} />
       <VoiceInputPlugin />
       <KhmerSpellCheckPlugin />
-      <KhmerGrammarCheckPlugin />
-      <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
+<KhmerGrammarCheckPlugin />
+<ClickSelectionPlugin />
+<OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
       <HistoryPlugin />
       <ListPlugin />
 
@@ -917,7 +919,7 @@ function EditorContent({
       <div className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
         <SpellCheckContextMenu>
           <GrammarCheckContextMenu>
-          <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative">
+          <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative flex flex-col">
             {isLoadingDocument ? (
               <div className="flex items-start justify-center pt-32">
                 <div className="flex flex-col items-center gap-3">
@@ -930,7 +932,7 @@ function EditorContent({
                 contentEditable={
                   <ContentEditable
                     className={cn(
-                      "min-h-[1056px] p-12 outline-none",
+                      "min-h-[1056px] flex-1 p-12 outline-none",
                       "font-khmer text-lg leading-relaxed",
                       "focus:outline-none",
                     )}

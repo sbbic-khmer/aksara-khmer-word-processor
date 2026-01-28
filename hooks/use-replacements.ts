@@ -2,6 +2,8 @@
 
 import { useCallback } from "react"
 import useSWR from "swr"
+import { KhmerBreaker } from "@/lib/khmer-breaker"
+import { KHMER_DICTIONARY } from "@/lib/khmer-dictionary-data"
 
 interface Replacement {
   incorrect_word: string
@@ -12,7 +14,22 @@ interface ReplacementsData {
   combined: Record<string, { correct_word: string; source: string }>
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Fetch failed: ${res.status}`)
+  }
+  return res.json()
+}
+
+// Create a singleton breaker instance for word segmentation
+let breakerInstance: KhmerBreaker | null = null
+function getBreaker(): KhmerBreaker {
+  if (!breakerInstance) {
+    breakerInstance = new KhmerBreaker(KHMER_DICTIONARY)
+  }
+  return breakerInstance
+}
 
 export function useReplacements() {
   const { data, error, isLoading, mutate } = useSWR<ReplacementsData>("/api/replacements", fetcher, {
@@ -20,42 +37,39 @@ export function useReplacements() {
     // the editor will pick up the new replacements
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
+    revalidateOnMount: true, // Always fetch fresh data on mount
     // Keep the data fresh but don't refetch too often
     dedupingInterval: 5000,
   })
 
-  // Apply replacements to text
+  // Apply replacements to text using word-based matching
+  // This segments the text into words first, then applies replacements to WHOLE words only
+  // This prevents shorter rules from matching inside longer correct words
+  // (e.g., prevents "វិត" -> "វឹត" from corrupting "ជីវិត")
   const applyReplacements = useCallback(
     (text: string): string => {
       if (!data?.combined || Object.keys(data.combined).length === 0) {
         return text
       }
 
-      let result = text
-
-      // Sort by length (longest first) to handle overlapping replacements
-      const sortedIncorrect = Object.keys(data.combined).sort((a, b) => b.length - a.length)
-
-      for (const incorrect of sortedIncorrect) {
-        const { correct_word } = data.combined[incorrect]
-        
-        // Build a smart regex that avoids double-replacement
-        // If correct_word extends incorrect (e.g., ព្រះយេស៊ូ → ព្រះយេស៊ូវ),
-        // use negative lookahead to skip if the suffix is already there
-        let pattern = escapeRegex(incorrect)
-        
-        if (correct_word.startsWith(incorrect) && correct_word.length > incorrect.length) {
-          // The correct word is the incorrect word + a suffix
-          // Use negative lookahead to not match if suffix already present
-          const suffix = correct_word.slice(incorrect.length)
-          pattern = escapeRegex(incorrect) + `(?!${escapeRegex(suffix)})`
+      const rules = data.combined
+      const breaker = getBreaker()
+      
+      // Segment the text into words
+      const segments = breaker.getSegments(text)
+      
+      // Apply replacements to each segment (whole word matching)
+      const replacedSegments = segments.map(segment => {
+        // Check if this exact segment has a replacement rule
+        if (rules[segment]) {
+          const { correct_word } = rules[segment]
+          return correct_word
         }
-        
-        const regex = new RegExp(pattern, "g")
-        result = result.replace(regex, correct_word)
-      }
-
-      return result
+        return segment
+      })
+      
+      // Join segments back together (no spaces - Khmer doesn't use spaces between words)
+      return replacedSegments.join("")
     },
     [data?.combined],
   )
@@ -97,9 +111,4 @@ export function useReplacements() {
     addUserReplacement,
     refresh: mutate,
   }
-}
-
-// Helper to escape special regex characters
-function escapeRegex(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
