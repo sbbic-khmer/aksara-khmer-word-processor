@@ -36,6 +36,7 @@ export function useReplacements() {
     // the editor will pick up the new replacements
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
+    revalidateOnMount: true, // Always fetch fresh data on mount
     // Keep the data fresh but don't refetch too often
     dedupingInterval: 5000,
     onSuccess: (data) => {
@@ -54,7 +55,7 @@ export function useReplacements() {
     }
   })
 
-  // Apply replacements to text
+  // Apply replacements to text - using efficient substring matching
   const applyReplacements = useCallback(
     (text: string): string => {
       if (!data?.combined || Object.keys(data.combined).length === 0) {
@@ -62,69 +63,52 @@ export function useReplacements() {
         return text
       }
 
-      let result = text
-
-      // Sort by length (longest first) to handle overlapping replacements
-      const sortedIncorrect = Object.keys(data.combined).sort((a, b) => b.length - a.length)
-
+      const rules = data.combined
+      const ruleKeys = Object.keys(rules)
+      
       console.log("[v0] applyReplacements: Processing text:", JSON.stringify(text))
-      console.log("[v0] applyReplacements: Text codepoints:", [...text].map(c => c.codePointAt(0)?.toString(16)).join(' '))
-      console.log("[v0] applyReplacements: Number of replacement rules:", sortedIncorrect.length)
+      console.log("[v0] applyReplacements: Number of rules available:", ruleKeys.length)
       
-      // Check if ជីវឹត rule exists - target codepoints: 1787 17b8 179c 17b9 178f
+      // Debug: Check for ជីវឹត rule specifically
       const targetWord = "ជីវឹត"
-      const targetCodepoints = [...targetWord].map(c => c.codePointAt(0)?.toString(16)).join(' ')
-      console.log("[v0] applyReplacements: Looking for target word codepoints:", targetCodepoints)
-      
-      // Check if exact match exists
-      const hasExactRule = sortedIncorrect.includes(targetWord)
-      console.log("[v0] applyReplacements: Has exact 'ជីវឹត' rule?", hasExactRule)
-      
-      // Check for any rules containing ជីវ
-      const hasJeevitRule = sortedIncorrect.some(r => r.includes('ជីវ'))
-      console.log("[v0] applyReplacements: Has any ជីវ rule?", hasJeevitRule)
-      if (hasJeevitRule) {
-        const jeevitRules = sortedIncorrect.filter(r => r.includes('ជីវ'))
-        console.log("[v0] applyReplacements: ជីវ rules found:", jeevitRules.map(r => {
-          const codepoints = [...r].map(c => c.codePointAt(0)?.toString(16)).join(' ')
-          return `${r} (${codepoints}) -> ${data.combined[r].correct_word}`
-        }))
+      const hasTarget = ruleKeys.includes(targetWord)
+      console.log("[v0] applyReplacements: Has 'ជីវឹត' rule?", hasTarget)
+      if (hasTarget) {
+        console.log("[v0] applyReplacements: ជីវឹត rule:", rules[targetWord])
       }
       
-      // Check if text contains the target word
-      if (text.includes('ជីវ')) {
-        console.log("[v0] applyReplacements: Text contains ជីវ, checking for exact match...")
-        console.log("[v0] applyReplacements: Text includes targetWord?", text.includes(targetWord))
+      // Check if text contains the target
+      if (text.includes(targetWord)) {
+        console.log("[v0] applyReplacements: Text CONTAINS 'ជីវឹត'!")
       }
 
-      for (const incorrect of sortedIncorrect) {
-        const { correct_word } = data.combined[incorrect]
-        
-        // Debug: Check if this is our target word
-        if (incorrect.includes('ជីវ') || text.includes('ជីវ')) {
-          console.log("[v0] applyReplacements: Checking rule:", JSON.stringify(incorrect), "->", JSON.stringify(correct_word))
-          console.log("[v0] applyReplacements: Incorrect codepoints:", [...incorrect].map(c => c.codePointAt(0)?.toString(16)).join(' '))
-          console.log("[v0] applyReplacements: Text includes incorrect?", text.includes(incorrect))
+      // Sort keys by length (longest first) to handle overlapping replacements correctly
+      // e.g., "ព្រះយេស៊ូវគ្រិស្ត" should be checked before "ព្រះយេស៊ូ"
+      const sortedKeys = ruleKeys.sort((a, b) => b.length - a.length)
+      
+      let result = text
+      
+      // For each rule, check if it exists in the text and replace
+      for (const incorrect of sortedKeys) {
+        if (!result.includes(incorrect)) {
+          continue // Skip if this pattern isn't in the text - O(n) but fast
         }
         
-        // Build a smart regex that avoids double-replacement
-        // If correct_word extends incorrect (e.g., ព្រះយេស៊ូ → ព្រះយេស៊ូវ),
-        // use negative lookahead to skip if the suffix is already there
-        let pattern = escapeRegex(incorrect)
+        const { correct_word } = rules[incorrect]
         
+        // Build pattern - handle case where correct extends incorrect
+        let pattern = escapeRegex(incorrect)
         if (correct_word.startsWith(incorrect) && correct_word.length > incorrect.length) {
-          // The correct word is the incorrect word + a suffix
-          // Use negative lookahead to not match if suffix already present
           const suffix = correct_word.slice(incorrect.length)
           pattern = escapeRegex(incorrect) + `(?!${escapeRegex(suffix)})`
         }
         
         const regex = new RegExp(pattern, "g")
-        const beforeReplace = result
+        const before = result
         result = result.replace(regex, correct_word)
         
-        if (beforeReplace !== result) {
-          console.log("[v0] applyReplacements: Made replacement!", incorrect, "->", correct_word)
+        if (before !== result) {
+          console.log("[v0] applyReplacements: Replaced", JSON.stringify(incorrect), "->", JSON.stringify(correct_word))
         }
       }
 
