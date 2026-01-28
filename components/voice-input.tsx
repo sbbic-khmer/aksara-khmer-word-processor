@@ -108,22 +108,10 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     (text: string): string => {
       if (!text.trim()) return text
 
-      console.log("[v0] VoiceInput processTranscript - Input:", JSON.stringify(text))
-      console.log("[v0] VoiceInput processTranscript - Input codepoints:", [...text].map(c => c.codePointAt(0)?.toString(16)).join(' '))
-      
       let processed = applyVoiceTextRules(text)
-      console.log("[v0] VoiceInput processTranscript - After voiceTextRules:", JSON.stringify(processed))
 
       if (applyReplacements) {
-        console.log("[v0] VoiceInput processTranscript - applyReplacements function EXISTS")
-        const before = processed
         processed = applyReplacements(processed)
-        console.log("[v0] VoiceInput processTranscript - After applyReplacements:", JSON.stringify(processed))
-        if (before !== processed) {
-          console.log("[v0] VoiceInput processTranscript - REPLACEMENT WAS MADE!")
-        }
-      } else {
-        console.log("[v0] VoiceInput processTranscript - NO applyReplacements function!")
       }
 
       return processed

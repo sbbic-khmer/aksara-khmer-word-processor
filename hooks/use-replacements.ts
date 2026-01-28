@@ -13,21 +13,11 @@ interface ReplacementsData {
 }
 
 const fetcher = async (url: string) => {
-  console.log("[v0] useReplacements fetcher: Starting fetch...")
   const res = await fetch(url)
   if (!res.ok) {
-    console.log("[v0] useReplacements fetcher: Fetch failed with status", res.status)
     throw new Error(`Fetch failed: ${res.status}`)
   }
-  const json = await res.json()
-  console.log("[v0] useReplacements fetcher: Received response, combined keys:", Object.keys(json?.combined || {}).length)
-  
-  // Check if ជីវឹត rule exists in fetched data
-  const keys = Object.keys(json?.combined || {})
-  const jeevitRules = keys.filter((k: string) => k.includes('ជីវ'))
-  console.log("[v0] useReplacements fetcher: Rules containing 'ជីវ':", jeevitRules)
-  
-  return json
+  return res.json()
 }
 
 export function useReplacements() {
@@ -39,76 +29,61 @@ export function useReplacements() {
     revalidateOnMount: true, // Always fetch fresh data on mount
     // Keep the data fresh but don't refetch too often
     dedupingInterval: 5000,
-    onSuccess: (data) => {
-      // Debug: Check what data we received
-      const keys = Object.keys(data?.combined || {})
-      console.log("[v0] useReplacements: Received", keys.length, "replacement rules from API")
-      
-      // Check if ជីវឹត rule exists in received data
-      const targetWord = "ជីវឹត"
-      const hasTarget = keys.includes(targetWord)
-      console.log("[v0] useReplacements: Has 'ជីវឹត' rule in received data?", hasTarget)
-      
-      // Check for any ជីវ rules
-      const jeevitRules = keys.filter(k => k.includes('ជីវ'))
-      console.log("[v0] useReplacements: Rules containing 'ជីវ':", jeevitRules)
-    }
   })
 
-  // Apply replacements to text - using efficient substring matching
+  // Apply replacements to text using greedy longest-match algorithm
+  // This is essential for Khmer which has no spaces between words - 
+  // we must prevent shorter rules from matching inside longer correct words
   const applyReplacements = useCallback(
     (text: string): string => {
       if (!data?.combined || Object.keys(data.combined).length === 0) {
-        console.log("[v0] applyReplacements: No replacements data available")
         return text
       }
 
       const rules = data.combined
       const ruleKeys = Object.keys(rules)
       
-      console.log("[v0] applyReplacements: Processing text:", JSON.stringify(text))
-      console.log("[v0] applyReplacements: Number of rules available:", ruleKeys.length)
-      
-      // Debug: Check for ជីវឹត rule specifically
-      const targetWord = "ជីវឹត"
-      const hasTarget = ruleKeys.includes(targetWord)
-      console.log("[v0] applyReplacements: Has 'ជីវឹត' rule?", hasTarget)
-      if (hasTarget) {
-        console.log("[v0] applyReplacements: ជីវឹត rule:", rules[targetWord])
-      }
-      
-      // Check if text contains the target
-      if (text.includes(targetWord)) {
-        console.log("[v0] applyReplacements: Text CONTAINS 'ជីវឹត'!")
-      }
-
-      // Sort keys by length (longest first) to handle overlapping replacements correctly
-      // e.g., "ព្រះយេស៊ូវគ្រិស្ត" should be checked before "ព្រះយេស៊ូ"
+      // Sort keys by length (longest first) for greedy matching
       const sortedKeys = ruleKeys.sort((a, b) => b.length - a.length)
       
-      let result = text
+      // Build result by processing text position by position
+      // At each position, find the longest matching rule and apply it
+      // This prevents shorter rules from corrupting parts of correct words
+      let result = ""
+      let pos = 0
       
-      // For each rule, check if it exists in the text and replace
-      for (const incorrect of sortedKeys) {
-        if (!result.includes(incorrect)) {
-          continue // Skip if this pattern isn't in the text - O(n) but fast
+      while (pos < text.length) {
+        let matched = false
+        
+        // Try to match the longest rule first at current position
+        for (const incorrect of sortedKeys) {
+          // Check if text at current position starts with this incorrect pattern
+          if (text.substring(pos, pos + incorrect.length) === incorrect) {
+            const { correct_word } = rules[incorrect]
+            
+            // Handle case where correct_word extends incorrect (e.g., ព្រះយេស៊ូ → ព្រះយេស៊ូវ)
+            // Don't replace if the suffix is already there
+            if (correct_word.startsWith(incorrect) && correct_word.length > incorrect.length) {
+              const suffix = correct_word.slice(incorrect.length)
+              const textAfterMatch = text.substring(pos + incorrect.length, pos + correct_word.length)
+              if (textAfterMatch === suffix) {
+                // The correct form is already there, skip this rule
+                continue
+              }
+            }
+            
+            // Apply the replacement
+            result += correct_word
+            pos += incorrect.length
+            matched = true
+            break // Move to next position after replacement
+          }
         }
         
-        const { correct_word } = rules[incorrect]
-        
-        // Build pattern - handle case where correct extends incorrect
-        let pattern = escapeRegex(incorrect)
-        if (correct_word.startsWith(incorrect) && correct_word.length > incorrect.length) {
-          const suffix = correct_word.slice(incorrect.length)
-          pattern = escapeRegex(incorrect) + `(?!${escapeRegex(suffix)})`
-        }
-        
-        const regex = new RegExp(pattern, "g")
-        const before = result
-        result = result.replace(regex, correct_word)
-        
-        if (before !== result) {
-          console.log("[v0] applyReplacements: Replaced", JSON.stringify(incorrect), "->", JSON.stringify(correct_word))
+        // If no rule matched at this position, copy the character as-is
+        if (!matched) {
+          result += text[pos]
+          pos++
         }
       }
 
