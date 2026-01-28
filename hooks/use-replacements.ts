@@ -40,6 +40,14 @@ export function useReplacements() {
       console.log("[v0] applyReplacements: Processing text:", JSON.stringify(text))
       console.log("[v0] applyReplacements: Text codepoints:", [...text].map(c => c.codePointAt(0)?.toString(16)).join(' '))
       console.log("[v0] applyReplacements: Number of replacement rules:", sortedIncorrect.length)
+      
+      // Check if ជីវឹត rule exists
+      const hasJeevitRule = sortedIncorrect.some(r => r.includes('ជីវ'))
+      console.log("[v0] applyReplacements: Has any ជីវ rule?", hasJeevitRule)
+      if (hasJeevitRule) {
+        const jeevitRules = sortedIncorrect.filter(r => r.includes('ជីវ'))
+        console.log("[v0] applyReplacements: ជីវ rules found:", jeevitRules.map(r => `${r} -> ${data.combined[r].correct_word}`))
+      }
 
       for (const incorrect of sortedIncorrect) {
         const { correct_word } = data.combined[incorrect]
