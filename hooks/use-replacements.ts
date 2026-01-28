@@ -22,6 +22,20 @@ export function useReplacements() {
     revalidateOnReconnect: true,
     // Keep the data fresh but don't refetch too often
     dedupingInterval: 5000,
+    onSuccess: (data) => {
+      // Debug: Check what data we received
+      const keys = Object.keys(data?.combined || {})
+      console.log("[v0] useReplacements: Received", keys.length, "replacement rules from API")
+      
+      // Check if ជីវឹត rule exists in received data
+      const targetWord = "ជីវឹត"
+      const hasTarget = keys.includes(targetWord)
+      console.log("[v0] useReplacements: Has 'ជីវឹត' rule in received data?", hasTarget)
+      
+      // Check for any ជីវ rules
+      const jeevitRules = keys.filter(k => k.includes('ជីវ'))
+      console.log("[v0] useReplacements: Rules containing 'ជីវ':", jeevitRules)
+    }
   })
 
   // Apply replacements to text
