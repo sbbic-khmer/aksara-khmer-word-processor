@@ -148,21 +148,6 @@
 
 /* Document editor styles */
 
-/* Make editor paragraphs fill full width so clicking anywhere on a line allows selection */
-[contenteditable="true"] p,
-[contenteditable="true"] h1,
-[contenteditable="true"] h2,
-[contenteditable="true"] h3 {
-  display: block;
-  width: 100%;
-  min-height: 1em;
-}
-
-/* Ensure empty paragraphs are still clickable */
-[contenteditable="true"] p:empty::before {
-  content: "\200B"; /* Zero-width space to maintain height */
-}
-
 .prose h1 {
   @apply text-3xl font-bold mb-4 mt-6;
 }
