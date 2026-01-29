@@ -177,6 +177,7 @@ class KhmerCharSets {
   KHMER_BASE_START = 0x1780
   KHMER_BASE_END = 0x17ff
   COENG = "\u17D2"
+  BANTOC = "\u17CB" // ់ - Khmer sign BANTOC (final consonant marker)
 
   consonants: Set<string>
   independentVowels: Set<string>
@@ -228,6 +229,26 @@ class KhmerCharSets {
 
   isCoeng(char: string): boolean {
     return char === this.COENG
+  }
+
+  isBantoc(char: string): boolean {
+    return char === this.BANTOC
+  }
+
+  isConsonant(char: string): boolean {
+    return this.consonants.has(char)
+  }
+
+  /**
+   * Check if a token is a "dangling bantoc" pattern.
+   * A dangling bantoc is exactly: one consonant followed by ់ (BANTOC).
+   * Example: "ស់" - this is almost always a misbreak and should stay with the previous word.
+   * In real Khmer, a consonant + ់ is a final consonant marker that belongs to the preceding syllable.
+   */
+  isDanglingBantoc(token: string): boolean {
+    // Must be exactly 2 characters: consonant + bantoc
+    if (token.length !== 2) return false
+    return this.isConsonant(token[0]) && this.isBantoc(token[1])
   }
 
   /**
@@ -781,18 +802,34 @@ export class KhmerBreaker {
   private validateAndMergeSegments(segments: string[]): string[] {
     if (segments.length <= 1) return segments
 
+    // First pass: merge any dangling bantoc tokens with their preceding segment
+    // This is a safety net in case beam search still produces them
+    const merged: string[] = []
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]
+      
+      // If this is a dangling bantoc (consonant + ់) and not a known word,
+      // merge it with the previous segment
+      if (this.charSets.isDanglingBantoc(seg) && !this.trie.hasWord(seg) && merged.length > 0) {
+        merged[merged.length - 1] += seg
+      } else {
+        merged.push(seg)
+      }
+    }
+
+    // Second pass: try to find longer dictionary matches
     const result: string[] = []
     let i = 0
 
-    while (i < segments.length) {
+    while (i < merged.length) {
       // Try to find the longest dictionary match by combining consecutive segments
-      let bestMatch = segments[i]
+      let bestMatch = merged[i]
       let bestMatchLen = 1
-      let combined = segments[i]
+      let combined = merged[i]
 
       // Try combining with next segments (up to 4 ahead for compound words)
-      for (let j = i + 1; j < Math.min(i + 5, segments.length); j++) {
-        combined += segments[j]
+      for (let j = i + 1; j < Math.min(i + 5, merged.length); j++) {
+        combined += merged[j]
 
         if (this.trie.hasWord(combined)) {
           bestMatch = combined
@@ -814,6 +851,7 @@ export class KhmerBreaker {
   private static readonly MAX_WORD_LEN = 20                  // Maximum word length in characters
   private static readonly OOV_PENALTY = 6.0                  // Cost for unknown token
   private static readonly OOV_SINGLE_CLUSTER_PENALTY = 12.0  // Heavy cost for single-cluster OOV
+  private static readonly DANGLING_BANTOC_PENALTY = 20.0     // Very heavy cost for consonant + ់ tokens
   private static readonly BOUNDARY_PENALTY = 2.0             // Cost per token boundary
   private static readonly LENGTH_BONUS = 0.25                // Reward per character for longer tokens
 
@@ -1020,9 +1058,21 @@ export class KhmerBreaker {
         // Expand states with all candidates
         for (const c of candidates) {
           const piece = text.slice(s.pos, s.pos + c.len)
+          let score = c.score
+          
+          // Apply heavy penalty for "dangling bantoc" tokens (consonant + ់)
+          // These are almost always misbreaks and should stay with the previous word
+          // e.g., "របស់" should not be split as "រប|ស់"
+          if (this.charSets.isDanglingBantoc(piece)) {
+            // Only allow if it's a known dictionary word (very rare)
+            if (!this.trie.hasWord(piece)) {
+              score -= KhmerBreaker.DANGLING_BANTOC_PENALTY
+            }
+          }
+          
           nextStates.push({
             pos: s.pos + c.len,
-            score: s.score + c.score,
+            score: s.score + score,
             pieces: [...s.pieces, piece],
           })
         }
