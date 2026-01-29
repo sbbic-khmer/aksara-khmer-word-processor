@@ -219,6 +219,12 @@ class KhmerCharSets {
     return code >= this.KHMER_BASE_START && code <= this.KHMER_BASE_END
   }
 
+  // Khmer digits are ០-៩ (U+17E0 - U+17E9)
+  isKhmerDigit(char: string): boolean {
+    const code = char.codePointAt(0)!
+    return code >= 0x17e0 && code <= 0x17e9
+  }
+
   isBase(char: string): boolean {
     return this.baseChars.has(char)
   }
