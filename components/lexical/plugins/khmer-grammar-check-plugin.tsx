@@ -174,15 +174,10 @@ export function KhmerGrammarCheckPlugin() {
         
         
         
-        console.log('[v0] scanForGrammarIssues running, spans:', spans.length, 'spellingRules:', spellingRules.size, 'enabled:', grammarCheckEnabled);
-        spans.forEach((span, idx) => {
+        spans.forEach((span) => {
             const text = span.textContent;
             if (!text || /^\s+$/.test(text)) {
-                // Remove any grammar wrapper if present
-                const existingWrapper = span.querySelector(`.${GRAMMAR_CLASS}`);
-                if (existingWrapper) {
-                    span.textContent = text;
-                }
+                span.classList.remove(GRAMMAR_CLASS);
                 return;
             }
             
@@ -193,48 +188,24 @@ export function KhmerGrammarCheckPlugin() {
             let hasNonStandard = false;
             
             for (const word of words) {
+                // Clean the word to remove punctuation before dictionary lookup
                 const cleanWord = cleanKhmerWord(word);
                 if (!cleanWord || !containsKhmer(cleanWord)) continue;
                 
                 const rule = spellingRules.get(cleanWord);
                 if (rule && rule.standard !== cleanWord) {
                     hasNonStandard = true;
-                    if (idx < 5) console.log('[v0] Found non-standard:', cleanWord, 'rule:', rule);
                     break;
                 }
             }
             
-            // Check if we already have a grammar wrapper
-            const existingWrapper = span.querySelector(`.${GRAMMAR_CLASS}`);
-            
+            // Add/remove class on the span
+            // Note: This may include attached punctuation visually, but replacement
+            // logic uses extractPunctuation() to preserve punctuation when fixing.
             if (hasNonStandard) {
-                // Extract punctuation to only underline the actual word
-                const { leading, core, trailing } = extractPunctuation(text);
-                console.log('[v0] Applying grammar class to:', { text, leading, core, trailing });
-                
-                // Only update DOM if needed (avoid unnecessary mutations)
-                if (!existingWrapper || existingWrapper.textContent !== core) {
-                    // Clear and rebuild with wrapper around just the word
-                    span.textContent = '';
-                    
-                    if (leading) {
-                        span.appendChild(document.createTextNode(leading));
-                    }
-                    
-                    const wrapper = document.createElement('span');
-                    wrapper.className = GRAMMAR_CLASS;
-                    wrapper.textContent = core;
-                    span.appendChild(wrapper);
-                    
-                    if (trailing) {
-                        span.appendChild(document.createTextNode(trailing));
-                    }
-                }
+                span.classList.add(GRAMMAR_CLASS);
             } else {
-                // Remove wrapper if present, restore plain text
-                if (existingWrapper) {
-                    span.textContent = text;
-                }
+                span.classList.remove(GRAMMAR_CLASS);
             }
         });
     }, [editor, spellingRules, grammarCheckEnabled]);
