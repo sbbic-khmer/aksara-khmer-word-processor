@@ -468,6 +468,27 @@ export class KhmerBreaker {
   }
 
   /**
+   * Add user-defined words to the dictionary with high frequency.
+   * These words will be prioritized by the word breaker.
+   * @param words Array of word strings to add
+   * @param frequency The frequency to assign (default: 50000, very high to prioritize)
+   */
+  addUserWords(words: string[], frequency = 50000) {
+    if (isDebugEnabled()) {
+      console.log("[v0] Adding", words.length, "user words with frequency", frequency)
+    }
+    for (const word of words) {
+      const cleanWord = word.trim()
+      if (cleanWord && cleanWord.length > 0) {
+        this.trie.insert(cleanWord, frequency)
+      }
+    }
+    if (isDebugEnabled()) {
+      console.log("[v0] Trie now has", this.trie.wordCount, "words")
+    }
+  }
+
+  /**
    * Wrap protected phrases with Word Joiner (WJ) characters to prevent splitting.
    * Only applies if the text doesn't already contain WJ around the phrase.
    */

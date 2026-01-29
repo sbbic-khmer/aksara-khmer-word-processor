@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserReplacementsManager } from "./user-replacements-manager"
+import { UserDictionaryManager } from "./user-dictionary-manager"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
 export function UserSettingsDashboard() {
-  const [activeTab, setActiveTab] = useState("replacements")
+  const [activeTab, setActiveTab] = useState("dictionary")
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -32,8 +33,13 @@ export function UserSettingsDashboard() {
       <main className="max-w-4xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
+            <TabsTrigger value="dictionary">My Dictionary</TabsTrigger>
             <TabsTrigger value="replacements">My Replacements</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="dictionary">
+            <UserDictionaryManager />
+          </TabsContent>
 
           <TabsContent value="replacements">
             <UserReplacementsManager />
