@@ -848,8 +848,18 @@ export class KhmerBreaker {
     const knownWordCount = beamSegments.filter((s) => this.trie.hasWord(s)).length
     const knownWordRatio = knownWordCount / beamSegments.length
 
+    console.log("[v0] improveWithIntlHints: beamSegments:", beamSegments, "intlSegments:", intlSegments, "knownWordRatio:", knownWordRatio)
+
     // If most segments are known dictionary words, trust beam search
     if (knownWordRatio >= 0.5) {
+      return beamSegments
+    }
+
+    // Special case: if beam search kept Khmer digit:digit patterns together but Intl split them,
+    // prefer beam search result for these patterns
+    const khmerDigitColonPattern = /^[\u17E0-\u17E9]+:[\u17E0-\u17E9]+$/
+    if (beamSegments.length === 1 && khmerDigitColonPattern.test(beamSegments[0])) {
+      console.log("[v0] improveWithIntlHints: keeping beam result for digit:digit pattern")
       return beamSegments
     }
 
@@ -1658,7 +1668,7 @@ function isNonBreakableScript(char: string): boolean {
  * Punctuation and spaces are treated as boundaries.
  * 
  * Additionally, Khmer digits (០-៩) following Khmer letters are split into
- * separate runs, so "តែ១១៣៤៤" becomes "តែ" | "១១៣៤៤".
+ * separate runs, so "តែ១១៣៤���" becomes "តែ" | "១១៣៤៤".
  * Consecutive Khmer digits stay together.
  */
 function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> {
