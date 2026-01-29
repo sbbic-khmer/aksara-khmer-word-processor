@@ -826,6 +826,77 @@ export class KhmerBreaker {
     return this.charSets.canBreakAt(text, endIndex)
   }
 
+  // Maximum number of clusters to consume in an OOV chunk before forcing a break
+  private static readonly MAX_OOV_CLUSTERS = 8
+
+  /**
+   * Find the end of an OOV (out-of-vocabulary) chunk starting at position.
+   * Instead of consuming just one cluster, consume multiple clusters until:
+   * - We hit whitespace or punctuation
+   * - We find a "strong start" of a known dictionary word
+   * - We hit the maximum cluster limit
+   * 
+   * This prevents over-splitting of unknown words like names, technical terms,
+   * and transliterations (e.g., "វ៉កគ័រ" for "Walker" should stay as one chunk).
+   */
+  private findOovChunkEnd(text: string, start: number): number {
+    const endPos = text.length
+    let pos = start
+
+    // Always consume at least one cluster
+    pos = this.charSets.findSyllableEnd(text, pos)
+    if (pos <= start) pos = start + 1
+
+    // Ensure we're at a safe boundary after the first cluster
+    while (pos < endPos && !this.isSafeBoundary(text, pos)) {
+      pos++
+    }
+
+    let clusters = 1
+
+    while (pos < endPos) {
+      const ch = text[pos]
+
+      // Stop at whitespace
+      if (/\s/.test(ch)) break
+
+      // Stop at punctuation
+      if (this.charSets.isPunctuation(ch)) break
+
+      // Stop if we can break here and there's a strong known word starting here
+      if (this.charSets.canBreakAt(text, pos)) {
+        const match = this.trie.findLongestMatch(text, pos)
+        if (match && this.isSignificantWord(match)) {
+          const matchEnd = pos + match.word.length
+          // Verify the match ends at a valid boundary
+          if (matchEnd >= endPos || this.charSets.canBreakAt(text, matchEnd)) {
+            break // Found a significant known word, stop here
+          }
+        }
+      }
+
+      // Otherwise extend by another cluster
+      const nextPos = this.charSets.findSyllableEnd(text, pos)
+      if (nextPos > pos) {
+        pos = nextPos
+      } else {
+        pos++
+      }
+
+      // Ensure we end at a safe boundary
+      while (pos < endPos && !this.isSafeBoundary(text, pos)) {
+        pos++
+      }
+
+      clusters++
+
+      // Don't consume too many clusters - force a break at max
+      if (clusters >= KhmerBreaker.MAX_OOV_CLUSTERS) break
+    }
+
+    return pos
+  }
+
   /**
    * Beam search segmentation algorithm.
    * Explores multiple segmentation paths and keeps the top N best ones.
@@ -923,25 +994,27 @@ export class KhmerBreaker {
           candidates.push({ len: m.length, score: sc })
         }
         
-        // OOV fallback: consume one cluster, ensuring safe boundary
-        const clusterEnd = this.charSets.findSyllableEnd(text, s.pos)
-        let oovEnd = Math.max(s.pos + 1, clusterEnd)
-        
-        // Walk forward until we find a safe boundary (should be rare if cluster detection is correct)
-        while (oovEnd < endPos && !this.isSafeBoundary(text, oovEnd)) {
-          oovEnd++
-        }
-        
+        // OOV fallback: consume multiple clusters until next strong known word start
+        // This prevents over-splitting of unknown words like names and transliterations
+        const oovEnd = this.findOovChunkEnd(text, s.pos)
         const oovLen = oovEnd - s.pos
         
-        // Check if this OOV is just a single cluster (heavier penalty)
-        const oovPenalty = oovLen <= 2 
+        // Count clusters in the OOV chunk for better scoring
+        const oovClusters = this.charSets.extractClusters(text.slice(s.pos, oovEnd)).length
+        
+        // Scoring: penalize OOV, but give a small length bonus so one longer OOV chunk
+        // is preferred over many small OOV chunks
+        // Single-cluster OOVs still get heavier penalty to encourage dictionary matches
+        const oovPenalty = oovClusters <= 1 
           ? KhmerBreaker.OOV_SINGLE_CLUSTER_PENALTY 
           : KhmerBreaker.OOV_PENALTY
         
+        // Length bonus encourages keeping OOV chunks together
+        const oovLengthBonus = KhmerBreaker.LENGTH_BONUS * oovLen * 0.5
+        
         candidates.push({
           len: oovLen,
-          score: -oovPenalty - KhmerBreaker.BOUNDARY_PENALTY,
+          score: -oovPenalty - KhmerBreaker.BOUNDARY_PENALTY + oovLengthBonus,
         })
         
         // Expand states with all candidates
@@ -1299,22 +1372,29 @@ export class KhmerBreaker {
 
   /**
    * Check if a dictionary match is significant enough to be treated as a word.
-   * Short matches (1-2 chars) need high frequency to be considered real words.
+   * Short matches (1-2 clusters) need high frequency to be considered real words.
    * This prevents low-frequency single-character matches from breaking up
    * transliterated foreign names like "វ៉កគ័រ" (Walker).
+   * 
+   * Uses cluster count instead of JS string length for accurate thresholds,
+   * since Khmer uses many combining marks that affect string length but not
+   * the visual/linguistic length of the word.
    */
   private isSignificantWord(match: { word: string; frequency: number }): boolean {
-    // Long words (3+ chars) are always significant
-    if (match.word.length >= 3) {
+    // Count clusters for more accurate length measurement
+    const clusterCount = this.charSets.extractClusters(match.word).length
+    
+    // Long words (3+ clusters) are always significant
+    if (clusterCount >= 3) {
       return true
     }
 
-    // Most single Khmer characters are consonants/vowels, not standalone words
-    if (match.word.length === 1) {
+    // Most single Khmer clusters are consonants/vowels, not standalone words
+    if (clusterCount <= 1) {
       return match.frequency >= this.MIN_FREQUENCY_FOR_SINGLE_CHAR
     }
 
-    // Two-character words need moderately high frequency
+    // Two-cluster words need moderately high frequency
     return match.frequency >= this.MIN_FREQUENCY_FOR_TWO_CHAR
   }
 }
