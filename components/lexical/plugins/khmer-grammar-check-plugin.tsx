@@ -20,6 +20,9 @@ function containsKhmer(text: string): boolean {
     return /[\u1780-\u17FF]/.test(text);
 }
 
+// Pattern for punctuation that can be attached to words
+const PUNCTUATION_PATTERN = /[\u200B\u200C\u200D\u2060\u17D4-\u17DA.,!?;:'"()\[\]{}«»‹›""''–—…]/;
+
 // Clean a word by removing invisible characters, punctuation, and trimming.
 // IMPORTANT: This must handle all punctuation that might be attached to words,
 // including guillemets («»), smart quotes, and other typographic characters.
@@ -32,6 +35,35 @@ function cleanKhmerWord(text: string): string {
         .replace(/[«»‹›""'']/g, '') // guillemets and smart quotes
         .replace(/[–—…]/g, '') // en-dash, em-dash, ellipsis
         .trim();
+}
+
+// Extract leading and trailing punctuation from a word.
+// Returns { leading, core, trailing } where core is the actual word.
+// This is used to preserve punctuation when replacing a word.
+// Example: «អោយ» → { leading: "«", core: "អោយ", trailing: "»" }
+function extractPunctuation(text: string): { leading: string; core: string; trailing: string } {
+    let leading = '';
+    let trailing = '';
+    let start = 0;
+    let end = text.length;
+    
+    // Extract leading punctuation
+    while (start < text.length && PUNCTUATION_PATTERN.test(text[start])) {
+        leading += text[start];
+        start++;
+    }
+    
+    // Extract trailing punctuation
+    while (end > start && PUNCTUATION_PATTERN.test(text[end - 1])) {
+        trailing = text[end - 1] + trailing;
+        end--;
+    }
+    
+    return {
+        leading,
+        core: text.slice(start, end),
+        trailing
+    };
 }
 
 /**
@@ -276,7 +308,10 @@ export function KhmerGrammarCheckPlugin() {
                                     editor.update(() => {
                                         const maybeNode = $getNodeByKey(targetNodeKey!);
                                         if (!$isTextNode(maybeNode)) return;
-                                        maybeNode.setTextContent(newWord);
+                                        // Preserve leading/trailing punctuation when replacing
+                                        const nodeText = maybeNode.getTextContent();
+                                        const { leading, trailing } = extractPunctuation(nodeText);
+                                        maybeNode.setTextContent(leading + newWord + trailing);
                                     });
                                 };
                             });
@@ -304,7 +339,9 @@ export function KhmerGrammarCheckPlugin() {
                                             const nodeText = textNode.getTextContent();
                                             const cleanNodeText = cleanKhmerWord(nodeText);
                                             if (cleanNodeText === oldWord) {
-                                                textNode.setTextContent(newWord);
+                                                // Preserve leading/trailing punctuation when replacing
+                                                const { leading, trailing } = extractPunctuation(nodeText);
+                                                textNode.setTextContent(leading + newWord + trailing);
                                                 break;
                                             }
                                         }

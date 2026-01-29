@@ -643,12 +643,23 @@ export class KhmerBreaker {
           }
         }
 
-        // Keep punctuation as separate segments instead of attaching to words.
-        // This ensures each word is its own text node, which is critical for
-        // grammar/spell checking to highlight individual words correctly.
-        if (leading) segments.push(leading)
-        segments.push(...coreSegments)
-        if (trailing) segments.push(trailing)
+        // Reattach punctuation to the segmented words for proper line-breaking.
+        // Leading punctuation (e.g., «) attaches to the first word.
+        // Trailing punctuation (e.g., ») attaches to the last word.
+        // Note: Grammar/spell check replacement must handle stripping punctuation.
+        if (coreSegments.length > 0) {
+          if (leading) {
+            coreSegments[0] = leading + coreSegments[0]
+          }
+          if (trailing) {
+            coreSegments[coreSegments.length - 1] += trailing
+          }
+          segments.push(...coreSegments)
+        } else {
+          // No segments - just add punctuation
+          if (leading) segments.push(leading)
+          if (trailing) segments.push(trailing)
+        }
       }
     }
 
