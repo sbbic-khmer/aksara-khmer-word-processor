@@ -262,6 +262,26 @@ class KhmerCharSets {
     return this.isConsonant(token[0]) && this.isBantoc(token[1])
   }
 
+  // Khmer semivowels យ (ya) and វ (va) - these often appear at the end of
+  // syllables and can indicate the break point is mid-word if preceded by
+  // combining marks
+  private static readonly SEMIVOWELS = new Set(['យ', 'វ'])
+
+  /**
+   * Check if a character is a Khmer semivowel (យ or វ).
+   * These are consonants that often act as glides/semivowels at syllable boundaries.
+   */
+  isSemivowel(char: string): boolean {
+    return KhmerCharSets.SEMIVOWELS.has(char)
+  }
+
+  /**
+   * Check if character is a dependent vowel or sign (combining mark).
+   */
+  isDependentMark(char: string): boolean {
+    return this.dependentVowels.has(char) || this.signs.has(char)
+  }
+
   /**
    * Check if character is punctuation (Khmer or common).
    * Khmer punctuation: ។ ៕ ៖ ៗ ៘ ៙ ៚ (U+17D4-U+17DA)
@@ -824,7 +844,6 @@ export class KhmerBreaker {
       // merge it with the previous segment
       const hasDanglingBantoc = this.charSets.isDanglingBantoc(seg) || this.charSets.startsWithDanglingBantoc(seg)
       if (hasDanglingBantoc && !this.trie.hasWord(seg) && merged.length > 0) {
-        console.log(`[v0] Post-merge: merging "${seg}" with previous segment "${merged[merged.length - 1]}"`)
         merged[merged.length - 1] += seg
       } else {
         merged.push(seg)
@@ -866,6 +885,7 @@ export class KhmerBreaker {
   private static readonly OOV_PENALTY = 6.0                  // Cost for unknown token
   private static readonly OOV_SINGLE_CLUSTER_PENALTY = 12.0  // Heavy cost for single-cluster OOV
   private static readonly DANGLING_BANTOC_PENALTY = 20.0     // Very heavy cost for consonant + ់ tokens
+  private static readonly SEMIVOWEL_BOUNDARY_PENALTY = 3.0   // Penalty for breaking before semivowel (យ/វ) after combining mark
   private static readonly BOUNDARY_PENALTY = 2.0             // Cost per token boundary
   private static readonly LENGTH_BONUS = 0.25                // Reward per character for longer tokens
 
@@ -916,13 +936,27 @@ export class KhmerBreaker {
       if (this.charSets.isPunctuation(ch)) break
 
       // Stop if we can break here and there's a strong known word starting here
+      // BUT don't stop if there's a longer dictionary word starting at `start` that
+      // crosses this boundary - that would indicate we're in the middle of a valid word
       if (this.charSets.canBreakAt(text, pos)) {
-        const match = this.trie.findLongestMatch(text, pos)
-        if (match && this.isSignificantWord(match)) {
-          const matchEnd = pos + match.word.length
-          // Verify the match ends at a valid boundary
-          if (matchEnd >= endPos || this.charSets.canBreakAt(text, matchEnd)) {
-            break // Found a significant known word, stop here
+        // Check if any dictionary word starting at `start` extends past `pos`
+        // If so, we shouldn't break here because we'd be cutting that word short
+        const maxLen = Math.min(KhmerBreaker.MAX_WORD_LEN, endPos - start)
+        const crossBoundaryMatches = this.trie.findAllMatches(text, start, maxLen)
+        const hasCrossingWord = crossBoundaryMatches.some(m => {
+          const wordEnd = start + m.length
+          // Word crosses this position AND ends at a safe boundary
+          return wordEnd > pos && this.isSafeBoundary(text, wordEnd)
+        })
+        
+        if (!hasCrossingWord) {
+          const match = this.trie.findLongestMatch(text, pos)
+          if (match && this.isSignificantWord(match)) {
+            const matchEnd = pos + match.word.length
+            // Verify the match ends at a valid boundary
+            if (matchEnd >= endPos || this.charSets.canBreakAt(text, matchEnd)) {
+              break // Found a significant known word, stop here
+            }
           }
         }
       }
@@ -1034,15 +1068,19 @@ export class KhmerBreaker {
           // Get the actual word to check significance
           const word = text.slice(s.pos, end)
           
-          // Reject low-significance short tokens (prevents syllable splitting)
-          // This uses the same thresholds as forwardMaximumMatch
-          if (!this.isSignificantWord({ word, frequency: m.frequency })) {
+          // Calculate penalty for short low-frequency words
+          // This replaces the hard gate of isSignificantWord with a soft penalty
+          const penalty = this.shortWordPenalty(word, m.frequency)
+          
+          // Skip if penalty is infinite (single-cluster below threshold)
+          if (!Number.isFinite(penalty)) {
             continue
           }
           
           let sc = Math.log((m.frequency || 1) + 1)
           sc += KhmerBreaker.LENGTH_BONUS * m.length
           sc -= KhmerBreaker.BOUNDARY_PENALTY
+          sc -= penalty // Apply frequency-based penalty for short words
           candidates.push({ len: m.length, score: sc })
         }
         
@@ -1072,6 +1110,7 @@ export class KhmerBreaker {
         // Expand states with all candidates
         for (const c of candidates) {
           const piece = text.slice(s.pos, s.pos + c.len)
+          const pieceEnd = s.pos + c.len
           let score = c.score
           
           // Apply heavy penalty for "dangling bantoc" tokens (consonant + ់)
@@ -1081,13 +1120,28 @@ export class KhmerBreaker {
           if (this.charSets.isDanglingBantoc(piece) || this.charSets.startsWithDanglingBantoc(piece)) {
             // Only allow if it's a known dictionary word (very rare)
             if (!this.trie.hasWord(piece)) {
-              console.log(`[v0] Dangling bantoc penalty applied to: "${piece}"`)
               score -= KhmerBreaker.DANGLING_BANTOC_PENALTY
             }
           }
           
+          // Apply penalty for breaking before a semivowel (យ/វ) when the current
+          // token ends with a combining mark. This pattern often indicates we're
+          // cutting a word too early (e.g., "ប្រិ|យ..." instead of "ប្រិយ...")
+          if (pieceEnd < text.length && piece.length > 0) {
+            const lastChar = piece[piece.length - 1]
+            const nextChar = text[pieceEnd]
+            if (this.charSets.isDependentMark(lastChar) && this.charSets.isSemivowel(nextChar)) {
+              // Check if the next-next char is a base consonant (indicating a new word)
+              // If so, breaking here might still be wrong
+              const nextNextChar = pieceEnd + 1 < text.length ? text[pieceEnd + 1] : ''
+              if (nextNextChar && this.charSets.isBase(nextNextChar)) {
+                score -= KhmerBreaker.SEMIVOWEL_BOUNDARY_PENALTY
+              }
+            }
+          }
+          
           nextStates.push({
-            pos: s.pos + c.len,
+            pos: pieceEnd,
             score: s.score + score,
             pieces: [...s.pieces, piece],
           })
@@ -1462,6 +1516,43 @@ export class KhmerBreaker {
 
     // Two-cluster words need moderately high frequency
     return match.frequency >= this.MIN_FREQUENCY_FOR_TWO_CHAR
+  }
+
+  // Penalty multiplier for low-frequency short words
+  private static readonly LOW_FREQ_PENALTY_MULTIPLIER = 4.0
+
+  /**
+   * Calculate a penalty for short words based on their frequency.
+   * Unlike isSignificantWord() which is a hard gate, this returns a continuous
+   * penalty that allows low-frequency words to be considered but with a cost.
+   * 
+   * This is important for Khmer because many real 2-cluster words may have
+   * low corpus frequency but are still valid (e.g., "ប្រិយ" freq=398).
+   * 
+   * Returns:
+   * - 0 for words that meet frequency thresholds
+   * - Positive penalty for low-frequency short words
+   * - Infinity for single-cluster words below threshold (hard reject)
+   */
+  private shortWordPenalty(word: string, freq: number): number {
+    const clusters = this.charSets.extractClusters(word).length
+
+    // 3+ clusters: always ok, no penalty
+    if (clusters >= 3) return 0
+
+    // 1 cluster: keep strict - these explode segmentation if allowed freely
+    if (clusters <= 1) {
+      return freq >= this.MIN_FREQUENCY_FOR_SINGLE_CHAR ? 0 : Number.POSITIVE_INFINITY
+    }
+
+    // 2 clusters: allow but penalize if low frequency
+    const threshold = this.MIN_FREQUENCY_FOR_TWO_CHAR
+    if (freq >= threshold) return 0
+
+    // Scale penalty smoothly based on how far below threshold
+    // ratio goes from 0 (at threshold) to ~1 (at 0 frequency)
+    const ratio = (threshold - freq) / threshold
+    return KhmerBreaker.LOW_FREQ_PENALTY_MULTIPLIER * ratio
   }
 }
 
