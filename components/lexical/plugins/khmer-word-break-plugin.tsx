@@ -362,8 +362,6 @@ useEffect(() => {
         }
 
         const segments = breaker.getSegments(text)
-        
-        console.log("[v0] resegmentParagraph segments:", JSON.stringify(segments), "from text:", JSON.stringify(text))
 
         if (segments.length <= 1 && !hasBreakNodes) {
           if (isWordBreakerDebugEnabled()) {
