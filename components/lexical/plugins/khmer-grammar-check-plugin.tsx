@@ -127,14 +127,6 @@ export function KhmerGrammarCheckPlugin() {
         
         const spans = rootEl.querySelectorAll('span[data-lexical-text="true"]');
         
-        // Debug: log what spans we're seeing
-        console.log('[v0] Grammar checker found', spans.length, 'spans');
-        spans.forEach((span, i) => {
-            if (i < 10) {
-                console.log(`[v0] Span ${i}: "${span.textContent?.slice(0, 30)}"`)
-            }
-        });
-        
         // If grammar check is disabled, remove all markers
         if (!grammarCheckEnabled) {
             spans.forEach(span => {

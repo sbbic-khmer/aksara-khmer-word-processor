@@ -1,5 +1,23 @@
 "use client"
 
+/**
+ * Khmer Word Break Plugin
+ * 
+ * This plugin segments Khmer text into individual words for proper display and grammar checking.
+ * 
+ * IMPORTANT: Unique Style Requirement for Grammar Checking
+ * =========================================================
+ * Each word TextNode MUST have a unique `--word-id` CSS custom property in its style.
+ * This is critical because Lexical merges adjacent TextNodes with identical styles into
+ * a single DOM <span> element. Without unique styles, multiple words end up in one span,
+ * causing the grammar checker to highlight entire phrases instead of individual words.
+ * 
+ * The `--word-id` has no visual effect but ensures each word renders as its own DOM element.
+ * This style is persisted in the saved editor state, so it survives page reloads.
+ * 
+ * Example: `--word-id: 1706454123456-0` for the first word, `--word-id: 1706454123456-1` for the second, etc.
+ */
+
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
   TextNode,
@@ -565,7 +583,6 @@ useEffect(() => {
 
     // Define the actual forceResegmentAllParagraphs function now that resegmentParagraph exists
     const forceResegmentAllParagraphs = () => {
-      console.log('[v0] forceResegmentAllParagraphs called, showBreaks:', showBreaks)
       editor.update(() => {
         // Clear processed tracking to allow reprocessing
         processedNodesRef.current = new WeakSet<TextNode>()
@@ -573,13 +590,11 @@ useEffect(() => {
         
         const root = $getRoot()
         const children = root.getChildren()
-        console.log('[v0] Found', children.length, 'root children to resegment')
         
-        children.forEach((child, idx) => {
+        children.forEach((child) => {
           if ($isParagraphNode(child)) {
             const textContent = child.getTextContent()
             if (textContent && textContent.length > 0) {
-              console.log(`[v0] Directly resegmenting paragraph ${idx}: "${textContent.slice(0, 30)}..."`)
               // Directly call resegmentParagraph instead of relying on transform
               resegmentParagraph(child, null)
             }
@@ -592,39 +607,23 @@ useEffect(() => {
     forceResegmentAllParagraphsRef.current = forceResegmentAllParagraphs
 
     const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
-      console.log('[v0] Transform triggered for node:', textNode.getTextContent().slice(0, 30))
-      if (processedNodesRef.current.has(textNode)) {
-        console.log('[v0] Skipping - already processed')
-        return
-      }
+      if (processedNodesRef.current.has(textNode)) return
 
-      if (processingParagraphRef.current) {
-        console.log('[v0] Skipping - processing paragraph')
-        return
-      }
+      if (processingParagraphRef.current) return
 
       const parent = textNode.getParent()
-      if (!parent || !$isParagraphNode(parent)) {
-        console.log('[v0] Skipping - no paragraph parent')
-        return
-      }
+      if (!parent || !$isParagraphNode(parent)) return
 
-      if (processedParagraphKeysRef.current.has(parent.getKey())) {
-        console.log('[v0] Skipping - paragraph already processed')
-        return
-      }
+      if (processedParagraphKeysRef.current.has(parent.getKey())) return
 
       // Get current text content
       const textContent = textNode.getTextContent()
       
       // Skip if the text node is just whitespace - don't re-segment for space typing
       if (isWhitespaceOnly(textContent)) {
-        console.log('[v0] Skipping - whitespace only')
         processedNodesRef.current.add(textNode)
         return
       }
-      
-      console.log('[v0] Will resegment paragraph')
       
       // Check if paragraph already has proper segmentation with break nodes
       const children = parent.getChildren()
@@ -783,7 +782,6 @@ useEffect(() => {
     const removeResegmentCommand = editor.registerCommand(
       FORCE_RESEGMENT_COMMAND,
       () => {
-        console.log('[v0] FORCE_RESEGMENT_COMMAND received')
         // Clear all processed tracking
         processedNodesRef.current = new WeakSet<TextNode>()
         processedParagraphKeysRef.current = new Set<string>()
