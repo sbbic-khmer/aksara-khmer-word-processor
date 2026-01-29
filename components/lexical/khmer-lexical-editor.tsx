@@ -977,6 +977,7 @@ function EditorWrapper({
   lastOpenedDocumentId,
   updateLastOpenedDocumentId,
   isLoadingPreferences,
+  userDictionaryWords,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -1000,6 +1001,7 @@ function EditorWrapper({
   lastOpenedDocumentId: string | null
   updateLastOpenedDocumentId: (id: string | null) => void
   isLoadingPreferences: boolean
+  userDictionaryWords: string[]
 }) {
   const [editor] = useLexicalComposerContext()
   const [openDialogOpen, setOpenDialogOpen] = useState(false)
@@ -1019,6 +1021,28 @@ function EditorWrapper({
   useEffect(() => {
     documentStateRef.current = documentState
   }, [documentState])
+
+  // Track previous word count to detect NEW words being added
+  const prevUserDictWordCountRef = useRef(0)
+  
+  // Load user dictionary words into the breaker and trigger resegmentation when new words are added
+  useEffect(() => {
+    if (userDictionaryWords && userDictionaryWords.length > 0) {
+      try {
+        breaker.addUserWords(userDictionaryWords)
+        
+        // Only trigger resegmentation if NEW words were added (not on initial load)
+        if (prevUserDictWordCountRef.current > 0 && userDictionaryWords.length > prevUserDictWordCountRef.current) {
+          // Dispatch force resegment command so the new word is used
+          editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+        }
+        
+        prevUserDictWordCountRef.current = userDictionaryWords.length
+      } catch (error) {
+        console.log("[v0] Error loading user dictionary words:", error)
+      }
+    }
+  }, [breaker, editor, userDictionaryWords])
 
   useEffect(() => {
     console.log("[v0] EditorWrapper mounted - starting 10s global timeout")
@@ -1623,16 +1647,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       setMounted(true)
     }, [])
 
-    // Load user dictionary words into the breaker when they change
-    useEffect(() => {
-      if (userDictionaryWords && userDictionaryWords.length > 0) {
-        try {
-          breaker.addUserWords(userDictionaryWords)
-        } catch (error) {
-          console.log("[v0] Error loading user dictionary words:", error)
-        }
-      }
-    }, [breaker, userDictionaryWords])
+    // User dictionary words are passed to EditorWrapper which handles loading and resegmentation
 
     const [activeFormats, setActiveFormats] = useState<ActiveFormats>({
       bold: false,
@@ -1777,6 +1792,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
               lastOpenedDocumentId={preferences.last_opened_document_id}
               updateLastOpenedDocumentId={updateLastOpenedDocumentId}
               isLoadingPreferences={isLoadingPreferences}
+              userDictionaryWords={userDictionaryWords}
             />
           </GrammarCheckProvider>
           </SpellCheckProvider>
