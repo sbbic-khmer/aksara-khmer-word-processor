@@ -177,7 +177,11 @@ export function KhmerGrammarCheckPlugin() {
         spans.forEach((span) => {
             const text = span.textContent;
             if (!text || /^\s+$/.test(text)) {
-                span.classList.remove(GRAMMAR_CLASS);
+                // Remove any grammar wrapper if present
+                const existingWrapper = span.querySelector(`.${GRAMMAR_CLASS}`);
+                if (existingWrapper) {
+                    span.textContent = text;
+                }
                 return;
             }
             
@@ -198,10 +202,36 @@ export function KhmerGrammarCheckPlugin() {
                 }
             }
             
+            // Check if we already have a grammar wrapper
+            const existingWrapper = span.querySelector(`.${GRAMMAR_CLASS}`);
+            
             if (hasNonStandard) {
-                span.classList.add(GRAMMAR_CLASS);
+                // Extract punctuation to only underline the actual word
+                const { leading, core, trailing } = extractPunctuation(text);
+                
+                // Only update DOM if needed (avoid unnecessary mutations)
+                if (!existingWrapper || existingWrapper.textContent !== core) {
+                    // Clear and rebuild with wrapper around just the word
+                    span.textContent = '';
+                    
+                    if (leading) {
+                        span.appendChild(document.createTextNode(leading));
+                    }
+                    
+                    const wrapper = document.createElement('span');
+                    wrapper.className = GRAMMAR_CLASS;
+                    wrapper.textContent = core;
+                    span.appendChild(wrapper);
+                    
+                    if (trailing) {
+                        span.appendChild(document.createTextNode(trailing));
+                    }
+                }
             } else {
-                span.classList.remove(GRAMMAR_CLASS);
+                // Remove wrapper if present, restore plain text
+                if (existingWrapper) {
+                    span.textContent = text;
+                }
             }
         });
     }, [editor, spellingRules, grammarCheckEnabled]);
