@@ -11,11 +11,7 @@
  */
 
 import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
-import protectedPhrasesData from "./protected-phrases.json"
-
-// Load protected phrases from JSON file for easy management
-// Format: [{ "word": "phrase", "note": "optional description" }, ...]
-const PROTECTED_PHRASES: string[] = (protectedPhrasesData as Array<{ word: string; note?: string }>).map(entry => entry.word)
+import { PROTECTED_PHRASES } from "./protected-phrases"
 
 const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
