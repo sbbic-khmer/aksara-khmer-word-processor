@@ -76,25 +76,35 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
 
   // Force resegment all paragraphs (used on mount and when showBreaks changes)
   const forceResegmentAllParagraphs = useCallback(() => {
+    console.log('[v0] forceResegmentAllParagraphs called, showBreaks:', showBreaks)
     editor.update(() => {
       const root = $getRoot()
       const children = root.getChildren()
-      children.forEach((child) => {
+      console.log('[v0] Found', children.length, 'root children')
+      children.forEach((child, idx) => {
         if ($isParagraphNode(child)) {
           // Get all text content and force a modification to trigger transform
           const textContent = child.getTextContent()
+          const childNodes = child.getChildren()
+          console.log(`[v0] Paragraph ${idx}: "${textContent?.slice(0, 30)}...", ${childNodes.length} child nodes`)
+          childNodes.forEach((n, i) => {
+            if ($isTextNode(n)) {
+              console.log(`[v0]   TextNode ${i}: "${n.getTextContent().slice(0, 20)}..." style: "${n.getStyle()}"`)
+            }
+          })
           if (textContent && textContent.length > 0) {
             // Find first text node and mark it dirty
-            const firstTextNode = child.getChildren().find($isTextNode) as TextNode | undefined
+            const firstTextNode = childNodes.find($isTextNode) as TextNode | undefined
             if (firstTextNode) {
               // Force a change by setting same text - this triggers the transform
+              console.log('[v0] Triggering transform on first text node')
               firstTextNode.setTextContent(firstTextNode.getTextContent())
             }
           }
         }
       })
     })
-  }, [editor])
+  }, [editor, showBreaks])
 
   // Initial mount: force resegment all paragraphs to ensure proper word boundaries
   useEffect(() => {
@@ -577,14 +587,25 @@ useEffect(() => {
     }
 
     const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
-      if (processedNodesRef.current.has(textNode)) return
+      console.log('[v0] Transform triggered for node:', textNode.getTextContent().slice(0, 30))
+      if (processedNodesRef.current.has(textNode)) {
+        console.log('[v0] Skipping - already processed')
+        return
+      }
 
-      if (processingParagraphRef.current) return
+      if (processingParagraphRef.current) {
+        console.log('[v0] Skipping - processing paragraph')
+        return
+      }
 
       const parent = textNode.getParent()
-      if (!parent || !$isParagraphNode(parent)) return
+      if (!parent || !$isParagraphNode(parent)) {
+        console.log('[v0] Skipping - no paragraph parent')
+        return
+      }
 
       if (processedParagraphKeysRef.current.has(parent.getKey())) {
+        console.log('[v0] Skipping - paragraph already processed')
         return
       }
 
@@ -593,9 +614,12 @@ useEffect(() => {
       
       // Skip if the text node is just whitespace - don't re-segment for space typing
       if (isWhitespaceOnly(textContent)) {
+        console.log('[v0] Skipping - whitespace only')
         processedNodesRef.current.add(textNode)
         return
       }
+      
+      console.log('[v0] Will resegment paragraph')
       
       // Check if paragraph already has proper segmentation with break nodes
       const children = parent.getChildren()
