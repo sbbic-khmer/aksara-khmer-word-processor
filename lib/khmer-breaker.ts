@@ -11,7 +11,6 @@
  */
 
 import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
-import { PROTECTED_PHRASES } from "./protected-phrases"
 
 const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
@@ -416,26 +415,6 @@ export class KhmerBreaker {
   }
 
   /**
-   * Wrap protected phrases with Word Joiner (WJ) characters to prevent splitting.
-   * Only applies if the text doesn't already contain WJ.
-   */
-  private applyProtectedPhrases(text: string): string {
-    if (!text || text.includes(WJ)) return text
-
-    // Sort longest-first to avoid overlapping issues
-    const phrases = [...PROTECTED_PHRASES].sort((a, b) => b.length - a.length)
-
-    let result = text
-    for (const phrase of phrases) {
-      if (result.includes(phrase)) {
-        // Wrap the phrase with WJ on both sides to prevent splitting
-        result = result.split(phrase).join(WJ + phrase + WJ)
-      }
-    }
-    return result
-  }
-
-  /**
    * Main segmentation method.
    * Respects existing ZWSP characters as user-defined break points.
    * Respects Word Joiner (WJ) characters to keep words together.
@@ -454,54 +433,7 @@ export class KhmerBreaker {
       allSegments.push(...chunkSegments)
     }
 
-    const punctMerged = this.mergePunctuation(allSegments)
-    return this.mergeKnownCompounds(punctMerged)
-  }
-
-  /**
-   * Merge adjacent segments if their concatenation forms a known dictionary word.
-   * This is a "safety net" that fixes cases where beam search split a compound word.
-   * E.g., ["កោត", "ខ្លាច"] -> ["កោតខ្លាច"] if កោតខ្លាច is in the dictionary.
-   */
-  private mergeKnownCompounds(segments: string[]): string[] {
-    if (segments.length <= 1) return segments
-
-    const out: string[] = []
-    let i = 0
-
-    while (i < segments.length) {
-      const seg = segments[i]
-      
-      // Don't merge whitespace or punctuation tokens
-      if (/^\s+$/.test(seg) || this.isPurelyClosingPunctuation(seg) || this.isPurelyOpeningPunctuation(seg)) {
-        out.push(seg)
-        i++
-        continue
-      }
-
-      let best = seg
-      let bestJ = i
-
-      // Try merging up to 4 tokens ahead
-      let combined = seg
-      for (let j = i + 1; j < Math.min(i + 5, segments.length); j++) {
-        const next = segments[j]
-        // Stop if next is whitespace or punctuation
-        if (/^\s+$/.test(next) || this.isPurelyClosingPunctuation(next) || this.isPurelyOpeningPunctuation(next)) {
-          break
-        }
-        combined += next
-        if (this.trie.hasWord(combined)) {
-          best = combined
-          bestJ = j
-        }
-      }
-
-      out.push(best)
-      i = bestJ + 1
-    }
-
-    return out
+    return this.mergePunctuation(allSegments)
   }
 
   /**
@@ -611,9 +543,7 @@ export class KhmerBreaker {
           continue
         }
 
-        // Apply protected phrases before splitting by WJ
-        const protectedCore = this.applyProtectedPhrases(core)
-        const joinedRegions = this.splitByWJ(protectedCore)
+        const joinedRegions = this.splitByWJ(core)
         const coreSegments: string[] = []
 
         for (const region of joinedRegions) {
@@ -621,17 +551,17 @@ export class KhmerBreaker {
             // WJ characters will be preserved in the text for future segmentations
             coreSegments.push(region.text)
           } else {
-            // This region has no WJ - segment using bidirectional maximum matching
-            const dictSegments = this.bidirectionalSegment(region.text)
+            // This region has no WJ - segment using beam search for globally optimal result
+            const beamSegments = this.beamSegment(region.text)
 
             // If Intl.Segmenter is available, use it to validate/improve our result
-            let finalSegments = dictSegments
+            let finalSegments = beamSegments
             if (this.useIntlSegmenter) {
               try {
                 const intlSegments = this.segmentWithIntl(region.text)
-                finalSegments = this.improveWithIntlHints(dictSegments, intlSegments, region.text)
+                finalSegments = this.improveWithIntlHints(beamSegments, intlSegments, region.text)
               } catch {
-                // Fall through to dictionary result
+                // Fall through to beam search result
               }
             }
             coreSegments.push(...finalSegments)
@@ -747,17 +677,17 @@ export class KhmerBreaker {
   }
 
   /**
-   * Improve dictionary-based segments with Intl.Segmenter hints.
-   * Dictionary takes priority, but Intl can help with unknown words.
+   * Improve beam search segments with Intl.Segmenter hints.
+   * Beam search takes priority, but Intl can help with unknown words.
    */
-  private improveWithIntlHints(dictSegments: string[], intlSegments: string[], originalText: string): string[] {
-    // If dictionary produced good results (mostly known words), use them
-    const knownWordCount = dictSegments.filter((s) => this.trie.hasWord(s)).length
-    const knownWordRatio = knownWordCount / dictSegments.length
+  private improveWithIntlHints(beamSegments: string[], intlSegments: string[], originalText: string): string[] {
+    // If beam search produced good results (mostly known words), use them
+    const knownWordCount = beamSegments.filter((s) => this.trie.hasWord(s)).length
+    const knownWordRatio = knownWordCount / beamSegments.length
 
-    // If most segments are known dictionary words, trust the dictionary
+    // If most segments are known dictionary words, trust beam search
     if (knownWordRatio >= 0.5) {
-      return dictSegments
+      return beamSegments
     }
 
     // Otherwise, try to use Intl segments but validate against dictionary
@@ -896,14 +826,6 @@ export class KhmerBreaker {
           
           // Reject dictionary matches that would end at an illegal boundary
           if (!this.isSafeBoundary(text, end)) {
-            continue
-          }
-          
-          // Get the actual word to check significance
-          const word = text.slice(s.pos, end)
-          
-          // Reject low-significance short tokens (prevents syllable splitting)
-          if (!this.isSignificantWord({ word, frequency: m.frequency })) {
             continue
           }
           
