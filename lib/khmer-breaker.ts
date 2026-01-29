@@ -1762,5 +1762,9 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
     runs.push({ text: currentRun, isKhmer: currentIsKhmer ?? false })
   }
 
+  if (isDebugEnabled()) {
+    console.log("[v0] splitByScript output:", runs.map(r => `"${r.text}" (isKhmer: ${r.isKhmer})`).join(", "))
+  }
+
   return runs
 }
