@@ -206,33 +206,44 @@ export function useToolbarCommands() {
   }, [editor])
 
   const joinWord = useCallback(() => {
+    let cleanedWord = ''
+    
+    // First read the selection to get the word
     editor.getEditorState().read(() => {
       const selection = $getSelection()
       if ($isRangeSelection(selection)) {
         const selectedText = selection.getTextContent()
         if (selectedText) {
           // Clean the text - remove existing ZWSPs and WJs to get the actual word
-          const cleanedWord = selectedText.replace(/[\u200B\u2060]/g, '').trim()
-          
-          // Save the joined word to the user's dictionary (if logged in)
-          // The dictionary update will trigger a resegmentation automatically
-          if (cleanedWord.length > 0) {
-            fetch('/api/dictionary/user', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ word: cleanedWord }),
-            }).then(res => {
-              if (res.ok) {
-                // Trigger SWR revalidation so the breaker gets the new word
-                mutate('/api/dictionary/user')
-              }
-            }).catch(() => {
-              // Silently fail if not logged in or API error
-            })
-          }
+          cleanedWord = selectedText.replace(/[\u200B\u2060]/g, '').trim()
         }
       }
     })
+    
+    // Then collapse selection to end (so cursor stays near the joined word after resegment)
+    editor.update(() => {
+      const selection = $getSelection()
+      if ($isRangeSelection(selection)) {
+        selection.anchor.set(selection.focus.key, selection.focus.offset, selection.focus.type)
+      }
+    })
+    
+    // Save the joined word to the user's dictionary (if logged in)
+    // The dictionary update will trigger a resegmentation automatically
+    if (cleanedWord.length > 0) {
+      fetch('/api/dictionary/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word: cleanedWord }),
+      }).then(res => {
+        if (res.ok) {
+          // Trigger SWR revalidation so the breaker gets the new word
+          mutate('/api/dictionary/user')
+        }
+      }).catch(() => {
+        // Silently fail if not logged in or API error
+      })
+    }
   }, [editor])
 
   return { formatText, undo, redo, insertZWSP, joinWord }
