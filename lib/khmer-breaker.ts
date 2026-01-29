@@ -11,6 +11,7 @@
  */
 
 import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
+import { PROTECTED_PHRASES } from "./protected-phrases"
 
 const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
@@ -390,14 +391,6 @@ export class KhmerBreaker {
   private MIN_FREQUENCY_FOR_SINGLE_CHAR = 3000
   private MIN_FREQUENCY_FOR_TWO_CHAR = 1000
 
-  // Protected phrases that should never be split, even if their parts exist in dictionary.
-  // These are wrapped with WJ automatically before segmentation.
-  // Sorted longest-first to avoid overlapping issues.
-  private PROTECTED_PHRASES: string[] = [
-    "ព្រះជាម្ចាស់",  // God (religious compound)
-    // Add more protected phrases here as needed
-  ]
-
   constructor(dictionaryData: DictionaryEntry[] | null = null) {
     this.trie = new KhmerTrie()
     this.charSets = new KhmerCharSets()
@@ -430,7 +423,7 @@ export class KhmerBreaker {
     if (!text || text.includes(WJ)) return text
 
     // Sort longest-first to avoid overlapping issues
-    const phrases = [...this.PROTECTED_PHRASES].sort((a, b) => b.length - a.length)
+    const phrases = [...PROTECTED_PHRASES].sort((a, b) => b.length - a.length)
 
     let result = text
     for (const phrase of phrases) {
