@@ -295,7 +295,7 @@ const scanAndMarkMisspellings = useCallback(() => {
             
             let isMisspelled = false;
             
-            // For Khmer text, check the cleaned word
+            // Only check Khmer text - skip non-Khmer (English, etc.)
             if (containsKhmer(cleanWord)) {
                 const inDict = typo.check(cleanWord);
                 if (debugMode) {
@@ -303,16 +303,9 @@ const scanAndMarkMisspellings = useCallback(() => {
                 }
                 isMisspelled = !inDict;
             } else {
-                // For non-Khmer, check individual words
-                const nonKhmerWords = cleanWord.match(/\b[\w]+\b/g);
-                if (nonKhmerWords) {
-                    for (const word of nonKhmerWords) {
-                        if (!typo.check(word)) {
-                            isMisspelled = true;
-                            break;
-                        }
-                    }
-                }
+                // Non-Khmer text is ignored by the Khmer spell checker
+                span.classList.remove(MISSPELLED_CLASS);
+                return;
             }
 
             if (isMisspelled) {
