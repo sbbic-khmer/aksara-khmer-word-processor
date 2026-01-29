@@ -219,6 +219,12 @@ class KhmerCharSets {
     return code >= this.KHMER_BASE_START && code <= this.KHMER_BASE_END
   }
 
+  // Khmer digits are ០-៩ (U+17E0 - U+17E9)
+  isKhmerDigit(char: string): boolean {
+    const code = char.codePointAt(0)!
+    return code >= 0x17e0 && code <= 0x17e9
+  }
+
   isBase(char: string): boolean {
     return this.baseChars.has(char)
   }
@@ -474,17 +480,11 @@ export class KhmerBreaker {
    * @param frequency The frequency to assign (default: 50000, very high to prioritize)
    */
   addUserWords(words: string[], frequency = 50000) {
-    if (isDebugEnabled()) {
-      console.log("[v0] Adding", words.length, "user words with frequency", frequency)
-    }
     for (const word of words) {
       const cleanWord = word.trim()
       if (cleanWord && cleanWord.length > 0) {
         this.trie.insert(cleanWord, frequency)
       }
-    }
-    if (isDebugEnabled()) {
-      console.log("[v0] Trie now has", this.trie.wordCount, "words")
     }
   }
 
@@ -567,7 +567,12 @@ export class KhmerBreaker {
   getSegments(text: string): string[] {
     if (!text || text.length === 0) return []
 
-    const userChunks = text.split(ZWSP)
+    // Pre-process: Remove ZWSP that incorrectly breaks Khmer digit:digit patterns
+    // This fixes cases where previous word-breaking inserted ZWSP in "២៣:​៨"
+    // Khmer digits are ០-៩ (U+17E0 - U+17E9)
+    const cleanedText = text.replace(/([\u17E0-\u17E9]+):\u200B+([\u17E0-\u17E9])/g, '$1:$2')
+
+    const userChunks = cleanedText.split(ZWSP)
     const allSegments: string[] = []
 
     for (const chunk of userChunks) {
@@ -842,6 +847,21 @@ export class KhmerBreaker {
       return beamSegments
     }
 
+    // Special case: if beam search kept Khmer digit:digit patterns together but Intl split them,
+    // prefer beam search result for these patterns
+    // Pattern matches: digits:digits OR digits: (for mid-typing scenarios)
+    const khmerDigitColonPattern = /^[\u17E0-\u17E9]+:[\u17E0-\u17E9]*$/
+    if (beamSegments.length === 1 && khmerDigitColonPattern.test(beamSegments[0])) {
+      return beamSegments
+    }
+    
+    // Also check if ANY beam segment contains this pattern - if so, preserve the beam results
+    // to avoid Intl.Segmenter splitting these patterns incorrectly
+    const hasDigitColonPattern = beamSegments.some(seg => khmerDigitColonPattern.test(seg))
+    if (hasDigitColonPattern) {
+      return beamSegments
+    }
+
     // Otherwise, try to use Intl segments but validate against dictionary
     return this.validateAndMergeSegments(intlSegments)
   }
@@ -1044,6 +1064,38 @@ export class KhmerBreaker {
           continue
         }
         
+        // Handle Khmer digit runs (including colon-separated patterns like ២៣:៨)
+        if (this.charSets.isKhmerDigit(ch)) {
+          let runEnd = s.pos + 1
+          while (runEnd < endPos) {
+            const nextCh = text[runEnd]
+            if (this.charSets.isKhmerDigit(nextCh)) {
+              runEnd++
+            } else if (nextCh === ':') {
+              // Colon after Khmer digit - check if followed by another Khmer digit
+              if (runEnd + 1 < endPos && this.charSets.isKhmerDigit(text[runEnd + 1])) {
+                // Colon followed by Khmer digit - keep together (e.g., ២៣:៨)
+                runEnd++
+              } else if (runEnd + 1 >= endPos) {
+                // Colon at end of text - keep with digits to prevent break insertion
+                // This handles typing "២៣:" before the final digit is typed
+                runEnd++
+                break
+              } else {
+                break
+              }
+            } else {
+              break
+            }
+          }
+          nextStates.push({
+            pos: runEnd,
+            score: s.score,
+            pieces: [...s.pieces, text.slice(s.pos, runEnd)],
+          })
+          continue
+        }
+        
         // Handle punctuation as its own token
         if (this.charSets.isPunctuation(ch)) {
           nextStates.push({
@@ -1147,7 +1199,7 @@ export class KhmerBreaker {
           
           // Apply penalty for breaking before a semivowel (យ/វ) when the current
           // token ends with a combining mark. This pattern often indicates we're
-          // cutting a word too early (e.g., "ប្រិ|យ..." instead of "ប្រិយ...")
+          // cutting a word too early (e.g., "���្រិ|យ..." instead of "ប្រិយ...")
           if (pieceEnd < text.length && piece.length > 0) {
             const lastChar = piece[piece.length - 1]
             const nextChar = text[pieceEnd]
@@ -1615,7 +1667,7 @@ function isNonBreakableScript(char: string): boolean {
  * Punctuation and spaces are treated as boundaries.
  * 
  * Additionally, Khmer digits (០-៩) following Khmer letters are split into
- * separate runs, so "តែ១១៣៤៤" becomes "តែ" | "១១៣៤៤".
+ * separate runs, so "តែ១១៣៤���" becomes "តែ" | "១១៣៤៤".
  * Consecutive Khmer digits stay together.
  */
 function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> {
@@ -1635,16 +1687,47 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
     
     // Check if this is a colon between Khmer digits (e.g., "២៣:៨" for time/verse references)
     // If so, don't treat it as a break point - keep it with the digits
-    const isColonBetweenKhmerDigits = char === ':' && 
-      currentIsKhmerDigit === true && 
+    // Also handle case where there's a ZWSP between colon and digit (e.g., "២៣:​៨")
+    const ZWSP = '\u200B'
+    let colonFollowedByKhmerDigit = false
+    let skipZwspAfterColon = false
+    if (char === ':' && currentIsKhmerDigit === true) {
+      if (i + 1 < chars.length && isKhmerDigit(chars[i + 1].codePointAt(0) || 0)) {
+        colonFollowedByKhmerDigit = true
+      } else if (i + 1 < chars.length && chars[i + 1] === ZWSP && 
+                 i + 2 < chars.length && isKhmerDigit(chars[i + 2].codePointAt(0) || 0)) {
+        // Colon followed by ZWSP followed by Khmer digit
+        colonFollowedByKhmerDigit = true
+        skipZwspAfterColon = true
+      }
+    }
+    const isColonBetweenKhmerDigits = colonFollowedByKhmerDigit
+    
+    // Check if this is a ZWSP between colon and Khmer digit (should be kept with the run)
+    const isZwspInDigitColonPattern = char === ZWSP && 
+      currentRun.endsWith(':') && 
+      currentIsKhmerDigit === true &&
       i + 1 < chars.length && 
       isKhmerDigit(chars[i + 1].codePointAt(0) || 0)
     
-    const isBreakPoint = !isColonBetweenKhmerDigits && (
+    const isBreakPoint = !isColonBetweenKhmerDigits && !isZwspInDigitColonPattern && (
       char === " " || /\s/.test(char) || OPENING_PUNCTUATION.has(char) || CLOSING_PUNCTUATION.has(char)
     )
 
-    if (isBreakPoint) {
+    // Handle colon between Khmer digits FIRST (before other checks)
+    // This keeps patterns like "២៣:៨" or "២៣:​៨" together as one run
+    if (isColonBetweenKhmerDigits) {
+      currentRun += char
+      // If there's a ZWSP after the colon, also consume it
+      if (skipZwspAfterColon) {
+        currentRun += chars[i + 1] // Add the ZWSP
+        i++ // Skip the ZWSP in the next iteration
+      }
+      // Don't change currentIsKhmerDigit - we're still in a digit context
+    } else if (isZwspInDigitColonPattern) {
+      // ZWSP between colon and digit - keep it with the run
+      currentRun += char
+    } else if (isBreakPoint) {
       // Flush current run
       if (currentRun) {
         runs.push({ text: currentRun, isKhmer: currentIsKhmer ?? false })
@@ -1685,10 +1768,6 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
           currentIsKhmerDigit = false
         }
       }
-    } else if (isColonBetweenKhmerDigits) {
-      // Colon between Khmer digits (e.g., "២៣:៨") - keep it with the digit run
-      currentRun += char
-      // Don't change currentIsKhmerDigit - we're still in a digit context
     } else {
       // Continue current run (non-Khmer)
       currentRun += char
