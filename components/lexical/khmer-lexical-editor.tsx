@@ -920,40 +920,31 @@ function EditorContent({
         <SpellCheckContextMenu>
           <GrammarCheckContextMenu>
           <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative flex flex-col">
-            {isLoadingDocument ? (
-              <div className="flex items-start justify-center pt-32">
-                <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Loading document...</span>
+            <RichTextPlugin
+              contentEditable={
+                <ContentEditable
+                  className={cn(
+                    "min-h-[1056px] flex-1 p-12 outline-none",
+                    "font-khmer text-lg leading-relaxed",
+                    "focus:outline-none",
+                  )}
+                  style={{
+                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                  }}
+                />
+              }
+              placeholder={
+                <div
+                  className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
+                  style={{
+                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                  }}
+                >
+                  វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
                 </div>
-              </div>
-            ) : (
-              <RichTextPlugin
-                contentEditable={
-                  <ContentEditable
-                    className={cn(
-                      "min-h-[1056px] flex-1 p-12 outline-none",
-                      "font-khmer text-lg leading-relaxed",
-                      "focus:outline-none",
-                    )}
-                    style={{
-                      fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                    }}
-                  />
-                }
-                placeholder={
-                  <div
-                    className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
-                    style={{
-                      fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                    }}
-                  >
-                    វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
-                  </div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-            )}
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+            />
           </div>
           </GrammarCheckContextMenu>
         </SpellCheckContextMenu>
@@ -1519,62 +1510,61 @@ function EditorWrapper({
 
   return (
     <>
-      {isLoadingDocument ? (
-        <div className="flex justify-center items-center flex-1">
+      {isLoadingDocument && (
+        <div className="flex justify-center items-center flex-1 absolute inset-0 z-50 bg-background">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </div>
-      ) : (
-        <>
-          <EditorContent
-            breaker={breaker}
-            showBreaks={showBreaks}
-            setShowBreaks={setShowBreaks}
-            onActiveFormatsChange={onActiveFormatsChange}
-            onTextChange={onTextChange}
-            voiceInputRef={voiceInputRef}
-            applyReplacements={applyReplacements}
-            onExportOdt={onExportOdt}
-            debugMode={debugMode}
-            setDebugMode={setDebugMode}
-            wordBreakerDebugMode={wordBreakerDebugMode}
-            setWordBreakerDebugMode={setWordBreakerDebugMode}
-            cursorDebugMode={cursorDebugMode}
-            setCursorDebugMode={setCursorDebugMode}
-            onVoiceStateChange={onVoiceStateChange}
-            onPartialTranscriptChange={onPartialTranscriptChange}
-            documentState={documentState}
-            onNew={handleNew}
-            onOpenDialog={() => setOpenDialogOpen(true)}
-            onSave={handleSave}
-            onSaveAs={handleSaveAs}
-            onContentChange={handleContentChange}
-            isLoadingDocument={isLoadingDocument}
-          />
-
-          <DocumentsDialog
-            open={openDialogOpen}
-            onOpenChange={setOpenDialogOpen}
-            onOpen={handleOpenDocument}
-            onDelete={handleDeleteDocument}
-          />
-
-          <SaveDialog
-            open={saveDialogOpen}
-            onOpenChange={setSaveDialogOpen}
-            onSave={handleSaveWithTitle}
-            defaultTitle={isSaveAs ? documentState.title : ""}
-          />
-
-          <ConflictDialog
-            open={conflictDialogOpen}
-            onOpenChange={setConflictDialogOpen}
-            serverUpdatedAt={conflictServerUpdatedAt || new Date().toISOString()}
-            onOverwrite={handleConflictOverwrite}
-            onReload={handleConflictReload}
-            onCancel={handleConflictCancel}
-          />
-        </>
       )}
+      <div className={isLoadingDocument ? "invisible" : "contents"}>
+        <EditorContent
+          breaker={breaker}
+          showBreaks={showBreaks}
+          setShowBreaks={setShowBreaks}
+          onActiveFormatsChange={onActiveFormatsChange}
+          onTextChange={onTextChange}
+          voiceInputRef={voiceInputRef}
+          applyReplacements={applyReplacements}
+          onExportOdt={onExportOdt}
+          debugMode={debugMode}
+          setDebugMode={setDebugMode}
+          wordBreakerDebugMode={wordBreakerDebugMode}
+          setWordBreakerDebugMode={setWordBreakerDebugMode}
+          cursorDebugMode={cursorDebugMode}
+          setCursorDebugMode={setCursorDebugMode}
+          onVoiceStateChange={onVoiceStateChange}
+          onPartialTranscriptChange={onPartialTranscriptChange}
+          documentState={documentState}
+          onNew={handleNew}
+          onOpenDialog={() => setOpenDialogOpen(true)}
+          onSave={handleSave}
+          onSaveAs={handleSaveAs}
+          onContentChange={handleContentChange}
+          isLoadingDocument={isLoadingDocument}
+        />
+      </div>
+
+      <DocumentsDialog
+        open={openDialogOpen}
+        onOpenChange={setOpenDialogOpen}
+        onOpen={handleOpenDocument}
+        onDelete={handleDeleteDocument}
+      />
+
+      <SaveDialog
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        onSave={handleSaveWithTitle}
+        defaultTitle={isSaveAs ? documentState.title : ""}
+      />
+
+      <ConflictDialog
+        open={conflictDialogOpen}
+        onOpenChange={setConflictDialogOpen}
+        serverUpdatedAt={conflictServerUpdatedAt || new Date().toISOString()}
+        onOverwrite={handleConflictOverwrite}
+        onReload={handleConflictReload}
+        onCancel={handleConflictCancel}
+      />
     </>
   )
 }
