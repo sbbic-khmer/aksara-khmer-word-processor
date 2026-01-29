@@ -14,12 +14,19 @@ interface UserDictionaryResponse {
 }
 
 const fetcher = async (url: string): Promise<UserDictionaryResponse> => {
-  const res = await fetch(url)
-  if (!res.ok) {
-    // Return empty array if not authenticated or error
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      // Return empty array if not authenticated or error
+      return { words: [] }
+    }
+    const data = await res.json()
+    return data
+  } catch (error) {
+    console.log("[v0] Error fetching user dictionary:", error)
+    // Return empty array on any error
     return { words: [] }
   }
-  return res.json()
 }
 
 /**

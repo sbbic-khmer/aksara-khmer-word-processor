@@ -1625,8 +1625,12 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
 
     // Load user dictionary words into the breaker when they change
     useEffect(() => {
-      if (userDictionaryWords.length > 0) {
-        breaker.addUserWords(userDictionaryWords)
+      if (userDictionaryWords && userDictionaryWords.length > 0) {
+        try {
+          breaker.addUserWords(userDictionaryWords)
+        } catch (error) {
+          console.log("[v0] Error loading user dictionary words:", error)
+        }
       }
     }, [breaker, userDictionaryWords])
 
