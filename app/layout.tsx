@@ -29,9 +29,34 @@ const battambang = Battambang({
 })
 
 export const metadata: Metadata = {
-  title: "អក្សរា Aksara - Khmer Word Processor",
-  description: "A modern Khmer word processor with automatic word segmentation, voice input, and proper line breaking",
+  title: "អក្សរា Aksara Pro - The Modern Khmer Word Processor",
+  description: "Write beautiful Khmer documents with automatic word segmentation, voice-to-text input, spelling and grammar checkers. Export to ODT with proper line-breaking for LibreOffice.",
   generator: "v0.app",
+  keywords: ["Khmer", "word processor", "Cambodian", "typing", "voice to text", "spelling checker", "grammar checker", "LibreOffice", "ODT"],
+  authors: [{ name: "Aksara Pro" }],
+  creator: "Aksara Pro",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://aksara.app",
+    siteName: "Aksara Pro",
+    title: "អក្សរា Aksara Pro - The Modern Khmer Word Processor",
+    description: "Write beautiful Khmer documents with automatic word segmentation, voice-to-text input, spelling and grammar checkers. Export to ODT with proper line-breaking for LibreOffice.",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Aksara Pro - The Modern Khmer Word Processor",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "អក្សរា Aksara Pro - The Modern Khmer Word Processor",
+    description: "Write beautiful Khmer documents with automatic word segmentation, voice-to-text input, spelling and grammar checkers.",
+    images: ["/og-image.jpg"],
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
