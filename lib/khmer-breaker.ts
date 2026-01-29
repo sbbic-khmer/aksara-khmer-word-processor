@@ -390,6 +390,14 @@ export class KhmerBreaker {
   private MIN_FREQUENCY_FOR_SINGLE_CHAR = 3000
   private MIN_FREQUENCY_FOR_TWO_CHAR = 1000
 
+  // Protected phrases that should never be split, even if their parts exist in dictionary.
+  // These are wrapped with WJ automatically before segmentation.
+  // Sorted longest-first to avoid overlapping issues.
+  private PROTECTED_PHRASES: string[] = [
+    "ព្រះជាម្ចាស់",  // God (religious compound)
+    // Add more protected phrases here as needed
+  ]
+
   constructor(dictionaryData: DictionaryEntry[] | null = null) {
     this.trie = new KhmerTrie()
     this.charSets = new KhmerCharSets()
@@ -415,6 +423,26 @@ export class KhmerBreaker {
   }
 
   /**
+   * Wrap protected phrases with Word Joiner (WJ) characters to prevent splitting.
+   * Only applies if the text doesn't already contain WJ.
+   */
+  private applyProtectedPhrases(text: string): string {
+    if (!text || text.includes(WJ)) return text
+
+    // Sort longest-first to avoid overlapping issues
+    const phrases = [...this.PROTECTED_PHRASES].sort((a, b) => b.length - a.length)
+
+    let result = text
+    for (const phrase of phrases) {
+      if (result.includes(phrase)) {
+        // Wrap the phrase with WJ on both sides to prevent splitting
+        result = result.split(phrase).join(WJ + phrase + WJ)
+      }
+    }
+    return result
+  }
+
+  /**
    * Main segmentation method.
    * Respects existing ZWSP characters as user-defined break points.
    * Respects Word Joiner (WJ) characters to keep words together.
@@ -433,7 +461,54 @@ export class KhmerBreaker {
       allSegments.push(...chunkSegments)
     }
 
-    return this.mergePunctuation(allSegments)
+    const punctMerged = this.mergePunctuation(allSegments)
+    return this.mergeKnownCompounds(punctMerged)
+  }
+
+  /**
+   * Merge adjacent segments if their concatenation forms a known dictionary word.
+   * This is a "safety net" that fixes cases where beam search split a compound word.
+   * E.g., ["កោត", "ខ្លាច"] -> ["កោតខ្លាច"] if កោតខ្លាច is in the dictionary.
+   */
+  private mergeKnownCompounds(segments: string[]): string[] {
+    if (segments.length <= 1) return segments
+
+    const out: string[] = []
+    let i = 0
+
+    while (i < segments.length) {
+      const seg = segments[i]
+      
+      // Don't merge whitespace or punctuation tokens
+      if (/^\s+$/.test(seg) || this.isPurelyClosingPunctuation(seg) || this.isPurelyOpeningPunctuation(seg)) {
+        out.push(seg)
+        i++
+        continue
+      }
+
+      let best = seg
+      let bestJ = i
+
+      // Try merging up to 4 tokens ahead
+      let combined = seg
+      for (let j = i + 1; j < Math.min(i + 5, segments.length); j++) {
+        const next = segments[j]
+        // Stop if next is whitespace or punctuation
+        if (/^\s+$/.test(next) || this.isPurelyClosingPunctuation(next) || this.isPurelyOpeningPunctuation(next)) {
+          break
+        }
+        combined += next
+        if (this.trie.hasWord(combined)) {
+          best = combined
+          bestJ = j
+        }
+      }
+
+      out.push(best)
+      i = bestJ + 1
+    }
+
+    return out
   }
 
   /**
@@ -543,7 +618,9 @@ export class KhmerBreaker {
           continue
         }
 
-        const joinedRegions = this.splitByWJ(core)
+        // Apply protected phrases before splitting by WJ
+        const protectedCore = this.applyProtectedPhrases(core)
+        const joinedRegions = this.splitByWJ(protectedCore)
         const coreSegments: string[] = []
 
         for (const region of joinedRegions) {
@@ -826,6 +903,14 @@ export class KhmerBreaker {
           
           // Reject dictionary matches that would end at an illegal boundary
           if (!this.isSafeBoundary(text, end)) {
+            continue
+          }
+          
+          // Get the actual word to check significance
+          const word = text.slice(s.pos, end)
+          
+          // Reject low-significance short tokens (prevents syllable splitting)
+          if (!this.isSignificantWord({ word, frequency: m.frequency })) {
             continue
           }
           
