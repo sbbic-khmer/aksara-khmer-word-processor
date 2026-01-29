@@ -157,11 +157,9 @@ export function KhmerGrammarCheckPlugin() {
             
             for (const word of words) {
                 const cleanWord = cleanKhmerWord(word);
-                console.log('[v0] Grammar check - raw word:', word, 'cleaned:', cleanWord);
                 if (!cleanWord || !containsKhmer(cleanWord)) continue;
                 
                 const rule = spellingRules.get(cleanWord);
-                console.log('[v0] Grammar check - rule for', cleanWord, ':', rule);
                 if (rule && rule.standard !== cleanWord) {
                     hasNonStandard = true;
                     break;
