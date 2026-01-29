@@ -1073,6 +1073,10 @@ function EditorWrapper({
         .then((doc) => {
           try {
             if (doc.editor_state) {
+              // Debug: log what's in the saved state
+              const parsedState = JSON.parse(doc.editor_state)
+              console.log('[v0] Loaded editor_state structure:', JSON.stringify(parsedState.root?.children?.[0]?.children?.slice(0, 5), null, 2))
+              
               const state = editor.parseEditorState(doc.editor_state)
               editor.setEditorState(state)
               // Force resegmentation after content is loaded
