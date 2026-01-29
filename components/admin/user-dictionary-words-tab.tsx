@@ -15,7 +15,6 @@ interface AggregatedWord {
   user_count: number
   first_added: string
   last_added: string
-  added_by_names: string[]
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -31,8 +30,7 @@ export function UserDictionaryWordsTab() {
     if (!words || !searchQuery.trim()) return words
     const query = searchQuery.toLowerCase().trim()
     return words.filter((item) => 
-      item.word.toLowerCase().includes(query) ||
-      item.added_by_names.some(name => name.toLowerCase().includes(query))
+      item.word.toLowerCase().includes(query)
     )
   }, [words, searchQuery])
 
@@ -135,7 +133,6 @@ export function UserDictionaryWordsTab() {
                 <TableRow>
                   <TableHead>Word</TableHead>
                   <TableHead>Users</TableHead>
-                  <TableHead>Added By</TableHead>
                   <TableHead>First Added</TableHead>
                   <TableHead className="w-[80px]">Copy</TableHead>
                 </TableRow>
@@ -152,10 +149,6 @@ export function UserDictionaryWordsTab() {
                         <Users className="h-3 w-3" />
                         {item.user_count}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-gray-500 max-w-[200px] truncate">
-                      {item.added_by_names.slice(0, 3).join(", ")}
-                      {item.added_by_names.length > 3 && ` +${item.added_by_names.length - 3} more`}
                     </TableCell>
                     <TableCell className="text-gray-500">
                       {new Date(item.first_added).toLocaleDateString()}

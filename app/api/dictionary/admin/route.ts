@@ -20,15 +20,13 @@ export async function GET() {
     // are shown with their count
     const words = await sql`
       SELECT 
-        word,
-        COUNT(DISTINCT user_id)::int as user_count,
-        MIN(created_at) as first_added,
-        MAX(created_at) as last_added,
-        ARRAY_AGG(DISTINCT u.name) as added_by_names
+        udw.word,
+        COUNT(*)::int as user_count,
+        MIN(udw.created_at) as first_added,
+        MAX(udw.created_at) as last_added
       FROM user_dictionary_words udw
-      JOIN users u ON udw.user_id::text = u.id::text
-      GROUP BY word
-      ORDER BY COUNT(DISTINCT user_id) DESC, MAX(created_at) DESC
+      GROUP BY udw.word
+      ORDER BY COUNT(*) DESC, MAX(udw.created_at) DESC
     `
 
     return NextResponse.json({ words })
