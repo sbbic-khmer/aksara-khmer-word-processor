@@ -174,7 +174,8 @@ export function KhmerGrammarCheckPlugin() {
         
         
         
-        spans.forEach((span) => {
+        console.log('[v0] scanForGrammarIssues running, spans:', spans.length, 'spellingRules:', spellingRules.size, 'enabled:', grammarCheckEnabled);
+        spans.forEach((span, idx) => {
             const text = span.textContent;
             if (!text || /^\s+$/.test(text)) {
                 // Remove any grammar wrapper if present
@@ -198,6 +199,7 @@ export function KhmerGrammarCheckPlugin() {
                 const rule = spellingRules.get(cleanWord);
                 if (rule && rule.standard !== cleanWord) {
                     hasNonStandard = true;
+                    if (idx < 5) console.log('[v0] Found non-standard:', cleanWord, 'rule:', rule);
                     break;
                 }
             }
@@ -208,6 +210,7 @@ export function KhmerGrammarCheckPlugin() {
             if (hasNonStandard) {
                 // Extract punctuation to only underline the actual word
                 const { leading, core, trailing } = extractPunctuation(text);
+                console.log('[v0] Applying grammar class to:', { text, leading, core, trailing });
                 
                 // Only update DOM if needed (avoid unnecessary mutations)
                 if (!existingWrapper || existingWrapper.textContent !== core) {
