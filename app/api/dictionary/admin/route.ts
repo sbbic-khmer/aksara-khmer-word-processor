@@ -21,12 +21,12 @@ export async function GET() {
     const words = await sql`
       SELECT 
         word,
-        COUNT(DISTINCT user_id) as user_count,
+        COUNT(DISTINCT user_id)::int as user_count,
         MIN(created_at) as first_added,
         MAX(created_at) as last_added,
         ARRAY_AGG(DISTINCT u.name) as added_by_names
       FROM user_dictionary_words udw
-      JOIN users u ON udw.user_id = u.id
+      JOIN users u ON udw.user_id::text = u.id::text
       GROUP BY word
       ORDER BY COUNT(DISTINCT user_id) DESC, MAX(created_at) DESC
     `
