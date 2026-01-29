@@ -154,8 +154,9 @@ function convertMultiWordPunctuation(text: string): string {
   for (const [punctuation, wordCombinations] of Object.entries(MULTI_WORD_PUNCTUATION)) {
     for (const wordArray of wordCombinations) {
       // Create a regex pattern for this word combination
-      // Example: ["បើក", "វង់", "ក្រចក"] becomes regex that matches these words with optional spaces
-      const pattern = wordArray.join("\\s+")
+      // Example: ["បើក", "វង់", "ក្រចក"] becomes regex that matches these words
+      // Use [\s\u200B]* to handle: no space, regular space, or ZWSP between words
+      const pattern = wordArray.join("[\\s\\u200B]*")
       const regex = new RegExp(pattern, "gi")
 
       result = result.replace(regex, punctuation)
@@ -181,8 +182,10 @@ function convertSingleWordPunctuation(text: string): string {
 
   // Handle punctuation WITH leader word "សញ្ញា"
   for (const [word, punctuation] of Object.entries(SINGLE_WORD_PUNCTUATION)) {
-    // Match "សញ្ញា" followed by the punctuation word (with optional spaces)
-    const pattern = new RegExp(`${PUNCTUATION_LEADER}\\s+${word}`, "gi")
+    // Match "សញ្ញា" followed by the punctuation word
+    // Use \s* (zero or more) instead of \s+ to handle cases where voice recognition
+    // returns the text with no space, regular space, or ZWSP between words
+    const pattern = new RegExp(`${PUNCTUATION_LEADER}[\\s\\u200B]*${word}`, "gi")
     result = result.replace(pattern, punctuation)
   }
 
