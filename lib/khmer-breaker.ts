@@ -1749,6 +1749,7 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
       // Split when: current run is Khmer letters AND new char is Khmer digit
       if (currentIsKhmerDigit === false && charIsKhmerDigit) {
         // Transitioning from Khmer letters to Khmer digits - split
+        console.log("[v0] splitByScript: letter->digit transition, flushing:", currentRun, "starting new with:", char)
         if (currentRun) {
           runs.push({ text: currentRun, isKhmer: true })
         }
@@ -1756,6 +1757,7 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
         currentIsKhmerDigit = true
       } else {
         // Same type (both letters or both digits) or digits followed by letters - continue
+        console.log("[v0] splitByScript: continuing Khmer run, adding:", char, "to:", currentRun, "currentIsKhmerDigit:", currentIsKhmerDigit, "charIsKhmerDigit:", charIsKhmerDigit)
         currentRun += char
         // Update digit status (digits can be followed by more digits or by letters)
         if (!charIsKhmerDigit) {
@@ -1772,6 +1774,8 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
   if (currentRun) {
     runs.push({ text: currentRun, isKhmer: currentIsKhmer ?? false })
   }
+
+  console.log("[v0] splitByScript FINAL runs:", runs.map(r => `"${r.text}"`).join(", "))
 
   return runs
 }
