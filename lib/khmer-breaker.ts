@@ -1190,7 +1190,7 @@ export class KhmerBreaker {
           
           // Apply penalty for breaking before a semivowel (យ/វ) when the current
           // token ends with a combining mark. This pattern often indicates we're
-          // cutting a word too early (e.g., "ប្រិ|យ..." instead of "ប្រិយ...")
+          // cutting a word too early (e.g., "���្រិ|យ..." instead of "ប្រិយ...")
           if (pieceEnd < text.length && piece.length > 0) {
             const lastChar = piece[piece.length - 1]
             const nextChar = text[pieceEnd]
@@ -1708,12 +1708,14 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
     // Handle colon between Khmer digits FIRST (before other checks)
     // This keeps patterns like "២៣:៨" or "២៣:​៨" together as one run
     if (isColonBetweenKhmerDigits) {
+      console.log("[v0] splitByScript: handling colon, currentRun before:", currentRun, "currentIsKhmer:", currentIsKhmer, "currentIsKhmerDigit:", currentIsKhmerDigit)
       currentRun += char
       // If there's a ZWSP after the colon, also consume it
       if (skipZwspAfterColon) {
         currentRun += chars[i + 1] // Add the ZWSP
         i++ // Skip the ZWSP in the next iteration
       }
+      console.log("[v0] splitByScript: after colon, currentRun:", currentRun)
       // Don't change currentIsKhmerDigit - we're still in a digit context
     } else if (isZwspInDigitColonPattern) {
       // ZWSP between colon and digit - keep it with the run
@@ -1735,6 +1737,7 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
       currentIsKhmerDigit = charIsKhmerDigit
     } else if (charIsKhmer !== currentIsKhmer) {
       // Script changed (Khmer <-> non-Khmer) - flush and start new run
+      console.log("[v0] splitByScript: script change! char:", char, "charIsKhmer:", charIsKhmer, "currentIsKhmer:", currentIsKhmer, "flushing run:", currentRun)
       if (currentRun) {
         runs.push({ text: currentRun, isKhmer: currentIsKhmer })
       }
