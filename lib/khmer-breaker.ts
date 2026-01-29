@@ -282,6 +282,10 @@ class KhmerCharSets {
 
   /**
    * Check if position is a valid break point.
+   * Implements Unicode-compliant break rules for Khmer:
+   * - Never break before combining marks (dependent vowels, signs, etc.)
+   * - Never break before or after COENG
+   * - Never break around Word Joiner (U+2060)
    */
   canBreakAt(text: string, index: number): boolean {
     if (index <= 0 || index >= text.length) return false
@@ -289,39 +293,24 @@ class KhmerCharSets {
     const before = text[index - 1]
     const after = text[index]
 
-    const beforeCode = before.codePointAt(0)?.toString(16)
-    const afterCode = after.codePointAt(0)?.toString(16)
+    // 1) Word Joiner (U+2060) prevents breaking on either side
+    if (before === WJ || after === WJ) return false
 
-    if (this.isCoeng(before)) {
-      if (isWordBreakerDebugEnabled()) {
-        console.log(
-          `[v0] canBreakAt(${index}): FALSE - before is Coeng. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode})`,
-        )
-      }
-      return false
-    }
-    if (this.isCoeng(after)) {
-      if (isWordBreakerDebugEnabled()) {
-        console.log(
-          `[v0] canBreakAt(${index}): FALSE - after is Coeng. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode})`,
-        )
-      }
-      return false
-    }
-    if (this.isCombiningMark(after) && !this.isBase(after)) {
-      if (isWordBreakerDebugEnabled()) {
-        console.log(
-          `[v0] canBreakAt(${index}): FALSE - after is combining mark but not base. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode}), isCombiningMark=${this.isCombiningMark(after)}, isBase=${this.isBase(after)}`,
-        )
-      }
+    // 2) CRITICAL: never break after or before COENG
+    if (this.isCoeng(before) || this.isCoeng(after)) return false
+
+    // 3) Unicode LB9: never break BEFORE a combining mark.
+    // In Khmer this means dependent vowels, signs, and other marks
+    // must stay attached to the previous base/cluster.
+    if (this.isCombiningMark(after)) return false
+
+    // 4) Don't break right after a combining mark unless the next char
+    // begins a new cluster (is a base), or is whitespace/punctuation.
+    // This prevents ugly breaks like "...VOWEL | non-base"
+    if (this.isCombiningMark(before) && !this.isBase(after) && !/\s/.test(after) && !this.isPunctuation(after)) {
       return false
     }
 
-    if (isWordBreakerDebugEnabled()) {
-      console.log(
-        `[v0] canBreakAt(${index}): TRUE. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode})`,
-      )
-    }
     return true
   }
 
@@ -750,6 +739,15 @@ export class KhmerBreaker {
   private static readonly LENGTH_BONUS = 0.25                // Reward per character for longer tokens
 
   /**
+   * Check if a position is a safe token boundary.
+   * End-of-text is always safe; otherwise delegate to canBreakAt.
+   */
+  private isSafeBoundary(text: string, endIndex: number): boolean {
+    if (endIndex <= 0 || endIndex >= text.length) return true
+    return this.charSets.canBreakAt(text, endIndex)
+  }
+
+  /**
    * Beam search segmentation algorithm.
    * Explores multiple segmentation paths and keeps the top N best ones.
    * 
@@ -822,19 +820,33 @@ export class KhmerBreaker {
         // Build candidate tokens
         const candidates: Array<{ len: number; score: number }> = []
         
-        // Add dictionary matches as candidates
+        // Add dictionary matches as candidates (only if they end at safe boundaries)
         for (const m of matches) {
+          const end = s.pos + m.length
+          
+          // Reject dictionary matches that would end at an illegal boundary
+          if (!this.isSafeBoundary(text, end)) {
+            continue
+          }
+          
           let sc = Math.log((m.frequency || 1) + 1)
           sc += KhmerBreaker.LENGTH_BONUS * m.length
           sc -= KhmerBreaker.BOUNDARY_PENALTY
           candidates.push({ len: m.length, score: sc })
         }
         
-        // OOV fallback: consume one cluster
+        // OOV fallback: consume one cluster, ensuring safe boundary
         const clusterEnd = this.charSets.findSyllableEnd(text, s.pos)
-        const oovLen = Math.max(1, clusterEnd - s.pos)
+        let oovEnd = Math.max(s.pos + 1, clusterEnd)
         
-        // Check if this OOV is just a single cluster
+        // Walk forward until we find a safe boundary (should be rare if cluster detection is correct)
+        while (oovEnd < endPos && !this.isSafeBoundary(text, oovEnd)) {
+          oovEnd++
+        }
+        
+        const oovLen = oovEnd - s.pos
+        
+        // Check if this OOV is just a single cluster (heavier penalty)
         const oovPenalty = oovLen <= 2 
           ? KhmerBreaker.OOV_SINGLE_CLUSTER_PENALTY 
           : KhmerBreaker.OOV_PENALTY
