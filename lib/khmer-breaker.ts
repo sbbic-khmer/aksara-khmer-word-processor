@@ -1663,20 +1663,46 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
     
     // Check if this is a colon between Khmer digits (e.g., "២៣:៨" for time/verse references)
     // If so, don't treat it as a break point - keep it with the digits
-    const isColonBetweenKhmerDigits = char === ':' && 
-      currentIsKhmerDigit === true && 
+    // Also handle case where there's a ZWSP between colon and digit (e.g., "២៣:​៨")
+    const ZWSP = '\u200B'
+    let colonFollowedByKhmerDigit = false
+    let skipZwspAfterColon = false
+    if (char === ':' && currentIsKhmerDigit === true) {
+      if (i + 1 < chars.length && isKhmerDigit(chars[i + 1].codePointAt(0) || 0)) {
+        colonFollowedByKhmerDigit = true
+      } else if (i + 1 < chars.length && chars[i + 1] === ZWSP && 
+                 i + 2 < chars.length && isKhmerDigit(chars[i + 2].codePointAt(0) || 0)) {
+        // Colon followed by ZWSP followed by Khmer digit
+        colonFollowedByKhmerDigit = true
+        skipZwspAfterColon = true
+      }
+    }
+    const isColonBetweenKhmerDigits = colonFollowedByKhmerDigit
+    
+    // Check if this is a ZWSP between colon and Khmer digit (should be kept with the run)
+    const isZwspInDigitColonPattern = char === ZWSP && 
+      currentRun.endsWith(':') && 
+      currentIsKhmerDigit === true &&
       i + 1 < chars.length && 
       isKhmerDigit(chars[i + 1].codePointAt(0) || 0)
     
-    const isBreakPoint = !isColonBetweenKhmerDigits && (
+    const isBreakPoint = !isColonBetweenKhmerDigits && !isZwspInDigitColonPattern && (
       char === " " || /\s/.test(char) || OPENING_PUNCTUATION.has(char) || CLOSING_PUNCTUATION.has(char)
     )
 
     // Handle colon between Khmer digits FIRST (before other checks)
-    // This keeps patterns like "២៣:៨" together as one run
+    // This keeps patterns like "២៣:៨" or "២៣:​៨" together as one run
     if (isColonBetweenKhmerDigits) {
       currentRun += char
+      // If there's a ZWSP after the colon, also consume it
+      if (skipZwspAfterColon) {
+        currentRun += chars[i + 1] // Add the ZWSP
+        i++ // Skip the ZWSP in the next iteration
+      }
       // Don't change currentIsKhmerDigit - we're still in a digit context
+    } else if (isZwspInDigitColonPattern) {
+      // ZWSP between colon and digit - keep it with the run
+      currentRun += char
     } else if (isBreakPoint) {
       // Flush current run
       if (currentRun) {
