@@ -1,0 +1,5 @@
+{
+  "_comment": "Protected phrases that should never be split during word breaking. Add Khmer phrases as strings in the 'phrases' array.",
+  "phrases": [
+  ]
+}
