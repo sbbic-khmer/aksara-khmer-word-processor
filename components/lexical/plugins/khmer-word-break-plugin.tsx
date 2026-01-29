@@ -314,7 +314,17 @@ useEffect(() => {
             const { format, style } = getFormatAtPosition(formatRanges, charPos)
             const newTextNode = $createTextNode(segment)
             newTextNode.setFormat(format)
-            newTextNode.setStyle(style)
+            
+            // For space segments, add a unique style to prevent Lexical from merging
+            // adjacent TextNodes into one DOM span. This is critical for spell/grammar
+            // checking to work on individual words.
+            const isSpaceSegment = /^\s+$/.test(segment)
+            if (isSpaceSegment) {
+              newTextNode.setStyle(style ? `${style}; --space-segment: 1` : '--space-segment: 1')
+            } else {
+              newTextNode.setStyle(style)
+            }
+            
             processedNodesRef.current.add(newTextNode)
             newNodes.push(newTextNode)
             charPos += segment.length
