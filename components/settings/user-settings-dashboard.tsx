@@ -33,8 +33,8 @@ export function UserSettingsDashboard() {
       <main className="max-w-4xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
-            <TabsTrigger value="dictionary">My Dictionary</TabsTrigger>
-            <TabsTrigger value="replacements">My Replacements</TabsTrigger>
+            <TabsTrigger value="dictionary">My Word Breaking Dictionary</TabsTrigger>
+            <TabsTrigger value="replacements">My Voice-to-Text Replacements</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dictionary">
