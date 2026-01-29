@@ -1323,9 +1323,20 @@ export default KhmerBreaker
 
 const KHMER_RANGE_START = 0x1780
 const KHMER_RANGE_END = 0x17ff
+const KHMER_DIGIT_START = 0x17e0
+const KHMER_DIGIT_END = 0x17e9
 
 function isKhmerCodePoint(codePoint: number): boolean {
   return codePoint >= KHMER_RANGE_START && codePoint <= KHMER_RANGE_END
+}
+
+function isKhmerDigit(codePoint: number): boolean {
+  return codePoint >= KHMER_DIGIT_START && codePoint <= KHMER_DIGIT_END
+}
+
+// Khmer letters are Khmer characters that are NOT digits
+function isKhmerLetter(codePoint: number): boolean {
+  return isKhmerCodePoint(codePoint) && !isKhmerDigit(codePoint)
 }
 
 function isNonBreakableScript(char: string): boolean {
@@ -1344,6 +1355,10 @@ function isNonBreakableScript(char: string): boolean {
  * Split text into runs of Khmer vs non-Khmer (Latin/etc) characters.
  * Non-Khmer runs should not be word-broken.
  * Punctuation and spaces are treated as boundaries.
+ * 
+ * Additionally, Khmer digits (០-៩) following Khmer letters are split into
+ * separate runs, so "តែ១១៣៤៤" becomes "តែ" | "១១៣៤៤".
+ * Consecutive Khmer digits stay together.
  */
 function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> {
   if (!text) return []
@@ -1351,10 +1366,12 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
   const runs: Array<{ text: string; isKhmer: boolean }> = []
   let currentRun = ""
   let currentIsKhmer: boolean | null = null
+  let currentIsKhmerDigit: boolean | null = null  // Track if current run is Khmer digits
 
   for (const char of text) {
     const cp = char.codePointAt(0) || 0
     const charIsKhmer = isKhmerCodePoint(cp)
+    const charIsKhmerDigit = isKhmerDigit(cp)
     const isBreakPoint =
       char === " " || /\s/.test(char) || OPENING_PUNCTUATION.has(char) || CLOSING_PUNCTUATION.has(char)
 
@@ -1364,6 +1381,7 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
         runs.push({ text: currentRun, isKhmer: currentIsKhmer ?? false })
         currentRun = ""
         currentIsKhmer = null
+        currentIsKhmerDigit = null
       }
       // Add the break character as its own run (treat as Khmer so it goes through normal processing)
       runs.push({ text: char, isKhmer: true })
@@ -1371,16 +1389,36 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
       // Start new run
       currentRun = char
       currentIsKhmer = charIsKhmer
-    } else if (charIsKhmer === currentIsKhmer) {
-      // Continue current run
-      currentRun += char
-    } else {
-      // Script changed - flush and start new run
+      currentIsKhmerDigit = charIsKhmerDigit
+    } else if (charIsKhmer !== currentIsKhmer) {
+      // Script changed (Khmer <-> non-Khmer) - flush and start new run
       if (currentRun) {
         runs.push({ text: currentRun, isKhmer: currentIsKhmer })
       }
       currentRun = char
       currentIsKhmer = charIsKhmer
+      currentIsKhmerDigit = charIsKhmerDigit
+    } else if (charIsKhmer && currentIsKhmer) {
+      // Both are Khmer - check if transitioning from letter to digit
+      // Split when: current run is Khmer letters AND new char is Khmer digit
+      if (currentIsKhmerDigit === false && charIsKhmerDigit) {
+        // Transitioning from Khmer letters to Khmer digits - split
+        if (currentRun) {
+          runs.push({ text: currentRun, isKhmer: true })
+        }
+        currentRun = char
+        currentIsKhmerDigit = true
+      } else {
+        // Same type (both letters or both digits) or digits followed by letters - continue
+        currentRun += char
+        // Update digit status (digits can be followed by more digits or by letters)
+        if (!charIsKhmerDigit) {
+          currentIsKhmerDigit = false
+        }
+      }
+    } else {
+      // Continue current run (non-Khmer)
+      currentRun += char
     }
   }
 

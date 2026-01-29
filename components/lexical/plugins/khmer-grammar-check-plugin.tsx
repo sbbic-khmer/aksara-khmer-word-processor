@@ -21,12 +21,14 @@ function containsKhmer(text: string): boolean {
 }
 
 // Pattern for punctuation that can be attached to words
+// This includes ៗ (U+17D7) so it's preserved when replacing a word with a suggestion
 const PUNCTUATION_PATTERN = /[\u200B\u200C\u200D\u2060\u17D4-\u17DA.,!?;:'"()\[\]{}«»‹›""''–—…]/;
 
 // Clean a word by removing invisible characters, punctuation, and trimming.
 // IMPORTANT: This must handle all punctuation that might be attached to words,
 // including guillemets («»), smart quotes, and other typographic characters.
 // Without this, words like «អោយ or អស់»។ would fail dictionary lookups.
+// NOTE: ៗ (U+17D7) is removed here for dictionary lookup, but preserved during replacement via extractPunctuation.
 function cleanKhmerWord(text: string): string {
     return text
         .replace(/[\u200B\u200C\u200D\u2060]/g, '') // zero-width chars
