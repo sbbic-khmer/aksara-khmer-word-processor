@@ -621,17 +621,17 @@ export class KhmerBreaker {
             // WJ characters will be preserved in the text for future segmentations
             coreSegments.push(region.text)
           } else {
-            // This region has no WJ - segment using beam search for globally optimal result
-            const beamSegments = this.beamSegment(region.text)
+            // This region has no WJ - segment using bidirectional maximum matching
+            const dictSegments = this.bidirectionalSegment(region.text)
 
             // If Intl.Segmenter is available, use it to validate/improve our result
-            let finalSegments = beamSegments
+            let finalSegments = dictSegments
             if (this.useIntlSegmenter) {
               try {
                 const intlSegments = this.segmentWithIntl(region.text)
-                finalSegments = this.improveWithIntlHints(beamSegments, intlSegments, region.text)
+                finalSegments = this.improveWithIntlHints(dictSegments, intlSegments, region.text)
               } catch {
-                // Fall through to beam search result
+                // Fall through to dictionary result
               }
             }
             coreSegments.push(...finalSegments)
@@ -747,17 +747,17 @@ export class KhmerBreaker {
   }
 
   /**
-   * Improve beam search segments with Intl.Segmenter hints.
-   * Beam search takes priority, but Intl can help with unknown words.
+   * Improve dictionary-based segments with Intl.Segmenter hints.
+   * Dictionary takes priority, but Intl can help with unknown words.
    */
-  private improveWithIntlHints(beamSegments: string[], intlSegments: string[], originalText: string): string[] {
-    // If beam search produced good results (mostly known words), use them
-    const knownWordCount = beamSegments.filter((s) => this.trie.hasWord(s)).length
-    const knownWordRatio = knownWordCount / beamSegments.length
+  private improveWithIntlHints(dictSegments: string[], intlSegments: string[], originalText: string): string[] {
+    // If dictionary produced good results (mostly known words), use them
+    const knownWordCount = dictSegments.filter((s) => this.trie.hasWord(s)).length
+    const knownWordRatio = knownWordCount / dictSegments.length
 
-    // If most segments are known dictionary words, trust beam search
+    // If most segments are known dictionary words, trust the dictionary
     if (knownWordRatio >= 0.5) {
-      return beamSegments
+      return dictSegments
     }
 
     // Otherwise, try to use Intl segments but validate against dictionary
