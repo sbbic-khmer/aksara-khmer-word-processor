@@ -1544,29 +1544,27 @@ function EditorWrapper({
       </div>
 
       <DocumentsDialog
-            open={openDialogOpen}
-            onOpenChange={setOpenDialogOpen}
-            onOpen={handleOpenDocument}
-            onDelete={handleDeleteDocument}
-          />
+        open={openDialogOpen}
+        onOpenChange={setOpenDialogOpen}
+        onOpen={handleOpenDocument}
+        onDelete={handleDeleteDocument}
+      />
 
-          <SaveDialog
-            open={saveDialogOpen}
-            onOpenChange={setSaveDialogOpen}
-            onSave={handleSaveWithTitle}
-            defaultTitle={isSaveAs ? documentState.title : ""}
-          />
+      <SaveDialog
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        onSave={handleSaveWithTitle}
+        defaultTitle={isSaveAs ? documentState.title : ""}
+      />
 
-          <ConflictDialog
-            open={conflictDialogOpen}
-            onOpenChange={setConflictDialogOpen}
-            serverUpdatedAt={conflictServerUpdatedAt || new Date().toISOString()}
-            onOverwrite={handleConflictOverwrite}
-            onReload={handleConflictReload}
-            onCancel={handleConflictCancel}
-          />
-        </>
-      )}
+      <ConflictDialog
+        open={conflictDialogOpen}
+        onOpenChange={setConflictDialogOpen}
+        serverUpdatedAt={conflictServerUpdatedAt || new Date().toISOString()}
+        onOverwrite={handleConflictOverwrite}
+        onReload={handleConflictReload}
+        onCancel={handleConflictCancel}
+      />
     </>
   )
 }
