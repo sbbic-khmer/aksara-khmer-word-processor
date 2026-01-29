@@ -573,7 +573,12 @@ export class KhmerBreaker {
   getSegments(text: string): string[] {
     if (!text || text.length === 0) return []
 
-    const userChunks = text.split(ZWSP)
+    // Pre-process: Remove ZWSP that incorrectly breaks Khmer digit:digit patterns
+    // This fixes cases where previous word-breaking inserted ZWSP in "២៣:​៨"
+    // Khmer digits are ០-៩ (U+17E0 - U+17E9)
+    const cleanedText = text.replace(/([\u17E0-\u17E9]+):\u200B+([\u17E0-\u17E9])/g, '$1:$2')
+
+    const userChunks = cleanedText.split(ZWSP)
     const allSegments: string[] = []
 
     for (const chunk of userChunks) {
@@ -1668,20 +1673,13 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
     let colonFollowedByKhmerDigit = false
     let skipZwspAfterColon = false
     if (char === ':' && currentIsKhmerDigit === true) {
-      console.log("[v0] splitByScript: Found colon after Khmer digit, currentRun:", currentRun)
       if (i + 1 < chars.length && isKhmerDigit(chars[i + 1].codePointAt(0) || 0)) {
-        console.log("[v0] splitByScript: Next char is Khmer digit, keeping together")
         colonFollowedByKhmerDigit = true
       } else if (i + 1 < chars.length && chars[i + 1] === ZWSP && 
                  i + 2 < chars.length && isKhmerDigit(chars[i + 2].codePointAt(0) || 0)) {
         // Colon followed by ZWSP followed by Khmer digit
-        console.log("[v0] splitByScript: Next char is ZWSP then Khmer digit, keeping together")
         colonFollowedByKhmerDigit = true
         skipZwspAfterColon = true
-      } else {
-        console.log("[v0] splitByScript: Colon NOT followed by Khmer digit, next chars:", 
-          i + 1 < chars.length ? chars[i + 1].codePointAt(0)?.toString(16) : "none",
-          i + 2 < chars.length ? chars[i + 2].codePointAt(0)?.toString(16) : "none")
       }
     }
     const isColonBetweenKhmerDigits = colonFollowedByKhmerDigit
@@ -1760,10 +1758,6 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
   // Flush final run
   if (currentRun) {
     runs.push({ text: currentRun, isKhmer: currentIsKhmer ?? false })
-  }
-
-  if (isDebugEnabled()) {
-    console.log("[v0] splitByScript output:", runs.map(r => `"${r.text}" (isKhmer: ${r.isKhmer})`).join(", "))
   }
 
   return runs
