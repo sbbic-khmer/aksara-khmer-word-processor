@@ -1668,13 +1668,20 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
     let colonFollowedByKhmerDigit = false
     let skipZwspAfterColon = false
     if (char === ':' && currentIsKhmerDigit === true) {
+      console.log("[v0] splitByScript: Found colon after Khmer digit, currentRun:", currentRun)
       if (i + 1 < chars.length && isKhmerDigit(chars[i + 1].codePointAt(0) || 0)) {
+        console.log("[v0] splitByScript: Next char is Khmer digit, keeping together")
         colonFollowedByKhmerDigit = true
       } else if (i + 1 < chars.length && chars[i + 1] === ZWSP && 
                  i + 2 < chars.length && isKhmerDigit(chars[i + 2].codePointAt(0) || 0)) {
         // Colon followed by ZWSP followed by Khmer digit
+        console.log("[v0] splitByScript: Next char is ZWSP then Khmer digit, keeping together")
         colonFollowedByKhmerDigit = true
         skipZwspAfterColon = true
+      } else {
+        console.log("[v0] splitByScript: Colon NOT followed by Khmer digit, next chars:", 
+          i + 1 < chars.length ? chars[i + 1].codePointAt(0)?.toString(16) : "none",
+          i + 2 < chars.length ? chars[i + 2].codePointAt(0)?.toString(16) : "none")
       }
     }
     const isColonBetweenKhmerDigits = colonFollowedByKhmerDigit
