@@ -643,6 +643,10 @@ export class KhmerBreaker {
           }
         }
 
+        // Reattach punctuation to the segmented words for proper line-breaking.
+        // Leading punctuation (e.g., «) attaches to the first word.
+        // Trailing punctuation (e.g., ») attaches to the last word.
+        // Note: Grammar/spell check replacement must handle stripping punctuation.
         if (coreSegments.length > 0) {
           if (leading) {
             coreSegments[0] = leading + coreSegments[0]

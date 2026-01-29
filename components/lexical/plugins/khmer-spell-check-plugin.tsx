@@ -70,15 +70,22 @@ function containsKhmer(text: string): boolean {
     return [...text].some(isKhmerLetter);
 }
 
-// Clean a word by removing invisible characters, punctuation, and trimming
+// Clean a word by removing invisible characters, punctuation, and trimming.
+// IMPORTANT: This must handle all punctuation that might be attached to words,
+// including guillemets («»), smart quotes, and other typographic characters.
+// Without this, words like «អោយ or អស់»។ would fail dictionary lookups.
 function cleanKhmerWord(text: string): string {
     return text
         // Remove zero-width characters
         .replace(/[\u200B\u200C\u200D\u2060]/g, '')
-        // Remove Khmer punctuation
+        // Remove Khmer punctuation (។ ៕ ៖ ៗ ៘ ៙ ៚)
         .replace(/[\u17D4-\u17DA]/g, '')
         // Remove common punctuation
         .replace(/[.,!?;:'"()\[\]{}]/g, '')
+        // Remove guillemets and other quote marks («»‹›""'')
+        .replace(/[«»‹›""'']/g, '')
+        // Remove en-dash, em-dash, ellipsis
+        .replace(/[–—…]/g, '')
         // Trim whitespace
         .trim();
 }
@@ -474,7 +481,6 @@ const scanAndMarkMisspellings = useCallback(() => {
 
                 // Use Web Worker for suggestions to prevent UI freeze
                 // This is especially important for complex Khmer words where suggest() can take 10+ seconds
-                console.log('[v0] SpellCheck: preparing to fetch suggestions for:', cleanWord, 'workerReady:', workerReady, 'workerRef:', !!workerRef.current);
                 setSuggestions([]); // Clear while loading
                 setSuggestionsLoaded(false); // Mark as loading
                 
