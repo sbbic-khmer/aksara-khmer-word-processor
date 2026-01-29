@@ -1,20 +1,19 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
 import { sql } from '@/lib/db'
 
 // GET - Fetch user's dictionary words
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const words = await sql`
       SELECT id, word, created_at
       FROM user_dictionary_words
-      WHERE user_id = ${session.user.id}
+      WHERE user_id = ${user.id}
       ORDER BY created_at DESC
     `
 
@@ -28,8 +27,8 @@ export async function GET() {
 // POST - Add a word to user's dictionary
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -44,7 +43,7 @@ export async function POST(request: Request) {
     // Insert or ignore if already exists
     const result = await sql`
       INSERT INTO user_dictionary_words (user_id, word)
-      VALUES (${session.user.id}, ${trimmedWord})
+      VALUES (${user.id}, ${trimmedWord})
       ON CONFLICT (user_id, word) DO NOTHING
       RETURNING id, word, created_at
     `
@@ -64,8 +63,8 @@ export async function POST(request: Request) {
 // DELETE - Remove a word from user's dictionary
 export async function DELETE(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -78,7 +77,7 @@ export async function DELETE(request: Request) {
 
     await sql`
       DELETE FROM user_dictionary_words
-      WHERE id = ${wordId} AND user_id = ${session.user.id}
+      WHERE id = ${wordId} AND user_id = ${user.id}
     `
 
     return NextResponse.json({ success: true })

@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getCurrentUser, isAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 
 // GET - Fetch all user dictionary words with aggregation (admin only)
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getCurrentUser()
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user is admin
-    if (session.user.role !== 'admin') {
+    const admin = await isAdmin()
+    if (!admin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
