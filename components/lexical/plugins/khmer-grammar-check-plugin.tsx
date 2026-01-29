@@ -20,12 +20,17 @@ function containsKhmer(text: string): boolean {
     return /[\u1780-\u17FF]/.test(text);
 }
 
-// Clean a word by removing invisible characters, punctuation, and trimming
+// Clean a word by removing invisible characters, punctuation, and trimming.
+// IMPORTANT: This must handle all punctuation that might be attached to words,
+// including guillemets («»), smart quotes, and other typographic characters.
+// Without this, words like «អោយ or អស់»។ would fail dictionary lookups.
 function cleanKhmerWord(text: string): string {
     return text
         .replace(/[\u200B\u200C\u200D\u2060]/g, '') // zero-width chars
-        .replace(/[\u17D4-\u17DA]/g, '') // Khmer punctuation
+        .replace(/[\u17D4-\u17DA]/g, '') // Khmer punctuation (។ ៕ ៖ ៗ ៘ ៙ ៚)
         .replace(/[.,!?;:'"()\[\]{}]/g, '') // common punctuation
+        .replace(/[«»‹›""'']/g, '') // guillemets and smart quotes
+        .replace(/[–—…]/g, '') // en-dash, em-dash, ellipsis
         .trim();
 }
 

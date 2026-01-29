@@ -70,15 +70,22 @@ function containsKhmer(text: string): boolean {
     return [...text].some(isKhmerLetter);
 }
 
-// Clean a word by removing invisible characters, punctuation, and trimming
+// Clean a word by removing invisible characters, punctuation, and trimming.
+// IMPORTANT: This must handle all punctuation that might be attached to words,
+// including guillemets («»), smart quotes, and other typographic characters.
+// Without this, words like «អោយ or អស់»។ would fail dictionary lookups.
 function cleanKhmerWord(text: string): string {
     return text
         // Remove zero-width characters
         .replace(/[\u200B\u200C\u200D\u2060]/g, '')
-        // Remove Khmer punctuation
+        // Remove Khmer punctuation (។ ៕ ៖ ៗ ៘ ៙ ៚)
         .replace(/[\u17D4-\u17DA]/g, '')
         // Remove common punctuation
         .replace(/[.,!?;:'"()\[\]{}]/g, '')
+        // Remove guillemets and other quote marks («»‹›""'')
+        .replace(/[«»‹›""'']/g, '')
+        // Remove en-dash, em-dash, ellipsis
+        .replace(/[–—…]/g, '')
         // Trim whitespace
         .trim();
 }
@@ -448,41 +455,32 @@ const scanAndMarkMisspellings = useCallback(() => {
                 const nodeKey = node.getKey();
                 setReplaceHandler(() => {
                     return (oldWord: string, newWord: string) => {
-                        console.log('[v0] replaceHandler called:', { oldWord, newWord, nodeKey, start, end });
                         try {
                             editor.update(() => {
                                 const maybeNode = $getNodeByKey(nodeKey);
-                                console.log('[v0] Found node by key:', nodeKey, 'node:', maybeNode, 'isTextNode:', $isTextNode(maybeNode));
-                                if (!$isTextNode(maybeNode)) {
-                                    console.log('[v0] Node is not a TextNode, aborting replace');
-                                    return;
-                                }
+                                if (!$isTextNode(maybeNode)) return;
 
                                 // For Khmer, we replace the entire node content
                                 // since each TextNode is a word segment
                                 const currentText = maybeNode.getTextContent();
-                                console.log('[v0] Current text content:', currentText);
                                 
                                 if (containsKhmer(currentText)) {
                                     // Replace the entire text content
-                                    console.log('[v0] Replacing Khmer word, setting text to:', newWord);
                                     maybeNode.setTextContent(newWord);
                                 } else {
                                     // For non-Khmer, do targeted replacement
                                     const newText = currentText.slice(0, start) + newWord + currentText.slice(end);
-                                    console.log('[v0] Replacing non-Khmer word, setting text to:', newText);
                                     maybeNode.setTextContent(newText);
                                 }
                             });
-                        } catch (err) {
-                            console.error('[v0] Error performing spell replace:', err);
+                        } catch {
+                            // Error performing spell replace
                         }
                     };
                 });
 
                 // Use Web Worker for suggestions to prevent UI freeze
                 // This is especially important for complex Khmer words where suggest() can take 10+ seconds
-                console.log('[v0] SpellCheck: preparing to fetch suggestions for:', cleanWord, 'workerReady:', workerReady, 'workerRef:', !!workerRef.current);
                 setSuggestions([]); // Clear while loading
                 setSuggestionsLoaded(false); // Mark as loading
                 
