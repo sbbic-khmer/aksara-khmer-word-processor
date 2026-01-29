@@ -1027,12 +1027,15 @@ function EditorWrapper({
   
   // Load user dictionary words into the breaker and trigger resegmentation when new words are added
   useEffect(() => {
+    console.log("[v0] userDictionaryWords changed:", userDictionaryWords?.length, "prev:", prevUserDictWordCountRef.current)
     if (userDictionaryWords && userDictionaryWords.length > 0) {
       try {
+        console.log("[v0] Adding user words to breaker:", userDictionaryWords)
         breaker.addUserWords(userDictionaryWords)
         
         // Only trigger resegmentation if NEW words were added (not on initial load)
         if (prevUserDictWordCountRef.current > 0 && userDictionaryWords.length > prevUserDictWordCountRef.current) {
+          console.log("[v0] NEW word detected! Dispatching FORCE_RESEGMENT_COMMAND")
           // Dispatch force resegment command so the new word is used
           editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
         }
