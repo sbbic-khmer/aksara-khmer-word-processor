@@ -1062,9 +1062,19 @@ export class KhmerBreaker {
             const nextCh = text[runEnd]
             if (this.charSets.isKhmerDigit(nextCh)) {
               runEnd++
-            } else if (nextCh === ':' && runEnd + 1 < endPos && this.charSets.isKhmerDigit(text[runEnd + 1])) {
-              // Colon followed by Khmer digit - keep together (e.g., ២៣:៨)
-              runEnd++
+            } else if (nextCh === ':') {
+              // Colon after Khmer digit - check if followed by another Khmer digit
+              if (runEnd + 1 < endPos && this.charSets.isKhmerDigit(text[runEnd + 1])) {
+                // Colon followed by Khmer digit - keep together (e.g., ២៣:៨)
+                runEnd++
+              } else if (runEnd + 1 >= endPos) {
+                // Colon at end of text - keep with digits to prevent break insertion
+                // This handles typing "២៣:" before the final digit is typed
+                runEnd++
+                break
+              } else {
+                break
+              }
             } else {
               break
             }
