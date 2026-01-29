@@ -9,12 +9,17 @@ import {
   $createParagraphNode,
   PASTE_COMMAND,
   COMMAND_PRIORITY_HIGH,
+  COMMAND_PRIORITY_NORMAL,
   $getRoot,
   $isTextNode,
   $isParagraphNode,
   type LexicalNode,
   type ElementNode,
+  createCommand,
 } from "lexical"
+
+// Custom command to force resegmentation after content is loaded
+export const FORCE_RESEGMENT_COMMAND = createCommand<void>("FORCE_RESEGMENT_COMMAND")
 import { useEffect, useRef, useCallback } from "react"
 import { $createKhmerBreakNode, $isKhmerBreakNode } from "../nodes/khmer-break-node"
 import type { KhmerBreaker } from "@/lib/khmer-breaker"
@@ -774,12 +779,28 @@ useEffect(() => {
       COMMAND_PRIORITY_HIGH,
     )
 
+    // Register command to force resegmentation (called after content is loaded)
+    const removeResegmentCommand = editor.registerCommand(
+      FORCE_RESEGMENT_COMMAND,
+      () => {
+        console.log('[v0] FORCE_RESEGMENT_COMMAND received')
+        // Clear all processed tracking
+        processedNodesRef.current = new WeakSet<TextNode>()
+        processedParagraphKeysRef.current = new Set<string>()
+        // Force resegmentation
+        forceResegmentAllParagraphs()
+        return true
+      },
+      COMMAND_PRIORITY_NORMAL,
+    )
+
     return () => {
       clearTimeout(timeoutId)
       removeTransform()
       removePasteCommand()
+      removeResegmentCommand()
     }
-  }, [editor, breaker, showBreaks])
+  }, [editor, breaker, showBreaks, forceResegmentAllParagraphs])
 
   return null
 }
