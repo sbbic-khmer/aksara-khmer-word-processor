@@ -11,6 +11,7 @@
  */
 
 import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
+import { PROTECTED_PHRASES } from "./protected-phrases"
 
 const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
@@ -415,6 +416,76 @@ export class KhmerBreaker {
   }
 
   /**
+   * Wrap protected phrases with Word Joiner (WJ) characters to prevent splitting.
+   * Only applies if the text doesn't already contain WJ around the phrase.
+   */
+  private applyProtectedPhrases(text: string): string {
+    if (!text || PROTECTED_PHRASES.length === 0) return text
+
+    // Sort longest-first to avoid overlapping issues
+    const phrases = [...PROTECTED_PHRASES].sort((a, b) => b.length - a.length)
+
+    let result = text
+    for (const phrase of phrases) {
+      if (result.includes(phrase)) {
+        // Check if already wrapped with WJ
+        const wrappedPhrase = WJ + phrase + WJ
+        if (!result.includes(wrappedPhrase)) {
+          // Wrap the phrase with WJ on both sides to prevent splitting
+          result = result.split(phrase).join(wrappedPhrase)
+        }
+      }
+    }
+    return result
+  }
+
+  /**
+   * Merge adjacent segments if their concatenation forms a known dictionary word.
+   * This is a "safety net" that fixes cases where segmentation split a compound word.
+   * E.g., ["កោត", "ខ្លាច"] -> ["កោតខ្លាច"] if កោតខ្លាច is in the dictionary.
+   */
+  private mergeKnownCompounds(segments: string[]): string[] {
+    if (segments.length <= 1) return segments
+
+    const out: string[] = []
+    let i = 0
+
+    while (i < segments.length) {
+      const seg = segments[i]
+
+      // Don't merge whitespace or punctuation tokens
+      if (/^\s+$/.test(seg) || this.isPurelyClosingPunctuation(seg) || this.isPurelyOpeningPunctuation(seg)) {
+        out.push(seg)
+        i++
+        continue
+      }
+
+      let best = seg
+      let bestJ = i
+
+      // Try merging up to 4 tokens ahead
+      let combined = seg
+      for (let j = i + 1; j < Math.min(i + 5, segments.length); j++) {
+        const next = segments[j]
+        // Stop if next is whitespace or punctuation
+        if (/^\s+$/.test(next) || this.isPurelyClosingPunctuation(next) || this.isPurelyOpeningPunctuation(next)) {
+          break
+        }
+        combined += next
+        if (this.trie.hasWord(combined)) {
+          best = combined
+          bestJ = j
+        }
+      }
+
+      out.push(best)
+      i = bestJ + 1
+    }
+
+    return out
+  }
+
+  /**
    * Main segmentation method.
    * Respects existing ZWSP characters as user-defined break points.
    * Respects Word Joiner (WJ) characters to keep words together.
@@ -433,7 +504,9 @@ export class KhmerBreaker {
       allSegments.push(...chunkSegments)
     }
 
-    return this.mergePunctuation(allSegments)
+    // Post-processing pipeline
+    const punctMerged = this.mergePunctuation(allSegments)
+    return this.mergeKnownCompounds(punctMerged)
   }
 
   /**
@@ -543,7 +616,9 @@ export class KhmerBreaker {
           continue
         }
 
-        const joinedRegions = this.splitByWJ(core)
+        // Apply protected phrases before splitting by WJ
+        const protectedCore = this.applyProtectedPhrases(core)
+        const joinedRegions = this.splitByWJ(protectedCore)
         const coreSegments: string[] = []
 
         for (const region of joinedRegions) {
@@ -826,6 +901,15 @@ export class KhmerBreaker {
           
           // Reject dictionary matches that would end at an illegal boundary
           if (!this.isSafeBoundary(text, end)) {
+            continue
+          }
+          
+          // Get the actual word to check significance
+          const word = text.slice(s.pos, end)
+          
+          // Reject low-significance short tokens (prevents syllable splitting)
+          // This uses the same thresholds as forwardMaximumMatch
+          if (!this.isSignificantWord({ word, frequency: m.frequency })) {
             continue
           }
           
