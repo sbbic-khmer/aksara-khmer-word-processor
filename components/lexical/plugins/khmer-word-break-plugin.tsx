@@ -214,11 +214,15 @@ useEffect(() => {
       const { text: fixedText } = ensureSpaceAfterPunctuation(text)
       const segments = breaker.getSegments(fixedText)
       const newNodes: LexicalNode[] = []
+      const baseTimestamp = Date.now()
 
       segments.forEach((segment, i) => {
         const newTextNode = $createTextNode(segment)
         newTextNode.setFormat(format)
-        newTextNode.setStyle(style)
+        // Add unique word ID to prevent Lexical from merging adjacent TextNodes
+        // This is critical for spell/grammar checking to work on individual words
+        const wordId = `--word-id: ${baseTimestamp}-${i}`
+        newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
         processedNodesRef.current.add(newTextNode)
         newNodes.push(newTextNode)
 
