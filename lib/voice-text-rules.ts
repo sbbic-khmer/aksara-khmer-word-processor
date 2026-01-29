@@ -318,15 +318,24 @@ const VOICE_TEXT_RULES: VoiceTextRule[] = [
 export function applyVoiceTextRules(text: string): string {
   if (!text) return text
 
+  // Debug: log input with character codes to detect hidden characters
+  console.log('[v0] applyVoiceTextRules input:', text)
+  console.log('[v0] Input char codes:', [...text].map(c => c.charCodeAt(0).toString(16)).join(' '))
+
   let processedText = text
 
   // Apply each enabled rule in sequence
   for (const rule of VOICE_TEXT_RULES) {
     if (rule.enabled) {
+      const before = processedText
       processedText = rule.apply(processedText)
+      if (before !== processedText) {
+        console.log(`[v0] Rule "${rule.name}" changed text from "${before}" to "${processedText}"`)
+      }
     }
   }
 
+  console.log('[v0] applyVoiceTextRules output:', processedText)
   return processedText
 }
 
