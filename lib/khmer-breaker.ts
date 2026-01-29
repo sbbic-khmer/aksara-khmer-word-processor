@@ -252,6 +252,17 @@ class KhmerCharSets {
   }
 
   /**
+   * Check if a token STARTS with a "dangling bantoc" pattern (consonant + ់).
+   * Example: "ស់ប្រិ" starts with "ស់" which is a dangling bantoc.
+   * This indicates the break happened incorrectly BEFORE the consonant that should
+   * have been the final consonant of the previous word.
+   */
+  startsWithDanglingBantoc(token: string): boolean {
+    if (token.length < 2) return false
+    return this.isConsonant(token[0]) && this.isBantoc(token[1])
+  }
+
+  /**
    * Check if character is punctuation (Khmer or common).
    * Khmer punctuation: ។ ៕ ៖ ៗ ៘ ៙ ៚ (U+17D4-U+17DA)
    */
@@ -804,13 +815,16 @@ export class KhmerBreaker {
 
     // First pass: merge any dangling bantoc tokens with their preceding segment
     // This is a safety net in case beam search still produces them
+    // Also handles tokens that START with dangling bantoc (like "ស់ប្រិ")
     const merged: string[] = []
     for (let i = 0; i < segments.length; i++) {
       const seg = segments[i]
       
-      // If this is a dangling bantoc (consonant + ់) and not a known word,
+      // If this is or starts with a dangling bantoc (consonant + ់) and not a known word,
       // merge it with the previous segment
-      if (this.charSets.isDanglingBantoc(seg) && !this.trie.hasWord(seg) && merged.length > 0) {
+      const hasDanglingBantoc = this.charSets.isDanglingBantoc(seg) || this.charSets.startsWithDanglingBantoc(seg)
+      if (hasDanglingBantoc && !this.trie.hasWord(seg) && merged.length > 0) {
+        console.log(`[v0] Post-merge: merging "${seg}" with previous segment "${merged[merged.length - 1]}"`)
         merged[merged.length - 1] += seg
       } else {
         merged.push(seg)
@@ -1063,9 +1077,11 @@ export class KhmerBreaker {
           // Apply heavy penalty for "dangling bantoc" tokens (consonant + ់)
           // These are almost always misbreaks and should stay with the previous word
           // e.g., "របស់" should not be split as "រប|ស់"
-          if (this.charSets.isDanglingBantoc(piece)) {
+          // Also penalize tokens that START with consonant + ់ (like "ស់ប្រិ")
+          if (this.charSets.isDanglingBantoc(piece) || this.charSets.startsWithDanglingBantoc(piece)) {
             // Only allow if it's a known dictionary word (very rare)
             if (!this.trie.hasWord(piece)) {
+              console.log(`[v0] Dangling bantoc penalty applied to: "${piece}"`)
               score -= KhmerBreaker.DANGLING_BANTOC_PENALTY
             }
           }
