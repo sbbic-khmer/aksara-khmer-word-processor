@@ -448,26 +448,34 @@ const scanAndMarkMisspellings = useCallback(() => {
                 const nodeKey = node.getKey();
                 setReplaceHandler(() => {
                     return (oldWord: string, newWord: string) => {
+                        console.log('[v0] replaceHandler called:', { oldWord, newWord, nodeKey, start, end });
                         try {
                             editor.update(() => {
                                 const maybeNode = $getNodeByKey(nodeKey);
-                                if (!$isTextNode(maybeNode)) return;
+                                console.log('[v0] Found node by key:', nodeKey, 'node:', maybeNode, 'isTextNode:', $isTextNode(maybeNode));
+                                if (!$isTextNode(maybeNode)) {
+                                    console.log('[v0] Node is not a TextNode, aborting replace');
+                                    return;
+                                }
 
                                 // For Khmer, we replace the entire node content
                                 // since each TextNode is a word segment
                                 const currentText = maybeNode.getTextContent();
+                                console.log('[v0] Current text content:', currentText);
                                 
                                 if (containsKhmer(currentText)) {
                                     // Replace the entire text content
+                                    console.log('[v0] Replacing Khmer word, setting text to:', newWord);
                                     maybeNode.setTextContent(newWord);
                                 } else {
                                     // For non-Khmer, do targeted replacement
                                     const newText = currentText.slice(0, start) + newWord + currentText.slice(end);
+                                    console.log('[v0] Replacing non-Khmer word, setting text to:', newText);
                                     maybeNode.setTextContent(newText);
                                 }
                             });
-                        } catch {
-                            // Error performing spell replace
+                        } catch (err) {
+                            console.error('[v0] Error performing spell replace:', err);
                         }
                     };
                 });
