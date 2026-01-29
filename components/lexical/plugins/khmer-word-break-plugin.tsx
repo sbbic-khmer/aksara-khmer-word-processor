@@ -80,36 +80,8 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const hasInitialResegmentRef = useRef(false)
 
   // Force resegment all paragraphs (used on mount and when showBreaks changes)
-  const forceResegmentAllParagraphs = useCallback(() => {
-    console.log('[v0] forceResegmentAllParagraphs called, showBreaks:', showBreaks)
-    editor.update(() => {
-      const root = $getRoot()
-      const children = root.getChildren()
-      console.log('[v0] Found', children.length, 'root children')
-      children.forEach((child, idx) => {
-        if ($isParagraphNode(child)) {
-          // Get all text content and force a modification to trigger transform
-          const textContent = child.getTextContent()
-          const childNodes = child.getChildren()
-          console.log(`[v0] Paragraph ${idx}: "${textContent?.slice(0, 30)}...", ${childNodes.length} child nodes`)
-          childNodes.forEach((n, i) => {
-            if ($isTextNode(n)) {
-              console.log(`[v0]   TextNode ${i}: "${n.getTextContent().slice(0, 20)}..." style: "${n.getStyle()}"`)
-            }
-          })
-          if (textContent && textContent.length > 0) {
-            // Find first text node and mark it dirty
-            const firstTextNode = childNodes.find($isTextNode) as TextNode | undefined
-            if (firstTextNode) {
-              // Force a change by setting same text - this triggers the transform
-              console.log('[v0] Triggering transform on first text node')
-              firstTextNode.setTextContent(firstTextNode.getTextContent())
-            }
-          }
-        }
-      })
-    })
-  }, [editor, showBreaks])
+  // This is defined later after resegmentParagraph, but we need a ref to call it
+  const forceResegmentAllParagraphsRef = useRef<() => void>(() => {})
 
   // Initial mount: force resegment all paragraphs to ensure proper word boundaries
   useEffect(() => {
@@ -125,11 +97,12 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       // Clear again in case transforms already ran
       processedNodesRef.current = new WeakSet<TextNode>()
       processedParagraphKeysRef.current = new Set<string>()
-      forceResegmentAllParagraphs()
+      forceResegmentAllParagraphsRef.current()
     }, 100)
     
     return () => clearTimeout(timeoutId)
-  }, [forceResegmentAllParagraphs])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
 useEffect(() => {
   // Clear processed refs when showBreaks changes to allow re-processing
@@ -139,7 +112,7 @@ useEffect(() => {
   // Force re-process all paragraphs when showBreaks changes
   // We need to do this after a small delay to ensure the effect has set up transforms
   const timeoutId = setTimeout(() => {
-    forceResegmentAllParagraphs()
+    forceResegmentAllParagraphsRef.current()
   }, 50)
   
   // Store format info for each character position
@@ -591,6 +564,34 @@ useEffect(() => {
       }
     }
 
+    // Define the actual forceResegmentAllParagraphs function now that resegmentParagraph exists
+    const forceResegmentAllParagraphs = () => {
+      console.log('[v0] forceResegmentAllParagraphs called, showBreaks:', showBreaks)
+      editor.update(() => {
+        // Clear processed tracking to allow reprocessing
+        processedNodesRef.current = new WeakSet<TextNode>()
+        processedParagraphKeysRef.current = new Set<string>()
+        
+        const root = $getRoot()
+        const children = root.getChildren()
+        console.log('[v0] Found', children.length, 'root children to resegment')
+        
+        children.forEach((child, idx) => {
+          if ($isParagraphNode(child)) {
+            const textContent = child.getTextContent()
+            if (textContent && textContent.length > 0) {
+              console.log(`[v0] Directly resegmenting paragraph ${idx}: "${textContent.slice(0, 30)}..."`)
+              // Directly call resegmentParagraph instead of relying on transform
+              resegmentParagraph(child, null)
+            }
+          }
+        })
+      })
+    }
+    
+    // Store ref so it can be called from command handler
+    forceResegmentAllParagraphsRef.current = forceResegmentAllParagraphs
+
     const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
       console.log('[v0] Transform triggered for node:', textNode.getTextContent().slice(0, 30))
       if (processedNodesRef.current.has(textNode)) {
@@ -788,7 +789,7 @@ useEffect(() => {
         processedNodesRef.current = new WeakSet<TextNode>()
         processedParagraphKeysRef.current = new Set<string>()
         // Force resegmentation
-        forceResegmentAllParagraphs()
+        forceResegmentAllParagraphsRef.current()
         return true
       },
       COMMAND_PRIORITY_NORMAL,
@@ -800,7 +801,7 @@ useEffect(() => {
       removePasteCommand()
       removeResegmentCommand()
     }
-  }, [editor, breaker, showBreaks, forceResegmentAllParagraphs])
+  }, [editor, breaker, showBreaks])
 
   return null
 }
