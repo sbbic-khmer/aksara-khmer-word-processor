@@ -1,7 +1,7 @@
 /**
  * Khmer Text Breaking Utility
- * Uses Bidirectional Maximum Matching algorithm for word segmentation.
- * Also supports Intl.Segmenter as primary method when available.
+ * Uses Beam Search algorithm for word segmentation with frequency dictionary.
+ * Also supports Intl.Segmenter as secondary validation when available.
  *
  * Based on Unicode's Khmer orthographic syllable structure:
  * Khmer-syllable ::= (K H)* K M*
@@ -11,6 +11,7 @@
  */
 
 import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
+import { PROTECTED_PHRASES } from "./protected-phrases"
 
 const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
@@ -125,6 +126,30 @@ class KhmerTrie {
     return lastMatch
   }
 
+  /**
+   * Find ALL dictionary matches starting at position (not just longest).
+   * Returns array of { length, frequency } for each match found.
+   * Used by beam search to explore multiple segmentation paths.
+   */
+  findAllMatches(text: string, startIndex: number, maxLength: number): Array<{ length: number; frequency: number }> {
+    const matches: Array<{ length: number; frequency: number }> = []
+    let node = this.root
+    let currentLength = 0
+
+    for (let i = startIndex; i < text.length && currentLength < maxLength; i++) {
+      const char = text[i]
+
+      if (!node.children.has(char)) break
+      node = node.children.get(char)!
+      currentLength++
+
+      if (node.isWord) {
+        matches.push({ length: currentLength, frequency: node.frequency })
+      }
+    }
+    return matches
+  }
+
   hasWord(word: string): boolean {
     let node = this.root
     for (const char of word) {
@@ -206,6 +231,19 @@ class KhmerCharSets {
   }
 
   /**
+   * Check if character is punctuation (Khmer or common).
+   * Khmer punctuation: ។ ៕ ៖ ៗ ៘ ៙ ៚ (U+17D4-U+17DA)
+   */
+  isPunctuation(char: string): boolean {
+    const code = char.codePointAt(0)!
+    // Khmer punctuation range
+    if (code >= 0x17d4 && code <= 0x17da) return true
+    // Common punctuation
+    if ('.,;:!?()[]{}"\'-–—…'.includes(char)) return true
+    return false
+  }
+
+  /**
    * Find end of syllable starting at index.
    */
   findSyllableEnd(text: string, index: number): number {
@@ -245,6 +283,10 @@ class KhmerCharSets {
 
   /**
    * Check if position is a valid break point.
+   * Implements Unicode-compliant break rules for Khmer:
+   * - Never break before combining marks (dependent vowels, signs, etc.)
+   * - Never break before or after COENG
+   * - Never break around Word Joiner (U+2060)
    */
   canBreakAt(text: string, index: number): boolean {
     if (index <= 0 || index >= text.length) return false
@@ -252,39 +294,24 @@ class KhmerCharSets {
     const before = text[index - 1]
     const after = text[index]
 
-    const beforeCode = before.codePointAt(0)?.toString(16)
-    const afterCode = after.codePointAt(0)?.toString(16)
+    // 1) Word Joiner (U+2060) prevents breaking on either side
+    if (before === WJ || after === WJ) return false
 
-    if (this.isCoeng(before)) {
-      if (isWordBreakerDebugEnabled()) {
-        console.log(
-          `[v0] canBreakAt(${index}): FALSE - before is Coeng. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode})`,
-        )
-      }
-      return false
-    }
-    if (this.isCoeng(after)) {
-      if (isWordBreakerDebugEnabled()) {
-        console.log(
-          `[v0] canBreakAt(${index}): FALSE - after is Coeng. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode})`,
-        )
-      }
-      return false
-    }
-    if (this.isCombiningMark(after) && !this.isBase(after)) {
-      if (isWordBreakerDebugEnabled()) {
-        console.log(
-          `[v0] canBreakAt(${index}): FALSE - after is combining mark but not base. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode}), isCombiningMark=${this.isCombiningMark(after)}, isBase=${this.isBase(after)}`,
-        )
-      }
+    // 2) CRITICAL: never break after or before COENG
+    if (this.isCoeng(before) || this.isCoeng(after)) return false
+
+    // 3) Unicode LB9: never break BEFORE a combining mark.
+    // In Khmer this means dependent vowels, signs, and other marks
+    // must stay attached to the previous base/cluster.
+    if (this.isCombiningMark(after)) return false
+
+    // 4) Don't break right after a combining mark unless the next char
+    // begins a new cluster (is a base), or is whitespace/punctuation.
+    // This prevents ugly breaks like "...VOWEL | non-base"
+    if (this.isCombiningMark(before) && !this.isBase(after) && !/\s/.test(after) && !this.isPunctuation(after)) {
       return false
     }
 
-    if (isWordBreakerDebugEnabled()) {
-      console.log(
-        `[v0] canBreakAt(${index}): TRUE. before="${before}" (U+${beforeCode}), after="${after}" (U+${afterCode})`,
-      )
-    }
     return true
   }
 
@@ -304,6 +331,43 @@ class KhmerCharSets {
       }
     }
     return count || 1
+  }
+
+  /**
+   * Extract Khmer Character Clusters (KCCs) from text.
+   * A KCC is the smallest unit that cannot be broken - similar to a grapheme cluster.
+   * Returns array of cluster strings.
+   * 
+   * KCC structure: Base (COENG + Consonant)* (DependentVowels | Signs)*
+   * Where Base = Consonant | IndependentVowel
+   */
+  extractClusters(text: string): string[] {
+    const clusters: string[] = []
+    let pos = 0
+    
+    while (pos < text.length) {
+      const char = text[pos]
+      
+      // Non-Khmer characters are their own "cluster"
+      if (!this.isKhmerChar(char)) {
+        clusters.push(char)
+        pos++
+        continue
+      }
+      
+      // Start of a KCC - must begin with a base character (consonant or independent vowel)
+      if (this.isBase(char)) {
+        const clusterEnd = this.findSyllableEnd(text, pos)
+        clusters.push(text.substring(pos, clusterEnd))
+        pos = clusterEnd
+      } else {
+        // Orphaned combining mark - take it as its own unit
+        clusters.push(char)
+        pos++
+      }
+    }
+    
+    return clusters
   }
 }
 
@@ -352,6 +416,76 @@ export class KhmerBreaker {
   }
 
   /**
+   * Wrap protected phrases with Word Joiner (WJ) characters to prevent splitting.
+   * Only applies if the text doesn't already contain WJ around the phrase.
+   */
+  private applyProtectedPhrases(text: string): string {
+    if (!text || PROTECTED_PHRASES.length === 0) return text
+
+    // Sort longest-first to avoid overlapping issues
+    const phrases = [...PROTECTED_PHRASES].sort((a, b) => b.length - a.length)
+
+    let result = text
+    for (const phrase of phrases) {
+      if (result.includes(phrase)) {
+        // Check if already wrapped with WJ
+        const wrappedPhrase = WJ + phrase + WJ
+        if (!result.includes(wrappedPhrase)) {
+          // Wrap the phrase with WJ on both sides to prevent splitting
+          result = result.split(phrase).join(wrappedPhrase)
+        }
+      }
+    }
+    return result
+  }
+
+  /**
+   * Merge adjacent segments if their concatenation forms a known dictionary word.
+   * This is a "safety net" that fixes cases where segmentation split a compound word.
+   * E.g., ["កោត", "ខ្លាច"] -> ["កោតខ្លាច"] if កោតខ្លាច is in the dictionary.
+   */
+  private mergeKnownCompounds(segments: string[]): string[] {
+    if (segments.length <= 1) return segments
+
+    const out: string[] = []
+    let i = 0
+
+    while (i < segments.length) {
+      const seg = segments[i]
+
+      // Don't merge whitespace or punctuation tokens
+      if (/^\s+$/.test(seg) || this.isPurelyClosingPunctuation(seg) || this.isPurelyOpeningPunctuation(seg)) {
+        out.push(seg)
+        i++
+        continue
+      }
+
+      let best = seg
+      let bestJ = i
+
+      // Try merging up to 4 tokens ahead
+      let combined = seg
+      for (let j = i + 1; j < Math.min(i + 5, segments.length); j++) {
+        const next = segments[j]
+        // Stop if next is whitespace or punctuation
+        if (/^\s+$/.test(next) || this.isPurelyClosingPunctuation(next) || this.isPurelyOpeningPunctuation(next)) {
+          break
+        }
+        combined += next
+        if (this.trie.hasWord(combined)) {
+          best = combined
+          bestJ = j
+        }
+      }
+
+      out.push(best)
+      i = bestJ + 1
+    }
+
+    return out
+  }
+
+  /**
    * Main segmentation method.
    * Respects existing ZWSP characters as user-defined break points.
    * Respects Word Joiner (WJ) characters to keep words together.
@@ -370,7 +504,9 @@ export class KhmerBreaker {
       allSegments.push(...chunkSegments)
     }
 
-    return this.mergePunctuation(allSegments)
+    // Post-processing pipeline
+    const punctMerged = this.mergePunctuation(allSegments)
+    return this.mergeKnownCompounds(punctMerged)
   }
 
   /**
@@ -480,7 +616,9 @@ export class KhmerBreaker {
           continue
         }
 
-        const joinedRegions = this.splitByWJ(core)
+        // Apply protected phrases before splitting by WJ
+        const protectedCore = this.applyProtectedPhrases(core)
+        const joinedRegions = this.splitByWJ(protectedCore)
         const coreSegments: string[] = []
 
         for (const region of joinedRegions) {
@@ -488,17 +626,17 @@ export class KhmerBreaker {
             // WJ characters will be preserved in the text for future segmentations
             coreSegments.push(region.text)
           } else {
-            // This region has no WJ - segment it normally
-            const dictSegments = this.bidirectionalSegment(region.text)
+            // This region has no WJ - segment using beam search for globally optimal result
+            const beamSegments = this.beamSegment(region.text)
 
             // If Intl.Segmenter is available, use it to validate/improve our result
-            let finalSegments = dictSegments
+            let finalSegments = beamSegments
             if (this.useIntlSegmenter) {
               try {
                 const intlSegments = this.segmentWithIntl(region.text)
-                finalSegments = this.improveWithIntlHints(dictSegments, intlSegments, region.text)
+                finalSegments = this.improveWithIntlHints(beamSegments, intlSegments, region.text)
               } catch {
-                // Fall through to dictionary result
+                // Fall through to beam search result
               }
             }
             coreSegments.push(...finalSegments)
@@ -614,17 +752,17 @@ export class KhmerBreaker {
   }
 
   /**
-   * Improve dictionary-based segments with Intl.Segmenter hints.
-   * Dictionary takes priority, but Intl can help with unknown words.
+   * Improve beam search segments with Intl.Segmenter hints.
+   * Beam search takes priority, but Intl can help with unknown words.
    */
-  private improveWithIntlHints(dictSegments: string[], intlSegments: string[], originalText: string): string[] {
-    // If dictionary produced good results (mostly known words), use them
-    const knownWordCount = dictSegments.filter((s) => this.trie.hasWord(s)).length
-    const knownWordRatio = knownWordCount / dictSegments.length
+  private improveWithIntlHints(beamSegments: string[], intlSegments: string[], originalText: string): string[] {
+    // If beam search produced good results (mostly known words), use them
+    const knownWordCount = beamSegments.filter((s) => this.trie.hasWord(s)).length
+    const knownWordRatio = knownWordCount / beamSegments.length
 
-    // If most segments are known dictionary words, trust the dictionary
+    // If most segments are known dictionary words, trust beam search
     if (knownWordRatio >= 0.5) {
-      return dictSegments
+      return beamSegments
     }
 
     // Otherwise, try to use Intl segments but validate against dictionary
@@ -666,9 +804,173 @@ export class KhmerBreaker {
     return result
   }
 
+  // ============ Beam Search Scoring Constants ============
+  // Tuned to prevent over-splitting into syllables
+  private static readonly BEAM_WIDTH = 8                     // Number of top paths to keep
+  private static readonly MAX_WORD_LEN = 20                  // Maximum word length in characters
+  private static readonly OOV_PENALTY = 6.0                  // Cost for unknown token
+  private static readonly OOV_SINGLE_CLUSTER_PENALTY = 12.0  // Heavy cost for single-cluster OOV
+  private static readonly BOUNDARY_PENALTY = 2.0             // Cost per token boundary
+  private static readonly LENGTH_BONUS = 0.25                // Reward per character for longer tokens
+
+  /**
+   * Check if a position is a safe token boundary.
+   * End-of-text is always safe; otherwise delegate to canBreakAt.
+   */
+  private isSafeBoundary(text: string, endIndex: number): boolean {
+    if (endIndex <= 0 || endIndex >= text.length) return true
+    return this.charSets.canBreakAt(text, endIndex)
+  }
+
+  /**
+   * Beam search segmentation algorithm.
+   * Explores multiple segmentation paths and keeps the top N best ones.
+   * 
+   * Simpler than full Viterbi but captures most of its benefit.
+   * Key insight: greedy fails when you need to look 2-4 words ahead.
+   */
+  private beamSegment(text: string): string[] {
+    if (!text || text.length === 0) return []
+    
+    const endPos = text.length
+    
+    // State: { pos: current position, score: cumulative score, pieces: tokens so far }
+    type BeamState = { pos: number; score: number; pieces: string[] }
+    let states: BeamState[] = [{ pos: 0, score: 0, pieces: [] }]
+    
+    while (states.length > 0) {
+      // If every state finished, break
+      if (states.every(s => s.pos >= endPos)) break
+      
+      const nextStates: BeamState[] = []
+      
+      for (const s of states) {
+        if (s.pos >= endPos) {
+          nextStates.push(s)
+          continue
+        }
+        
+        const ch = text[s.pos]
+        
+        // Handle whitespace as its own token
+        if (ch === ' ' || ch === '\t' || ch === '\n') {
+          nextStates.push({
+            pos: s.pos + 1,
+            score: s.score,
+            pieces: [...s.pieces, ch],
+          })
+          continue
+        }
+        
+        // Handle punctuation as its own token
+        if (this.charSets.isPunctuation(ch)) {
+          nextStates.push({
+            pos: s.pos + 1,
+            score: s.score,
+            pieces: [...s.pieces, ch],
+          })
+          continue
+        }
+        
+        // Handle non-Khmer characters (Latin, numbers, etc.)
+        if (!this.charSets.isKhmerChar(ch)) {
+          // Consume entire non-Khmer run
+          let runEnd = s.pos + 1
+          while (runEnd < endPos && !this.charSets.isKhmerChar(text[runEnd]) && 
+                 text[runEnd] !== ' ' && !this.charSets.isPunctuation(text[runEnd])) {
+            runEnd++
+          }
+          nextStates.push({
+            pos: runEnd,
+            score: s.score,
+            pieces: [...s.pieces, text.slice(s.pos, runEnd)],
+          })
+          continue
+        }
+        
+        // Khmer text - find dictionary matches
+        const maxLen = Math.min(KhmerBreaker.MAX_WORD_LEN, endPos - s.pos)
+        const matches = this.trie.findAllMatches(text, s.pos, maxLen)
+        
+        // Build candidate tokens
+        const candidates: Array<{ len: number; score: number }> = []
+        
+        // Add dictionary matches as candidates (only if they end at safe boundaries)
+        for (const m of matches) {
+          const end = s.pos + m.length
+          
+          // Reject dictionary matches that would end at an illegal boundary
+          if (!this.isSafeBoundary(text, end)) {
+            continue
+          }
+          
+          // Get the actual word to check significance
+          const word = text.slice(s.pos, end)
+          
+          // Reject low-significance short tokens (prevents syllable splitting)
+          // This uses the same thresholds as forwardMaximumMatch
+          if (!this.isSignificantWord({ word, frequency: m.frequency })) {
+            continue
+          }
+          
+          let sc = Math.log((m.frequency || 1) + 1)
+          sc += KhmerBreaker.LENGTH_BONUS * m.length
+          sc -= KhmerBreaker.BOUNDARY_PENALTY
+          candidates.push({ len: m.length, score: sc })
+        }
+        
+        // OOV fallback: consume one cluster, ensuring safe boundary
+        const clusterEnd = this.charSets.findSyllableEnd(text, s.pos)
+        let oovEnd = Math.max(s.pos + 1, clusterEnd)
+        
+        // Walk forward until we find a safe boundary (should be rare if cluster detection is correct)
+        while (oovEnd < endPos && !this.isSafeBoundary(text, oovEnd)) {
+          oovEnd++
+        }
+        
+        const oovLen = oovEnd - s.pos
+        
+        // Check if this OOV is just a single cluster (heavier penalty)
+        const oovPenalty = oovLen <= 2 
+          ? KhmerBreaker.OOV_SINGLE_CLUSTER_PENALTY 
+          : KhmerBreaker.OOV_PENALTY
+        
+        candidates.push({
+          len: oovLen,
+          score: -oovPenalty - KhmerBreaker.BOUNDARY_PENALTY,
+        })
+        
+        // Expand states with all candidates
+        for (const c of candidates) {
+          const piece = text.slice(s.pos, s.pos + c.len)
+          nextStates.push({
+            pos: s.pos + c.len,
+            score: s.score + c.score,
+            pieces: [...s.pieces, piece],
+          })
+        }
+      }
+      
+      // Keep top BEAM_WIDTH states, favoring higher scores and further progress
+      nextStates.sort((a, b) => (b.score - a.score) || (b.pos - a.pos))
+      states = nextStates.slice(0, KhmerBreaker.BEAM_WIDTH)
+    }
+    
+    // Choose best finished state (furthest position, then highest score)
+    states.sort((a, b) => (b.pos - a.pos) || (b.score - a.score))
+    const result = states[0]?.pieces ?? [text]
+    
+    if (isWordBreakerDebugEnabled()) {
+      console.log(`[v0] beamSegment: "${text}" -> [${result.map((s) => `"${s}"`).join(", ")}]`)
+    }
+    
+    return result
+  }
+
   /**
    * Bidirectional Maximum Matching algorithm.
    * Compares forward and backward maximum matching and picks the better result.
+   * Kept as fallback method.
    */
   private bidirectionalSegment(text: string): string[] {
     const forward = this.forwardMaximumMatch(text)
