@@ -1,5 +1,23 @@
 "use client"
 
+/**
+ * Khmer Word Break Plugin
+ * 
+ * This plugin segments Khmer text into individual words for proper display and grammar checking.
+ * 
+ * IMPORTANT: Unique Style Requirement for Grammar Checking
+ * =========================================================
+ * Each word TextNode MUST have a unique `--word-id` CSS custom property in its style.
+ * This is critical because Lexical merges adjacent TextNodes with identical styles into
+ * a single DOM <span> element. Without unique styles, multiple words end up in one span,
+ * causing the grammar checker to highlight entire phrases instead of individual words.
+ * 
+ * The `--word-id` has no visual effect but ensures each word renders as its own DOM element.
+ * This style is persisted in the saved editor state, so it survives page reloads.
+ * 
+ * Example: `--word-id: 1706454123456-0` for the first word, `--word-id: 1706454123456-1` for the second, etc.
+ */
+
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import {
   TextNode,
@@ -9,12 +27,17 @@ import {
   $createParagraphNode,
   PASTE_COMMAND,
   COMMAND_PRIORITY_HIGH,
+  COMMAND_PRIORITY_NORMAL,
   $getRoot,
   $isTextNode,
   $isParagraphNode,
   type LexicalNode,
   type ElementNode,
+  createCommand,
 } from "lexical"
+
+// Custom command to force resegmentation after content is loaded
+export const FORCE_RESEGMENT_COMMAND = createCommand<void>("FORCE_RESEGMENT_COMMAND")
 import { useEffect, useRef, useCallback } from "react"
 import { $createKhmerBreakNode, $isKhmerBreakNode } from "../nodes/khmer-break-node"
 import type { KhmerBreaker } from "@/lib/khmer-breaker"
@@ -75,26 +98,8 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   const hasInitialResegmentRef = useRef(false)
 
   // Force resegment all paragraphs (used on mount and when showBreaks changes)
-  const forceResegmentAllParagraphs = useCallback(() => {
-    editor.update(() => {
-      const root = $getRoot()
-      const children = root.getChildren()
-      children.forEach((child) => {
-        if ($isParagraphNode(child)) {
-          // Get all text content and force a modification to trigger transform
-          const textContent = child.getTextContent()
-          if (textContent && textContent.length > 0) {
-            // Find first text node and mark it dirty
-            const firstTextNode = child.getChildren().find($isTextNode) as TextNode | undefined
-            if (firstTextNode) {
-              // Force a change by setting same text - this triggers the transform
-              firstTextNode.setTextContent(firstTextNode.getTextContent())
-            }
-          }
-        }
-      })
-    })
-  }, [editor])
+  // This is defined later after resegmentParagraph, but we need a ref to call it
+  const forceResegmentAllParagraphsRef = useRef<() => void>(() => {})
 
   // Initial mount: force resegment all paragraphs to ensure proper word boundaries
   useEffect(() => {
@@ -110,11 +115,12 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
       // Clear again in case transforms already ran
       processedNodesRef.current = new WeakSet<TextNode>()
       processedParagraphKeysRef.current = new Set<string>()
-      forceResegmentAllParagraphs()
+      forceResegmentAllParagraphsRef.current()
     }, 100)
     
     return () => clearTimeout(timeoutId)
-  }, [forceResegmentAllParagraphs])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
 useEffect(() => {
   // Clear processed refs when showBreaks changes to allow re-processing
@@ -124,7 +130,7 @@ useEffect(() => {
   // Force re-process all paragraphs when showBreaks changes
   // We need to do this after a small delay to ensure the effect has set up transforms
   const timeoutId = setTimeout(() => {
-    forceResegmentAllParagraphs()
+    forceResegmentAllParagraphsRef.current()
   }, 50)
   
   // Store format info for each character position
@@ -310,14 +316,22 @@ useEffect(() => {
           const newNodes: LexicalNode[] = []
           let charPos = 0
           
+          let segmentIndex = 0
           for (const segment of spaceSegments) {
             const { format, style } = getFormatAtPosition(formatRanges, charPos)
             const newTextNode = $createTextNode(segment)
             newTextNode.setFormat(format)
-            newTextNode.setStyle(style)
+            
+            // Add a unique word ID to each node's style to prevent Lexical from merging
+            // adjacent TextNodes into one DOM span. This is critical for spell/grammar
+            // checking to work on individual words.
+            const wordId = `--word-id: ${Date.now()}-${segmentIndex}`
+            newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
+            
             processedNodesRef.current.add(newTextNode)
             newNodes.push(newTextNode)
             charPos += segment.length
+            segmentIndex++
           }
           
           if (newNodes.length > 0) {
@@ -362,7 +376,13 @@ useEffect(() => {
           
           const newTextNode = $createTextNode(segment)
           newTextNode.setFormat(format)
-          newTextNode.setStyle(style)
+          
+          // Add a unique word ID to each node's style to prevent Lexical from merging
+          // adjacent text nodes with identical styles into a single DOM span.
+          // This is critical for grammar checking to work on individual words.
+          const wordId = `--word-id: ${Date.now()}-${i}`
+          newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
+          
           processedNodesRef.current.add(newTextNode)
           newNodes.push(newTextNode)
           
@@ -496,16 +516,11 @@ useEffect(() => {
           const newTextNode = $createTextNode(segment)
           newTextNode.setFormat(format)
           
-          // For space segments, add a unique style to prevent Lexical from merging
+          // Add a unique word ID to each node's style to prevent Lexical from merging
           // adjacent TextNodes into one DOM span. This is critical for spell/grammar
           // checking to work on individual words.
-          const isSpaceSegment = /^\s+$/.test(segment)
-          if (isSpaceSegment) {
-            // Use a CSS custom property that has no visual effect but makes the style unique
-            newTextNode.setStyle(style ? `${style}; --space-segment: 1` : '--space-segment: 1')
-          } else {
-            newTextNode.setStyle(style)
-          }
+          const wordId = `--word-id: ${Date.now()}-${i}`
+          newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
           
           processedNodesRef.current.add(newTextNode)
           newNodes.push(newTextNode)
@@ -566,6 +581,31 @@ useEffect(() => {
       }
     }
 
+    // Define the actual forceResegmentAllParagraphs function now that resegmentParagraph exists
+    const forceResegmentAllParagraphs = () => {
+      editor.update(() => {
+        // Clear processed tracking to allow reprocessing
+        processedNodesRef.current = new WeakSet<TextNode>()
+        processedParagraphKeysRef.current = new Set<string>()
+        
+        const root = $getRoot()
+        const children = root.getChildren()
+        
+        children.forEach((child) => {
+          if ($isParagraphNode(child)) {
+            const textContent = child.getTextContent()
+            if (textContent && textContent.length > 0) {
+              // Directly call resegmentParagraph instead of relying on transform
+              resegmentParagraph(child, null)
+            }
+          }
+        })
+      })
+    }
+    
+    // Store ref so it can be called from command handler
+    forceResegmentAllParagraphsRef.current = forceResegmentAllParagraphs
+
     const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
       if (processedNodesRef.current.has(textNode)) return
 
@@ -574,9 +614,7 @@ useEffect(() => {
       const parent = textNode.getParent()
       if (!parent || !$isParagraphNode(parent)) return
 
-      if (processedParagraphKeysRef.current.has(parent.getKey())) {
-        return
-      }
+      if (processedParagraphKeysRef.current.has(parent.getKey())) return
 
       // Get current text content
       const textContent = textNode.getTextContent()
@@ -740,10 +778,25 @@ useEffect(() => {
       COMMAND_PRIORITY_HIGH,
     )
 
+    // Register command to force resegmentation (called after content is loaded)
+    const removeResegmentCommand = editor.registerCommand(
+      FORCE_RESEGMENT_COMMAND,
+      () => {
+        // Clear all processed tracking
+        processedNodesRef.current = new WeakSet<TextNode>()
+        processedParagraphKeysRef.current = new Set<string>()
+        // Force resegmentation
+        forceResegmentAllParagraphsRef.current()
+        return true
+      },
+      COMMAND_PRIORITY_NORMAL,
+    )
+
     return () => {
       clearTimeout(timeoutId)
       removeTransform()
       removePasteCommand()
+      removeResegmentCommand()
     }
   }, [editor, breaker, showBreaks])
 

@@ -16,7 +16,7 @@ import { useTheme } from "next-themes"
 import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection, $createRangeSelection, $setSelection, CLICK_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, SELECTION_CHANGE_COMMAND, type TextNode } from "lexical"
 
 import { KhmerBreakNode } from "./nodes/khmer-break-node"
-import { KhmerWordBreakPlugin } from "./plugins/khmer-word-break-plugin"
+import { KhmerWordBreakPlugin, FORCE_RESEGMENT_COMMAND } from "./plugins/khmer-word-break-plugin"
 import { VoiceInputPlugin, INSERT_VOICE_TEXT_COMMAND } from "./plugins/voice-input-plugin"
 import { ToolbarPlugin, useToolbarCommands, type ActiveFormats } from "./plugins/toolbar-plugin"
 import { OnChangePlugin } from "./plugins/on-change-plugin"
@@ -1075,6 +1075,11 @@ function EditorWrapper({
             if (doc.editor_state) {
               const state = editor.parseEditorState(doc.editor_state)
               editor.setEditorState(state)
+              // Force resegmentation after content is loaded
+              // Use a small delay to ensure editor state is fully set
+              setTimeout(() => {
+                editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+              }, 50)
             }
             setDocumentState({
               id: doc.id,
@@ -1396,6 +1401,10 @@ function EditorWrapper({
             try {
               const state = editor.parseEditorState(doc.editor_state)
               editor.setEditorState(state)
+              // Force resegmentation after content is loaded
+              setTimeout(() => {
+                editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+              }, 50)
             } catch (error) {
               console.error("[v0] Error loading editor state:", error)
             }
@@ -1490,6 +1499,10 @@ function EditorWrapper({
         if (doc.editor_state) {
           const state = editor.parseEditorState(doc.editor_state)
           editor.setEditorState(state)
+          // Force resegmentation after content is loaded
+          setTimeout(() => {
+            editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+          }, 50)
         }
         setDocumentState({
           id: doc.id,
