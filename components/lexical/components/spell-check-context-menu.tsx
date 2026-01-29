@@ -15,7 +15,7 @@ interface MenuPosition {
 }
 
 export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) {
-  const { selectedWord, suggestions, replaceWord, isLoading, error } = useSpellCheck();
+  const { selectedWord, suggestions, replaceWord, isLoading, error, addWordToDictionary, ignoreWord } = useSpellCheck();
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<MenuPosition>({ x: 0, y: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -83,6 +83,22 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
     }
     setIsOpen(false);
   }, [selectedWord, replaceWord]);
+
+  // Handle adding word to dictionary
+  const handleAddToDictionary = useCallback(async () => {
+    if (selectedWord) {
+      await addWordToDictionary(selectedWord);
+    }
+    setIsOpen(false);
+  }, [selectedWord, addWordToDictionary]);
+
+  // Handle ignoring word
+  const handleIgnoreWord = useCallback(async () => {
+    if (selectedWord) {
+      await ignoreWord(selectedWord);
+    }
+    setIsOpen(false);
+  }, [selectedWord, ignoreWord]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -223,15 +239,27 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
                 </button>
               ))}
 
-              {/* Add to dictionary option (future feature) */}
-              <div className="border-t border-border mt-1 pt-1">
+              {/* Dictionary management options */}
+              <div className="border-t border-border mt-1 pt-1 space-y-0.5">
                 <button
-                  onClick={() => setIsOpen(false)}
+                  onClick={handleAddToDictionary}
                   className={cn(
                     "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none",
                     "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                     "transition-colors"
                   )}
+                  title="Add word to personal dictionary"
+                >
+                  បន្ថែមទៅវចនានុក្រម
+                </button>
+                <button
+                  onClick={handleIgnoreWord}
+                  className={cn(
+                    "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none",
+                    "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    "transition-colors"
+                  )}
+                  title="Ignore this word in spell checking"
                 >
                   មិនអើពើ
                 </button>

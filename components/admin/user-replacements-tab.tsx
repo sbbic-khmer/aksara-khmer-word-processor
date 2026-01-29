@@ -119,8 +119,20 @@ export function UserReplacementsTab() {
                       <div className="text-sm text-gray-500">{item.user_email}</div>
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium">{item.incorrect_word}</TableCell>
-                  <TableCell>{item.correct_word}</TableCell>
+                  <TableCell
+                    className="font-medium text-lg"
+                    dir="auto"
+                    style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                  >
+                    {item.incorrect_word}
+                  </TableCell>
+                  <TableCell
+                    className="text-lg"
+                    dir="auto"
+                    style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                  >
+                    {item.correct_word}
+                  </TableCell>
                   <TableCell className="text-gray-500 truncate max-w-[200px]">{item.notes || "-"}</TableCell>
                   <TableCell>
                     {item.promoted_to_master ? (

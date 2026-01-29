@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserReplacementsManager } from "./user-replacements-manager"
 import { UserDictionaryManager } from "./user-dictionary-manager"
+import { SpellCheckCustomWordsManager } from "./spell-check-custom-words-manager"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -34,11 +35,16 @@ export function UserSettingsDashboard() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="dictionary">My Word Breaking Dictionary</TabsTrigger>
+            <TabsTrigger value="spell-check">My Spell Check Dictionary</TabsTrigger>
             <TabsTrigger value="replacements">My Voice-to-Text Replacements</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dictionary">
             <UserDictionaryManager />
+          </TabsContent>
+
+          <TabsContent value="spell-check">
+            <SpellCheckCustomWordsManager />
           </TabsContent>
 
           <TabsContent value="replacements">

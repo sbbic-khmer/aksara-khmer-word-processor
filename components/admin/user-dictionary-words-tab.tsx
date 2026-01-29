@@ -140,7 +140,13 @@ export function UserDictionaryWordsTab() {
               <TableBody>
                 {sortedWords.map((item) => (
                   <TableRow key={item.word}>
-                    <TableCell className="font-medium text-lg" dir="auto">{item.word}</TableCell>
+                    <TableCell
+                      className="font-medium text-lg"
+                      dir="auto"
+                      style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                    >
+                      {item.word}
+                    </TableCell>
                     <TableCell>
                       <Badge 
                         variant={item.user_count > 2 ? "default" : item.user_count > 1 ? "secondary" : "outline"}

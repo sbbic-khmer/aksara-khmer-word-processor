@@ -15,10 +15,11 @@ import {
     SELECTION_CHANGE_COMMAND,
     type TextNode,
 } from 'lexical';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import Typo from 'typo-js';
 import { useSpellCheck } from '../contexts/spell-check-context';
 import { $isKhmerBreakNode } from '../nodes/khmer-break-node';
+import { useSpellCheckCustomWords } from '@/hooks/use-spell-check-custom-words';
 
 /**
  * Cross-browser caret range from point helper
@@ -125,11 +126,11 @@ function extractPunctuation(text: string): { leading: string; core: string; trai
 
 export function KhmerSpellCheckPlugin() {
     const [editor] = useLexicalComposerContext();
-    const { 
-        setSelectedWord, 
-        setSuggestions, 
-        setReplaceHandler, 
-        setIsLoading, 
+    const {
+        setSelectedWord,
+        setSuggestions,
+        setReplaceHandler,
+        setIsLoading,
         setError,
         debugMode,
         setSuggestionsLoaded,
@@ -137,6 +138,13 @@ export function KhmerSpellCheckPlugin() {
     } = useSpellCheck();
 
     const [typo, setTypo] = useState<Typo | null>(null);
+
+    // Fetch custom words (added and ignored)
+    const { addedWordStrings, ignoredWordStrings, refresh: refreshCustomWords } = useSpellCheckCustomWords();
+
+    // Convert to Sets for fast lookup
+    const addedWordsSet = useMemo(() => new Set(addedWordStrings), [addedWordStrings]);
+    const ignoredWordsSet = useMemo(() => new Set(ignoredWordStrings), [ignoredWordStrings]);
     
     // Web Worker for async suggestions (prevents UI freeze for complex words)
     const workerRef = useRef<Worker | null>(null);
@@ -294,9 +302,21 @@ const scanAndMarkMisspellings = useCallback(() => {
             }
             
             let isMisspelled = false;
-            
+
             // Only check Khmer text - skip non-Khmer (English, etc.)
             if (containsKhmer(cleanWord)) {
+                // Check if word is in user's added words (should be considered correct)
+                if (addedWordsSet.has(cleanWord)) {
+                    span.classList.remove(MISSPELLED_CLASS);
+                    return;
+                }
+
+                // Check if word is in user's ignored words (skip spell check)
+                if (ignoredWordsSet.has(cleanWord)) {
+                    span.classList.remove(MISSPELLED_CLASS);
+                    return;
+                }
+
                 const inDict = typo.check(cleanWord);
                 if (debugMode) {
                     console.log('[SpellCheck] Checking Khmer word:', cleanWord, 'inDict:', inDict);
@@ -317,7 +337,7 @@ const scanAndMarkMisspellings = useCallback(() => {
                 span.classList.remove(MISSPELLED_CLASS);
             }
         });
-    }, [editor, typo, MISSPELLED_CLASS, debugMode, spellCheckEnabled]);
+    }, [editor, typo, MISSPELLED_CLASS, debugMode, spellCheckEnabled, addedWordsSet, ignoredWordsSet]);
 
     // Register update listener to scan for misspellings on content change
     useEffect(() => {
@@ -351,6 +371,13 @@ const scanAndMarkMisspellings = useCallback(() => {
     useEffect(() => {
         scanAndMarkMisspellings();
     }, [spellCheckEnabled, scanAndMarkMisspellings]);
+
+    // Trigger scan when custom words change (added or ignored)
+    useEffect(() => {
+        if (!typo) return;
+        console.log('[SpellCheck] Custom words changed, rescanning document');
+        scanAndMarkMisspellings();
+    }, [addedWordsSet, ignoredWordsSet, typo, scanAndMarkMisspellings]);
 
     /**
      * For Khmer text, each TextNode after word-breaking represents a word segment.
@@ -467,12 +494,32 @@ const scanAndMarkMisspellings = useCallback(() => {
                 return;
             }
 
+            // Check if word is in user's added words (should be considered correct)
+            if (addedWordsSet.has(cleanWord)) {
+                setSelectedWord(null);
+                setSuggestions([]);
+                setReplaceHandler(() => () => { });
+                lastWordRef.current = null;
+                lastDetected.current = null;
+                return;
+            }
+
+            // Check if word is in user's ignored words (skip spell check)
+            if (ignoredWordsSet.has(cleanWord)) {
+                setSelectedWord(null);
+                setSuggestions([]);
+                setReplaceHandler(() => () => { });
+                lastWordRef.current = null;
+                lastDetected.current = null;
+                return;
+            }
+
             const checkStart = debugMode ? performance.now() : 0;
             const isCorrect = typo.check(cleanWord);
             if (debugMode) {
                 console.log('[SpellCheck] typo.check() took', (performance.now() - checkStart).toFixed(2), 'ms, result:', isCorrect);
             }
-            
+
             if (!isCorrect) {
                 // Set the selected word immediately so context menu can show
                 setSelectedWord(cleanWord);
@@ -558,7 +605,7 @@ const scanAndMarkMisspellings = useCallback(() => {
                 lastDetected.current = null;
             }
         },
-        [editor, typo, setReplaceHandler, setSelectedWord, setSuggestions, setSuggestionsLoaded, debugMode, workerReady]
+        [editor, typo, setReplaceHandler, setSelectedWord, setSuggestions, setSuggestionsLoaded, debugMode, workerReady, addedWordsSet, ignoredWordsSet]
     );
 
     // Called when selection changes (debounced)

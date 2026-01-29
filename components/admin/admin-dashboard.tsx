@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MasterReplacementsTab } from "./master-replacements-tab"
 import { UserReplacementsTab } from "./user-replacements-tab"
 import { UserDictionaryWordsTab } from "./user-dictionary-words-tab"
+import { SpellCheckAddedWordsTab } from "./spell-check-added-words-tab"
+import { SpellCheckIgnoredWordsTab } from "./spell-check-ignored-words-tab"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -25,7 +27,7 @@ export function AdminDashboard() {
             </Link>
             <div>
               <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Admin Dashboard</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Manage word replacements</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Manage word replacements and spell checking</p>
             </div>
           </div>
         </div>
@@ -37,6 +39,8 @@ export function AdminDashboard() {
             <TabsTrigger value="master">Master Voice-to-Text Replacements</TabsTrigger>
             <TabsTrigger value="user">User Voice-to-Text Replacements</TabsTrigger>
             <TabsTrigger value="dictionary">User Custom Word-Breaks</TabsTrigger>
+            <TabsTrigger value="spell-check-added">Spell Check Added Words</TabsTrigger>
+            <TabsTrigger value="spell-check-ignored">Spell Check Ignored Words</TabsTrigger>
           </TabsList>
 
           <TabsContent value="master">
@@ -49,6 +53,14 @@ export function AdminDashboard() {
 
           <TabsContent value="dictionary">
             <UserDictionaryWordsTab />
+          </TabsContent>
+
+          <TabsContent value="spell-check-added">
+            <SpellCheckAddedWordsTab />
+          </TabsContent>
+
+          <TabsContent value="spell-check-ignored">
+            <SpellCheckIgnoredWordsTab />
           </TabsContent>
         </Tabs>
       </main>

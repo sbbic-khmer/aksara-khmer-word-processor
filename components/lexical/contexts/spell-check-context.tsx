@@ -12,6 +12,7 @@ import React, {
     ReactNode,
     useCallback,
 } from 'react';
+import { mutate } from 'swr';
 
 interface SpellCheckContextValue {
     selectedWord: string | null;
@@ -40,6 +41,10 @@ interface SpellCheckContextValue {
     // Enable/disable spell checking
     spellCheckEnabled: boolean;
     setSpellCheckEnabled: (enabled: boolean) => void;
+    // Custom words management
+    addWordToDictionary: (word: string) => Promise<void>;
+    ignoreWord: (word: string) => Promise<void>;
+    triggerRescan: () => void;
 }
 
 const SpellCheckContext = createContext<SpellCheckContextValue>({
@@ -63,6 +68,9 @@ const SpellCheckContext = createContext<SpellCheckContextValue>({
     setSuggestionsLoaded: () => { },
     spellCheckEnabled: true,
     setSpellCheckEnabled: () => { },
+    addWordToDictionary: async () => { },
+    ignoreWord: async () => { },
+    triggerRescan: () => { },
 });
 
 export const useSpellCheck = () => useContext(SpellCheckContext);
@@ -76,6 +84,7 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
     const [debugMode, setDebugMode] = useState(false);
     const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
     const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
+    const [rescanTrigger, setRescanTrigger] = useState(0);
 
     // store the active Lexical replacement function
     const [replaceHandler, setReplaceHandler] = useState<
@@ -110,6 +119,57 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
         setMisspelledNodeKeys(new Set());
     }, []);
 
+    // Add word to spell check dictionary
+    const addWordToDictionary = useCallback(async (word: string) => {
+        try {
+            const res = await fetch('/api/spell-check/custom-words', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ word, action: 'add' }),
+            });
+
+            if (!res.ok) {
+                throw new Error('Failed to add word');
+            }
+
+            // Revalidate the custom words cache to fetch updated data
+            await mutate('/api/spell-check/custom-words');
+
+            // Trigger rescan to remove red underline
+            setRescanTrigger(prev => prev + 1);
+        } catch (err) {
+            console.error('Error adding word to dictionary:', err);
+        }
+    }, []);
+
+    // Ignore word in spell checker
+    const ignoreWord = useCallback(async (word: string) => {
+        try {
+            const res = await fetch('/api/spell-check/custom-words', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ word, action: 'ignore' }),
+            });
+
+            if (!res.ok) {
+                throw new Error('Failed to ignore word');
+            }
+
+            // Revalidate the custom words cache to fetch updated data
+            await mutate('/api/spell-check/custom-words');
+
+            // Trigger rescan to remove red underline
+            setRescanTrigger(prev => prev + 1);
+        } catch (err) {
+            console.error('Error ignoring word:', err);
+        }
+    }, []);
+
+    // Trigger a rescan of the document
+    const triggerRescan = useCallback(() => {
+        setRescanTrigger(prev => prev + 1);
+    }, []);
+
     return (
         <SpellCheckContext.Provider
             value={{
@@ -126,6 +186,9 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
                 debugMode, setDebugMode,
                 suggestionsLoaded, setSuggestionsLoaded,
                 spellCheckEnabled, setSpellCheckEnabled,
+                addWordToDictionary,
+                ignoreWord,
+                triggerRescan,
             }}
         >
             {children}
