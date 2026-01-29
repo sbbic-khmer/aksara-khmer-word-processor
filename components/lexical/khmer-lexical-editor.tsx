@@ -43,6 +43,7 @@ import { SaveDialog } from "@/components/editor/save-dialog"
 import { ConflictDialog } from "@/components/editor/conflict-dialog"
 import { useReplacements } from "@/hooks/use-replacements"
 import { usePreferences } from "@/hooks/use-preferences"
+import { useUserDictionary } from "@/hooks/use-user-dictionary"
 import { exportToOdtFromLexical } from "@/lib/odt-export-lexical"
 import { cn } from "@/lib/utils"
 import {
@@ -1609,6 +1610,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
 
     const { applyReplacements } = useReplacements()
     const { preferences, isLoading: isLoadingPreferences, updatePreference } = usePreferences()
+    const { wordStrings: userDictionaryWords } = useUserDictionary()
 
     const updateLastOpenedDocumentId = useCallback(
       (id: string | null) => {
@@ -1620,6 +1622,13 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     useEffect(() => {
       setMounted(true)
     }, [])
+
+    // Load user dictionary words into the breaker when they change
+    useEffect(() => {
+      if (userDictionaryWords.length > 0) {
+        breaker.addUserWords(userDictionaryWords)
+      }
+    }, [breaker, userDictionaryWords])
 
     const [activeFormats, setActiveFormats] = useState<ActiveFormats>({
       bold: false,

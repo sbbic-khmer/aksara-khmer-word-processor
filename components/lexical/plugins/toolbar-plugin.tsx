@@ -16,6 +16,7 @@ import { INSERT_UNORDERED_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND, REMOVE_LIST
 import { useCallback, useEffect, useState } from "react"
 import { $getNearestNodeOfType, mergeRegister } from "@lexical/utils"
 import { ListNode } from "@lexical/list"
+import { mutate } from "swr"
 
 export interface ActiveFormats {
   bold: boolean
@@ -222,6 +223,11 @@ export function useToolbarCommands() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ word: cleanedWord }),
+            }).then(res => {
+              if (res.ok) {
+                // Trigger SWR revalidation so the breaker gets the new word
+                mutate('/api/dictionary/user')
+              }
             }).catch(() => {
               // Silently fail if not logged in or API error
               // The word join still works locally via WJ characters
