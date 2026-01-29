@@ -206,7 +206,7 @@ export function useToolbarCommands() {
   }, [editor])
 
   const joinWord = useCallback(() => {
-    editor.update(() => {
+    editor.getEditorState().read(() => {
       const selection = $getSelection()
       if ($isRangeSelection(selection)) {
         const selectedText = selection.getTextContent()
@@ -214,10 +214,8 @@ export function useToolbarCommands() {
           // Clean the text - remove existing ZWSPs and WJs to get the actual word
           const cleanedWord = selectedText.replace(/[\u200B\u2060]/g, '').trim()
           
-          // Wrap selection with Word Joiners
-          selection.insertText(WJ + selectedText + WJ)
-          
           // Save the joined word to the user's dictionary (if logged in)
+          // The dictionary update will trigger a resegmentation automatically
           if (cleanedWord.length > 0) {
             fetch('/api/dictionary/user', {
               method: 'POST',
@@ -230,7 +228,6 @@ export function useToolbarCommands() {
               }
             }).catch(() => {
               // Silently fail if not logged in or API error
-              // The word join still works locally via WJ characters
             })
           }
         }
