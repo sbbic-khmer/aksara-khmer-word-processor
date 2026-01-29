@@ -298,24 +298,22 @@ useEffect(() => {
           const newNodes: LexicalNode[] = []
           let charPos = 0
           
+          let segmentIndex = 0
           for (const segment of spaceSegments) {
             const { format, style } = getFormatAtPosition(formatRanges, charPos)
             const newTextNode = $createTextNode(segment)
             newTextNode.setFormat(format)
             
-            // For space segments, add a unique style to prevent Lexical from merging
+            // Add a unique word ID to each node's style to prevent Lexical from merging
             // adjacent TextNodes into one DOM span. This is critical for spell/grammar
             // checking to work on individual words.
-            const isSpaceSegment = /^\s+$/.test(segment)
-            if (isSpaceSegment) {
-              newTextNode.setStyle(style ? `${style}; --space-segment: 1` : '--space-segment: 1')
-            } else {
-              newTextNode.setStyle(style)
-            }
+            const wordId = `--word-id: ${Date.now()}-${segmentIndex}`
+            newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
             
             processedNodesRef.current.add(newTextNode)
             newNodes.push(newTextNode)
             charPos += segment.length
+            segmentIndex++
           }
           
           if (newNodes.length > 0) {
@@ -360,7 +358,13 @@ useEffect(() => {
           
           const newTextNode = $createTextNode(segment)
           newTextNode.setFormat(format)
-          newTextNode.setStyle(style)
+          
+          // Add a unique word ID to each node's style to prevent Lexical from merging
+          // adjacent text nodes with identical styles into a single DOM span.
+          // This is critical for grammar checking to work on individual words.
+          const wordId = `--word-id: ${Date.now()}-${i}`
+          newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
+          
           processedNodesRef.current.add(newTextNode)
           newNodes.push(newTextNode)
           
@@ -494,16 +498,11 @@ useEffect(() => {
           const newTextNode = $createTextNode(segment)
           newTextNode.setFormat(format)
           
-          // For space segments, add a unique style to prevent Lexical from merging
+          // Add a unique word ID to each node's style to prevent Lexical from merging
           // adjacent TextNodes into one DOM span. This is critical for spell/grammar
           // checking to work on individual words.
-          const isSpaceSegment = /^\s+$/.test(segment)
-          if (isSpaceSegment) {
-            // Use a CSS custom property that has no visual effect but makes the style unique
-            newTextNode.setStyle(style ? `${style}; --space-segment: 1` : '--space-segment: 1')
-          } else {
-            newTextNode.setStyle(style)
-          }
+          const wordId = `--word-id: ${Date.now()}-${i}`
+          newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
           
           processedNodesRef.current.add(newTextNode)
           newNodes.push(newTextNode)
