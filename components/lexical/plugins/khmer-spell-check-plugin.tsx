@@ -74,13 +74,13 @@ function containsKhmer(text: string): boolean {
 // IMPORTANT: This must handle all punctuation that might be attached to words,
 // including guillemets («»), smart quotes, and other typographic characters.
 // Without this, words like «អោយ or អស់»។ would fail dictionary lookups.
-// NOTE: ៗ (U+17D7) is the Khmer repetition mark (LEK TOO) and is part of words, NOT punctuation.
+// NOTE: ៗ (U+17D7) is removed here for dictionary lookup, but preserved during replacement via extractPunctuation.
 function cleanKhmerWord(text: string): string {
     return text
         // Remove zero-width characters
         .replace(/[\u200B\u200C\u200D\u2060]/g, '')
-        // Remove Khmer punctuation (។ ៕ ៖ ៘ ៙ ៚) but NOT ៗ (U+17D7) which is part of words
-        .replace(/[\u17D4-\u17D6\u17D8-\u17DA]/g, '')
+        // Remove Khmer punctuation (។ ៕ ៖ ៗ ៘ ៙ ៚)
+        .replace(/[\u17D4-\u17DA]/g, '')
         // Remove common punctuation
         .replace(/[.,!?;:'"()\[\]{}]/g, '')
         // Remove guillemets and other quote marks («»‹›""'')
@@ -92,8 +92,8 @@ function cleanKhmerWord(text: string): string {
 }
 
 // Pattern for punctuation that can be attached to words (used in extractPunctuation)
-// NOTE: ៗ (U+17D7) is excluded because it's part of words, not punctuation
-const PUNCTUATION_PATTERN = /[\u200B\u200C\u200D\u2060\u17D4-\u17D6\u17D8-\u17DA.,!?;:'"()\[\]{}«»‹›""''–—…]/;
+// This includes ៗ (U+17D7) so it's preserved when replacing a word with a suggestion
+const PUNCTUATION_PATTERN = /[\u200B\u200C\u200D\u2060\u17D4-\u17DA.,!?;:'"()\[\]{}«»‹›""''–—…]/;
 
 // Extract leading and trailing punctuation from a word.
 // Returns { leading, core, trailing } where core is the actual word.
