@@ -1644,7 +1644,12 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
       char === " " || /\s/.test(char) || OPENING_PUNCTUATION.has(char) || CLOSING_PUNCTUATION.has(char)
     )
 
-    if (isBreakPoint) {
+    // Handle colon between Khmer digits FIRST (before other checks)
+    // This keeps patterns like "២៣:៨" together as one run
+    if (isColonBetweenKhmerDigits) {
+      currentRun += char
+      // Don't change currentIsKhmerDigit - we're still in a digit context
+    } else if (isBreakPoint) {
       // Flush current run
       if (currentRun) {
         runs.push({ text: currentRun, isKhmer: currentIsKhmer ?? false })
@@ -1685,10 +1690,6 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
           currentIsKhmerDigit = false
         }
       }
-    } else if (isColonBetweenKhmerDigits) {
-      // Colon between Khmer digits (e.g., "២៣:៨") - keep it with the digit run
-      currentRun += char
-      // Don't change currentIsKhmerDigit - we're still in a digit context
     } else {
       // Continue current run (non-Khmer)
       currentRun += char
