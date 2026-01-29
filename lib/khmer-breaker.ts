@@ -1605,12 +1605,23 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
   let currentIsKhmer: boolean | null = null
   let currentIsKhmerDigit: boolean | null = null  // Track if current run is Khmer digits
 
-  for (const char of text) {
+  const chars = [...text] // Use array to handle iteration with lookahead
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i]
     const cp = char.codePointAt(0) || 0
     const charIsKhmer = isKhmerCodePoint(cp)
     const charIsKhmerDigit = isKhmerDigit(cp)
-    const isBreakPoint =
+    
+    // Check if this is a colon between Khmer digits (e.g., "២៣:៨" for time/verse references)
+    // If so, don't treat it as a break point - keep it with the digits
+    const isColonBetweenKhmerDigits = char === ':' && 
+      currentIsKhmerDigit === true && 
+      i + 1 < chars.length && 
+      isKhmerDigit(chars[i + 1].codePointAt(0) || 0)
+    
+    const isBreakPoint = !isColonBetweenKhmerDigits && (
       char === " " || /\s/.test(char) || OPENING_PUNCTUATION.has(char) || CLOSING_PUNCTUATION.has(char)
+    )
 
     if (isBreakPoint) {
       // Flush current run
@@ -1653,6 +1664,10 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
           currentIsKhmerDigit = false
         }
       }
+    } else if (isColonBetweenKhmerDigits) {
+      // Colon between Khmer digits (e.g., "២៣:៨") - keep it with the digit run
+      currentRun += char
+      // Don't change currentIsKhmerDigit - we're still in a digit context
     } else {
       // Continue current run (non-Khmer)
       currentRun += char
