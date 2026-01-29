@@ -1044,6 +1044,28 @@ export class KhmerBreaker {
           continue
         }
         
+        // Handle Khmer digit runs (including colon-separated patterns like ២៣:៨)
+        if (this.charSets.isKhmerDigit(ch)) {
+          let runEnd = s.pos + 1
+          while (runEnd < endPos) {
+            const nextCh = text[runEnd]
+            if (this.charSets.isKhmerDigit(nextCh)) {
+              runEnd++
+            } else if (nextCh === ':' && runEnd + 1 < endPos && this.charSets.isKhmerDigit(text[runEnd + 1])) {
+              // Colon followed by Khmer digit - keep together (e.g., ២៣:៨)
+              runEnd++
+            } else {
+              break
+            }
+          }
+          nextStates.push({
+            pos: runEnd,
+            score: s.score,
+            pieces: [...s.pieces, text.slice(s.pos, runEnd)],
+          })
+          continue
+        }
+        
         // Handle punctuation as its own token
         if (this.charSets.isPunctuation(ch)) {
           nextStates.push({
