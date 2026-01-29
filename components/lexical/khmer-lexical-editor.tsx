@@ -920,40 +920,39 @@ function EditorContent({
         <SpellCheckContextMenu>
           <GrammarCheckContextMenu>
           <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative flex flex-col">
-            {isLoadingDocument ? (
-              <div className="flex items-start justify-center pt-32">
+            {isLoadingDocument && (
+              <div className="absolute inset-0 z-10 flex items-start justify-center pt-32 bg-white dark:bg-gray-900">
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
                   <span className="text-sm text-gray-500 dark:text-gray-400">Loading document...</span>
                 </div>
               </div>
-            ) : (
-              <RichTextPlugin
-                contentEditable={
-                  <ContentEditable
-                    className={cn(
-                      "min-h-[1056px] flex-1 p-12 outline-none",
-                      "font-khmer text-lg leading-relaxed",
-                      "focus:outline-none",
-                    )}
-                    style={{
-                      fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                    }}
-                  />
-                }
-                placeholder={
-                  <div
-                    className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
-                    style={{
-                      fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
-                    }}
-                  >
-                    វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
-                  </div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
             )}
+            <RichTextPlugin
+              contentEditable={
+                <ContentEditable
+                  className={cn(
+                    "min-h-[1056px] flex-1 p-12 outline-none",
+                    "font-khmer text-lg leading-relaxed",
+                    "focus:outline-none",
+                  )}
+                  style={{
+                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                  }}
+                />
+              }
+              placeholder={
+                <div
+                  className="absolute top-12 left-12 text-gray-400 dark:text-gray-500 pointer-events-none font-khmer"
+                  style={{
+                    fontFamily: 'var(--font-battambang), "Noto Sans Khmer", sans-serif',
+                  }}
+                >
+                  វាយបញ្ចូលជាភាសាខ្មែរនៅទីនេះ...
+                </div>
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+            />
           </div>
           </GrammarCheckContextMenu>
         </SpellCheckContextMenu>
