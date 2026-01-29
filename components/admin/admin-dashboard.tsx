@@ -34,9 +34,9 @@ export function AdminDashboard() {
       <main className="max-w-6xl mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
-            <TabsTrigger value="master">Master Replacements</TabsTrigger>
-            <TabsTrigger value="user">User Submissions</TabsTrigger>
-            <TabsTrigger value="dictionary">User Dictionary Words</TabsTrigger>
+            <TabsTrigger value="master">Master Voice-to-Text Replacements</TabsTrigger>
+            <TabsTrigger value="user">User Voice-to-Text Replacements</TabsTrigger>
+            <TabsTrigger value="dictionary">User Custom Word-Breaks</TabsTrigger>
           </TabsList>
 
           <TabsContent value="master">
