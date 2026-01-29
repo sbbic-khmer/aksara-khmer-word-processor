@@ -480,17 +480,11 @@ export class KhmerBreaker {
    * @param frequency The frequency to assign (default: 50000, very high to prioritize)
    */
   addUserWords(words: string[], frequency = 50000) {
-    if (isDebugEnabled()) {
-      console.log("[v0] Adding", words.length, "user words with frequency", frequency)
-    }
     for (const word of words) {
       const cleanWord = word.trim()
       if (cleanWord && cleanWord.length > 0) {
         this.trie.insert(cleanWord, frequency)
       }
-    }
-    if (isDebugEnabled()) {
-      console.log("[v0] Trie now has", this.trie.wordCount, "words")
     }
   }
 
