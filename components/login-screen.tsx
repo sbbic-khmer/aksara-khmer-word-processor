@@ -105,7 +105,7 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
           </div>
           <CardTitle className="text-xl">{isRegister ? "Create Account" : "Welcome Back"}</CardTitle>
           <CardDescription>
-            {isRegister ? "Sign up to start using Aksara" : "Sign in to access the Khmer word processor"}
+            {isRegister ? "Sign up to start using Aksara" : "Sign in to access smart Khmer writing"}
           </CardDescription>
         </CardHeader>
         <CardContent>
