@@ -17,8 +17,8 @@ interface AuthContextType {
   isLoading: boolean
   isDev: boolean
   isAdmin: boolean
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
-  register: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>
+  login: (email: string, password: string, turnstileToken?: string) => Promise<{ success: boolean; error?: string }>
+  register: (email: string, password: string, name?: string, turnstileToken?: string) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
   refreshAuth: () => Promise<void>
 }
@@ -51,12 +51,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth()
   }, [checkAuth])
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, turnstileToken?: string) => {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, turnstileToken }),
       })
 
       const data = await response.json()
@@ -73,12 +73,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const register = async (email: string, password: string, name?: string) => {
+  const register = async (email: string, password: string, name?: string, turnstileToken?: string) => {
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, name, turnstileToken }),
       })
 
       const data = await response.json()

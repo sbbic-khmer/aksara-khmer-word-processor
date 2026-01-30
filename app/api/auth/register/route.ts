@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { sql } from "@/lib/db"
 import { hashPassword, createSession, SESSION_COOKIE_NAME } from "@/lib/auth"
+import { verifyTurnstileToken, getClientIp } from "@/lib/turnstile"
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const SIGNUPS_ENABLED = process.env.SIGNUPS_ENABLED === "true"
@@ -12,7 +13,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { email, password, name } = await request.json()
+    const { email, password, name, turnstileToken } = await request.json()
+
+    // Verify Turnstile token first (before any expensive operations)
+    const clientIp = getClientIp(request.headers)
+    const turnstileResult = await verifyTurnstileToken(turnstileToken, clientIp)
+    if (!turnstileResult.success) {
+      return NextResponse.json({ error: turnstileResult.error }, { status: 400 })
+    }
 
     if (!email || !EMAIL_REGEX.test(email)) {
       return NextResponse.json({ error: "Valid email is required" }, { status: 400 })

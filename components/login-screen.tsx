@@ -2,13 +2,14 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useAuth } from "./auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, Loader2 } from "lucide-react"
+import { TurnstileWidget } from "./turnstile-widget"
 
 export function LoginScreen() {
   const { login, register } = useAuth()
@@ -18,21 +19,37 @@ export function LoginScreen() {
   const [name, setName] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string>("")
+  const [turnstileKey, setTurnstileKey] = useState(0)
+
+  const resetTurnstile = useCallback(() => {
+    setTurnstileToken("")
+    setTurnstileKey((prev) => prev + 1)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+
+    // Check for turnstile token (only if Turnstile is configured)
+    if (!turnstileToken && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+      setError("Please complete the security verification")
+      return
+    }
+
     setIsLoading(true)
 
     let result
     if (isRegister) {
-      result = await register(email, password, name || undefined)
+      result = await register(email, password, name || undefined, turnstileToken || undefined)
     } else {
-      result = await login(email, password)
+      result = await login(email, password, turnstileToken || undefined)
     }
 
     if (!result.success) {
       setError(result.error || (isRegister ? "Registration failed" : "Login failed"))
+      // Reset turnstile on error (token is single-use)
+      resetTurnstile()
     }
 
     setIsLoading(false)
@@ -108,7 +125,15 @@ export function LoginScreen() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            {/* Turnstile Security Widget */}
+            <TurnstileWidget
+              key={turnstileKey}
+              onSuccess={setTurnstileToken}
+              onError={() => setTurnstileToken("")}
+              onExpire={() => setTurnstileToken("")}
+            />
+
+            <Button type="submit" className="w-full" disabled={isLoading || !turnstileToken}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -130,6 +155,7 @@ export function LoginScreen() {
                     onClick={() => {
                       setIsRegister(false)
                       setError("")
+                      resetTurnstile()
                     }}
                     className="text-primary hover:underline"
                   >
@@ -144,6 +170,7 @@ export function LoginScreen() {
                     onClick={() => {
                       setIsRegister(true)
                       setError("")
+                      resetTurnstile()
                     }}
                     className="text-primary hover:underline"
                   >

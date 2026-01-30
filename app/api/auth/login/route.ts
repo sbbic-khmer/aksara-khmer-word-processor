@@ -2,10 +2,18 @@ import { type NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { sql } from "@/lib/db"
 import { verifyPassword, createSession, SESSION_COOKIE_NAME } from "@/lib/auth"
+import { verifyTurnstileToken, getClientIp } from "@/lib/turnstile"
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    const { email, password, turnstileToken } = await request.json()
+
+    // Verify Turnstile token first (before any expensive operations)
+    const clientIp = getClientIp(request.headers)
+    const turnstileResult = await verifyTurnstileToken(turnstileToken, clientIp)
+    if (!turnstileResult.success) {
+      return NextResponse.json({ error: turnstileResult.error }, { status: 400 })
+    }
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
