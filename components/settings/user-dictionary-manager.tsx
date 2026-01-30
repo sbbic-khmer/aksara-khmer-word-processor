@@ -180,7 +180,13 @@ export function UserDictionaryManager() {
               <TableBody>
                 {filteredWords.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium text-lg" dir="auto">{item.word}</TableCell>
+                    <TableCell
+                      className="font-medium text-lg"
+                      dir="auto"
+                      style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                    >
+                      {item.word}
+                    </TableCell>
                     <TableCell className="text-gray-500">
                       {new Date(item.created_at).toLocaleDateString()}
                     </TableCell>
