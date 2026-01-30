@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "./auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +17,7 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
+  const router = useRouter()
   const { login, register } = useAuth()
   const [isRegister, setIsRegister] = useState(initialMode === "register")
   const [email, setEmail] = useState("")
@@ -51,14 +53,16 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
       result = await login(email, password, turnstileToken || undefined)
     }
 
-    if (!result.success) {
-      setError(result.error || (isRegister ? "Registration failed" : "Login failed"))
-      // Reset turnstile on error (token is single-use)
-      if (turnstileRequired) {
-        resetTurnstile()
-      }
+    if (result.success) {
+      router.push("/editor")
+      return
     }
 
+    setError(result.error || (isRegister ? "Registration failed" : "Login failed"))
+    // Reset turnstile on error (token is single-use)
+    if (turnstileRequired) {
+      resetTurnstile()
+    }
     setIsLoading(false)
   }
 
