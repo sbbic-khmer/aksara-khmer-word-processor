@@ -1587,11 +1587,10 @@ function EditorWrapper({
     }
   }, [getSplitInfo])
 
-  const handleConfirmSplit = useCallback(async (word1: string, word2: string) => {
-    if (splitDialogData) {
-      await confirmSplit(splitDialogData.word, word1, word2)
-    }
-  }, [splitDialogData, confirmSplit])
+  const handleConfirmSplit = useCallback(async (originalWord: string, word1: string, word2: string) => {
+    // Use the cleaned originalWord from the dialog (without punctuation)
+    await confirmSplit(originalWord, word1, word2)
+  }, [confirmSplit])
 
   return (
     <>

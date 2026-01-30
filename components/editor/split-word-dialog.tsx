@@ -1,16 +1,71 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
+
+// Khmer punctuation: ។ ៕ ៖ ៗ ៘ ៙ ៚ (U+17D4-U+17DA)
+// Common punctuation that should be excluded from word splitting
+const PUNCTUATION_CHARS = [
+  // Khmer punctuation
+  "\u17D4", "\u17D5", "\u17D6", "\u17D7", "\u17D8", "\u17D9", "\u17DA",
+  "។", "៕", "៖", "ៗ", "៘", "៙", "៚",
+  // English/common punctuation
+  "!", "?", ".", ",", ":", ";",
+  "(", ")", "[", "]", "{", "}",
+  "«", "»", "‹", "›",
+  // Quotes - straight and curly
+  "'", '"',
+  "\u2018", "\u2019", // ' ' single curly quotes
+  "\u201C", "\u201D", // " " double curly quotes
+  // Other
+  "-", "–", "—", "…",
+].join("")
+
+const PUNCTUATION_PATTERN = new RegExp(
+  `^[${PUNCTUATION_CHARS.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&")}]+|[${PUNCTUATION_CHARS.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&")}]+$`,
+  "g"
+)
+
+/**
+ * Strip leading and trailing punctuation from a word
+ * Returns the cleaned word and the offset to adjust cursor position
+ */
+function stripPunctuation(word: string): { cleanedWord: string; leadingLength: number } {
+  // Find leading punctuation using a Set for reliable matching
+  const punctSet = new Set(PUNCTUATION_CHARS)
+  let leadingLength = 0
+  for (const char of word) {
+    if (punctSet.has(char)) {
+      leadingLength++
+    } else {
+      break
+    }
+  }
+
+  // Find trailing punctuation
+  let trailingLength = 0
+  for (let i = word.length - 1; i >= leadingLength; i--) {
+    if (punctSet.has(word[i])) {
+      trailingLength++
+    } else {
+      break
+    }
+  }
+
+  // Extract the cleaned word
+  const cleanedWord = word.slice(leadingLength, word.length - trailingLength)
+
+  return { cleanedWord, leadingLength }
+}
 
 interface SplitWordDialogProps {
   isOpen: boolean
   onClose: () => void
   initialWord: string
   initialCursorPosition: number
-  onConfirm: (word1: string, word2: string) => void
+  onConfirm: (originalWord: string, word1: string, word2: string) => void
 }
 
 export function SplitWordDialog({
@@ -20,14 +75,27 @@ export function SplitWordDialog({
   initialCursorPosition,
   onConfirm,
 }: SplitWordDialogProps) {
-  const [cursorPosition, setCursorPosition] = useState(initialCursorPosition)
+  // Strip punctuation from the word for display and splitting
+  const { cleanedWord, leadingLength } = useMemo(
+    () => stripPunctuation(initialWord),
+    [initialWord]
+  )
+
+  // Adjust cursor position to account for stripped leading punctuation
+  const adjustedInitialPosition = useMemo(() => {
+    const adjusted = initialCursorPosition - leadingLength
+    // Clamp to valid range within cleaned word
+    return Math.max(0, Math.min(adjusted, cleanedWord.length))
+  }, [initialCursorPosition, leadingLength, cleanedWord.length])
+
+  const [cursorPosition, setCursorPosition] = useState(adjustedInitialPosition)
   const [isSaving, setIsSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Reset cursor position when dialog opens with new word
   useEffect(() => {
-    setCursorPosition(initialCursorPosition)
-  }, [initialCursorPosition, isOpen])
+    setCursorPosition(adjustedInitialPosition)
+  }, [adjustedInitialPosition, isOpen])
 
   // Focus input and set cursor position when dialog opens
   useEffect(() => {
@@ -66,7 +134,7 @@ export function SplitWordDialog({
     e.preventDefault()
     // Reset value to prevent any changes
     if (inputRef.current) {
-      inputRef.current.value = initialWord
+      inputRef.current.value = cleanedWord
       // Restore cursor position after preventing input
       inputRef.current.setSelectionRange(cursorPosition, cursorPosition)
     }
@@ -78,8 +146,8 @@ export function SplitWordDialog({
   }
 
   // Split the word at cursor position
-  const word1 = initialWord.slice(0, cursorPosition)
-  const word2 = initialWord.slice(cursorPosition)
+  const word1 = cleanedWord.slice(0, cursorPosition)
+  const word2 = cleanedWord.slice(cursorPosition)
 
   // Check if split is valid (both parts non-empty)
   const isValidSplit = word1.length > 0 && word2.length > 0
@@ -89,7 +157,8 @@ export function SplitWordDialog({
 
     setIsSaving(true)
     try {
-      await onConfirm(word1, word2)
+      // Pass the cleaned word (without punctuation) as the original word for dictionary operations
+      await onConfirm(cleanedWord, word1, word2)
       onClose()
     } finally {
       setIsSaving(false)
@@ -128,7 +197,7 @@ export function SplitWordDialog({
             <input
               ref={inputRef}
               type="text"
-              value={initialWord}
+              value={cleanedWord}
               onFocus={handleFocus}
               onClick={handleCursorChange}
               onKeyUp={handleCursorChange}
