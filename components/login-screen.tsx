@@ -9,11 +9,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, Loader2 } from "lucide-react"
-import { TurnstileWidget } from "./turnstile-widget"
+import { TurnstileWidget, isTurnstileConfigured } from "./turnstile-widget"
 
-export function LoginScreen() {
+interface LoginScreenProps {
+  initialMode?: "login" | "register"
+}
+
+export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
   const { login, register } = useAuth()
-  const [isRegister, setIsRegister] = useState(false)
+  const [isRegister, setIsRegister] = useState(initialMode === "register")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
@@ -21,6 +25,7 @@ export function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState<string>("")
   const [turnstileKey, setTurnstileKey] = useState(0)
+  const [turnstileRequired, setTurnstileRequired] = useState(isTurnstileConfigured())
 
   const resetTurnstile = useCallback(() => {
     setTurnstileToken("")
@@ -31,8 +36,8 @@ export function LoginScreen() {
     e.preventDefault()
     setError("")
 
-    // Check for turnstile token (only if Turnstile is configured)
-    if (!turnstileToken && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+    // Check for turnstile token only if Turnstile is configured and required
+    if (turnstileRequired && !turnstileToken) {
       setError("Please complete the security verification")
       return
     }
@@ -49,7 +54,9 @@ export function LoginScreen() {
     if (!result.success) {
       setError(result.error || (isRegister ? "Registration failed" : "Login failed"))
       // Reset turnstile on error (token is single-use)
-      resetTurnstile()
+      if (turnstileRequired) {
+        resetTurnstile()
+      }
     }
 
     setIsLoading(false)
@@ -61,13 +68,35 @@ export function LoginScreen() {
         <CardHeader className="text-center">
           {/* Logo */}
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
-                <span className="text-white text-2xl font-bold font-moul">អ</span>
+            {/* Logo icon */}
+            <div className="relative w-12 h-12">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg shadow-blue-500/25" />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
+              <div className="absolute inset-[1px] rounded-[14px] border border-white/20" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-white text-2xl font-bold leading-none translate-y-[-2px] translate-x-[1px]">
+                  អ
+                </span>
               </div>
             </div>
-            <div className="flex flex-col items-start">
-              <span className="text-2xl font-bold font-moul text-foreground">អក្សរា</span>
+
+            {/* Brand text */}
+            <div className="flex flex-col items-start gap-0">
+              <h1
+                className="flex items-baseline gap-1 text-2xl leading-none tracking-tight text-foreground"
+                style={{ fontFamily: "var(--font-moul), serif" }}
+              >
+                អក្សរា
+                <span
+                  className="text-2xl text-foreground"
+                  style={{ fontFamily: "var(--font-geist-sans), sans" }}
+                >
+                  Pro
+                </span>
+              </h1>
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-[0.15em] mt-0.5">
+                Smart Khmer Writing
+              </span>
             </div>
           </div>
           <CardTitle className="text-xl">{isRegister ? "Create Account" : "Welcome Back"}</CardTitle>
@@ -125,15 +154,20 @@ export function LoginScreen() {
               />
             </div>
 
-            {/* Turnstile Security Widget */}
+            {/* Turnstile Security Widget - only renders if configured */}
             <TurnstileWidget
               key={turnstileKey}
               onSuccess={setTurnstileToken}
               onError={() => setTurnstileToken("")}
               onExpire={() => setTurnstileToken("")}
+              onUnconfigured={() => setTurnstileRequired(false)}
             />
 
-            <Button type="submit" className="w-full" disabled={isLoading || !turnstileToken}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isLoading || (turnstileRequired && !turnstileToken)}
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

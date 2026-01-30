@@ -8,24 +8,39 @@ interface TurnstileWidgetProps {
   onSuccess: (token: string) => void
   onError?: () => void
   onExpire?: () => void
+  onUnconfigured?: () => void
   className?: string
 }
 
-type TurnstileStatus = "idle" | "loading" | "success" | "error"
+type TurnstileStatus = "idle" | "loading" | "success" | "error" | "unconfigured"
+
+// Check if Turnstile is configured (must be done at module level for SSR)
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
 
 /**
  * A styled Turnstile widget that integrates nicely with the app's design.
  * Handles token generation, expiration, and errors gracefully.
+ * Returns null if NEXT_PUBLIC_TURNSTILE_SITE_KEY is not configured.
  */
 export function TurnstileWidget({
   onSuccess,
   onError,
   onExpire,
+  onUnconfigured,
   className = "",
 }: TurnstileWidgetProps) {
   const turnstileRef = useRef<TurnstileInstance>(null)
-  const [status, setStatus] = useState<TurnstileStatus>("idle")
+  const [status, setStatus] = useState<TurnstileStatus>(
+    TURNSTILE_SITE_KEY ? "idle" : "unconfigured"
+  )
   const [isVisible, setIsVisible] = useState(false)
+
+  // Notify parent if Turnstile is not configured
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) {
+      onUnconfigured?.()
+    }
+  }, [onUnconfigured])
 
   // Fade in on mount
   useEffect(() => {
@@ -57,9 +72,10 @@ export function TurnstileWidget({
     setStatus("loading")
   }, [])
 
-  // Use dummy key for development, real key for production
-  const siteKey =
-    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"
+  // Don't render if not configured
+  if (!TURNSTILE_SITE_KEY) {
+    return null
+  }
 
   return (
     <div
@@ -105,7 +121,7 @@ export function TurnstileWidget({
       >
         <Turnstile
           ref={turnstileRef}
-          siteKey={siteKey}
+          siteKey={TURNSTILE_SITE_KEY}
           onSuccess={handleSuccess}
           onError={handleError}
           onExpire={handleExpire}
@@ -120,6 +136,13 @@ export function TurnstileWidget({
       </div>
     </div>
   )
+}
+
+/**
+ * Check if Turnstile is configured (useful for conditional logic)
+ */
+export function isTurnstileConfigured(): boolean {
+  return !!TURNSTILE_SITE_KEY
 }
 
 /**
