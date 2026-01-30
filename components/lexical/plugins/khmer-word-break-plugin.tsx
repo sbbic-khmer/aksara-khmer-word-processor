@@ -291,9 +291,30 @@ useEffect(() => {
         if (!showBreaks) {
           // Check if text has spaces that need splitting
           if (!hasSpaces) {
-            return // No spaces, nothing to split
+            // No spaces to split by, but we still need to check if there are
+            // existing break nodes from when showBreaks was true that need to be removed
+            if (!hasBreakNodes) {
+              return // Nothing to do - no spaces and no break nodes
+            }
+
+            // Remove all break nodes and consolidate into a single text node
+            const { format, style } = getFormatAtPosition(formatRanges, 0)
+            const newTextNode = $createTextNode(text)
+            newTextNode.setFormat(format)
+            const wordId = `--word-id: ${Date.now()}-0`
+            newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
+            processedNodesRef.current.add(newTextNode)
+
+            paragraph.clear()
+            paragraph.append(newTextNode)
+
+            // Restore cursor position
+            if (adjustedCursorOffset !== null) {
+              newTextNode.select(adjustedCursorOffset, adjustedCursorOffset)
+            }
+            return
           }
-          
+
           // Split by spaces, keeping the spaces as separate segments
           const spaceSegments: string[] = []
           let currentWord = ''

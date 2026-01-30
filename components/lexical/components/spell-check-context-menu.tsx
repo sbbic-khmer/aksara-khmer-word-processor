@@ -21,6 +21,21 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
   const menuRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Detect if device is mobile (has touch support and small screen)
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const hasSmallScreen = window.innerWidth < 768;
+      setIsMobile(hasTouchScreen && hasSmallScreen);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // Handle right-click or tap on misspelled word
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     // Only show spell check menu if right-clicking directly on a misspelled word
@@ -166,7 +181,12 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
   const showMenu = isOpen && (hasMisspelledWord || isLoading || error);
 
   return (
-    <div ref={containerRef} onContextMenu={handleContextMenu} onClick={handleClick} className="contents">
+    <div
+      ref={containerRef}
+      onContextMenu={handleContextMenu}
+      onClick={isMobile ? handleClick : undefined}
+      className="contents"
+    >
       {children}
 
       {showMenu && (

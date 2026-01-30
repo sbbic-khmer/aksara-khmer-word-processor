@@ -30,6 +30,21 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
     const menuRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
+    // Detect if device is mobile (has touch support and small screen)
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => {
+            const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const hasSmallScreen = window.innerWidth < 768;
+            setIsMobile(hasTouchScreen && hasSmallScreen);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
     // Handle right-click
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
         const target = e.target as HTMLElement;
@@ -147,7 +162,12 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
     const showMenu = isOpen && grammarCheckEnabled && hasNonStandardWord;
 
     return (
-        <div ref={containerRef} onContextMenu={handleContextMenu} onClick={handleClick} className="contents">
+        <div
+            ref={containerRef}
+            onContextMenu={handleContextMenu}
+            onClick={isMobile ? handleClick : undefined}
+            className="contents"
+        >
             {children}
 
             {showMenu && (

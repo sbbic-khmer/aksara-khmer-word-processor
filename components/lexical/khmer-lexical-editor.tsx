@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useCallback, useRef, forwardRef, useImperativeHandle, useEffect } from "react"
+import { useState, useCallback, useRef, forwardRef, useImperativeHandle, useEffect, useMemo } from "react"
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { ContentEditable } from "@lexical/react/LexicalContentEditable"
@@ -41,9 +41,11 @@ import { EditorHeader } from "@/components/editor/editor-header"
 import { DocumentsDialog } from "@/components/editor/documents-dialog"
 import { SaveDialog } from "@/components/editor/save-dialog"
 import { ConflictDialog } from "@/components/editor/conflict-dialog"
+import { SplitWordDialog } from "@/components/editor/split-word-dialog"
 import { useReplacements } from "@/hooks/use-replacements"
 import { usePreferences } from "@/hooks/use-preferences"
 import { useUserDictionary } from "@/hooks/use-user-dictionary"
+import { useIgnoredDictionaryWords } from "@/hooks/use-ignored-dictionary-words"
 import { exportToOdtFromLexical } from "@/lib/odt-export-lexical"
 import { cn } from "@/lib/utils"
 import {
@@ -285,6 +287,7 @@ function EditorContent({
   onSave,
   onSaveAs,
   onContentChange,
+  onSplitWord,
   isLoadingDocument,
 }: {
   breaker: KhmerBreaker
@@ -309,6 +312,7 @@ function EditorContent({
   onSave: () => void
   onSaveAs: () => void
   onContentChange: () => void
+  onSplitWord: () => void
   isLoadingDocument: boolean
 }) {
   const [editor] = useLexicalComposerContext()
@@ -898,6 +902,7 @@ function EditorContent({
           onRedo={redo}
           onInsertZWSP={insertZWSP}
           onJoinWord={joinWord}
+          onSplitWord={onSplitWord}
           showBreaks={showBreaks}
           onToggleBreaks={() => setShowBreaks(!showBreaks)}
           spellCheckEnabled={spellCheckEnabled}
@@ -978,6 +983,7 @@ function EditorWrapper({
   updateLastOpenedDocumentId,
   isLoadingPreferences,
   userDictionaryWords,
+  ignoredDictionaryWords,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -1002,14 +1008,18 @@ function EditorWrapper({
   updateLastOpenedDocumentId: (id: string | null) => void
   isLoadingPreferences: boolean
   userDictionaryWords: string[]
+  ignoredDictionaryWords: string[]
 }) {
   const [editor] = useLexicalComposerContext()
+  const { getSplitInfo, confirmSplit } = useToolbarCommands()
   const [openDialogOpen, setOpenDialogOpen] = useState(false)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [isSaveAs, setIsSaveAs] = useState(false)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
   const [conflictServerUpdatedAt, setConflictServerUpdatedAt] = useState<string | null>(null)
+  const [splitDialogOpen, setSplitDialogOpen] = useState(false)
+  const [splitDialogData, setSplitDialogData] = useState<{ word: string; cursorPosition: number } | null>(null)
   const initialLoadRef = useRef(false)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -1048,6 +1058,24 @@ function EditorWrapper({
     
     prevUserDictWordCountRef.current = userDictionaryWords?.length ?? 0
   }, [breaker, editor, userDictionaryWords])
+
+  // Load ignored dictionary words into the breaker
+  // These words will be skipped during segmentation (frequency set to 0)
+  useEffect(() => {
+    if (ignoredDictionaryWords && ignoredDictionaryWords.length > 0) {
+      try {
+        breaker.addIgnoredWords(ignoredDictionaryWords)
+
+        // Always trigger resegmentation when ignored words change
+        // This ensures words are properly unsplit even if the count doesn't change
+        if (!initialDictLoadRef.current) {
+          editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+        }
+      } catch (error) {
+        // Silently handle errors loading ignored dictionary words
+      }
+    }
+  }, [breaker, editor, ignoredDictionaryWords])
 
   useEffect(() => {
     console.log("[v0] EditorWrapper mounted - starting 10s global timeout")
@@ -1551,6 +1579,20 @@ function EditorWrapper({
     setConflictDialogOpen(false)
   }, [])
 
+  const handleSplitWord = useCallback(() => {
+    const splitInfo = getSplitInfo()
+    if (splitInfo) {
+      setSplitDialogData(splitInfo)
+      setSplitDialogOpen(true)
+    }
+  }, [getSplitInfo])
+
+  const handleConfirmSplit = useCallback(async (word1: string, word2: string) => {
+    if (splitDialogData) {
+      await confirmSplit(splitDialogData.word, word1, word2)
+    }
+  }, [splitDialogData, confirmSplit])
+
   return (
     <>
       {isLoadingDocument && (
@@ -1582,6 +1624,7 @@ function EditorWrapper({
           onSave={handleSave}
           onSaveAs={handleSaveAs}
           onContentChange={handleContentChange}
+          onSplitWord={handleSplitWord}
           isLoadingDocument={isLoadingDocument}
         />
       </div>
@@ -1607,6 +1650,14 @@ function EditorWrapper({
         onOverwrite={handleConflictOverwrite}
         onReload={handleConflictReload}
         onCancel={handleConflictCancel}
+      />
+
+      <SplitWordDialog
+        isOpen={splitDialogOpen}
+        onClose={() => setSplitDialogOpen(false)}
+        initialWord={splitDialogData?.word || ""}
+        initialCursorPosition={splitDialogData?.cursorPosition || 0}
+        onConfirm={handleConfirmSplit}
       />
     </>
   )
@@ -1640,6 +1691,9 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     const { applyReplacements } = useReplacements()
     const { preferences, isLoading: isLoadingPreferences, updatePreference } = usePreferences()
     const { wordStrings: userDictionaryWords } = useUserDictionary()
+    const { ignoredWords } = useIgnoredDictionaryWords()
+    // Memoize to prevent creating new arrays on every render (would cause infinite loop)
+    const ignoredWordStrings = useMemo(() => ignoredWords.map((w) => w.word), [ignoredWords])
 
     const updateLastOpenedDocumentId = useCallback(
       (id: string | null) => {
@@ -1798,6 +1852,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
               updateLastOpenedDocumentId={updateLastOpenedDocumentId}
               isLoadingPreferences={isLoadingPreferences}
               userDictionaryWords={userDictionaryWords}
+              ignoredDictionaryWords={ignoredWordStrings}
             />
           </GrammarCheckProvider>
           </SpellCheckProvider>

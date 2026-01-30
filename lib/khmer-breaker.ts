@@ -109,11 +109,14 @@ class KhmerTrie {
       currentWord += char
 
       if (node.isWord) {
-        lastMatch = {
-          word: currentWord,
-          frequency: node.frequency,
+        // Skip ignored words (frequency set to 0 by addIgnoredWords)
+        if (node.frequency !== 0) {
+          lastMatch = {
+            word: currentWord,
+            frequency: node.frequency,
+          }
         }
-        debugMatches.push(`"${currentWord}" (freq: ${node.frequency})`)
+        debugMatches.push(`"${currentWord}" (freq: ${node.frequency})${node.frequency === 0 ? " [IGNORED]" : ""}`)
       }
     }
 
@@ -158,7 +161,8 @@ class KhmerTrie {
       }
       node = node.children.get(char)!
     }
-    return node.isWord
+    // Skip ignored words (frequency set to 0 by addIgnoredWords)
+    return node.isWord && node.frequency !== 0
   }
 
   getFrequency(word: string): number {
@@ -484,6 +488,22 @@ export class KhmerBreaker {
       const cleanWord = word.trim()
       if (cleanWord && cleanWord.length > 0) {
         this.trie.insert(cleanWord, frequency)
+      }
+    }
+  }
+
+  /**
+   * Mark words as ignored by setting their frequency to 0.
+   * This prevents the word breaker from using these words from the master dictionary.
+   * Useful when users want to split a word that exists in the master dictionary.
+   * @param words Array of word strings to ignore
+   */
+  addIgnoredWords(words: string[]) {
+    for (const word of words) {
+      const cleanWord = word.trim()
+      if (cleanWord && cleanWord.length > 0) {
+        // Set frequency to 0 to mark as ignored
+        this.trie.insert(cleanWord, 0)
       }
     }
   }
@@ -1132,7 +1152,12 @@ export class KhmerBreaker {
         // Add dictionary matches as candidates (only if they end at safe boundaries)
         for (const m of matches) {
           const end = s.pos + m.length
-          
+
+          // Skip ignored words (frequency set to 0 by addIgnoredWords)
+          if (m.frequency === 0) {
+            continue
+          }
+
           // Reject dictionary matches that would end at an illegal boundary
           if (!this.isSafeBoundary(text, end)) {
             continue

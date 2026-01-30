@@ -59,6 +59,7 @@ interface FormattingToolbarProps {
   onRedo: () => void
   onInsertZWSP: () => void
   onJoinWord: () => void
+  onSplitWord: () => void
   showBreaks: boolean
   onToggleBreaks: () => void
   spellCheckEnabled: boolean
@@ -74,6 +75,7 @@ export function FormattingToolbar({
   onRedo,
   onInsertZWSP,
   onJoinWord,
+  onSplitWord,
   showBreaks,
   onToggleBreaks,
   spellCheckEnabled,
@@ -380,19 +382,19 @@ export function FormattingToolbar({
         {/* Word Break Tools */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={onInsertZWSP} className="h-8 w-8 p-0">
-              <Link2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Insert break point</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" onClick={onJoinWord} className="h-8 w-8 p-0">
               <Unlink2 className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Join selected words</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" onClick={onSplitWord} className="h-8 w-8 p-0">
+              <Link2 className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Split word at cursor</TooltipContent>
         </Tooltip>
 
         <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />

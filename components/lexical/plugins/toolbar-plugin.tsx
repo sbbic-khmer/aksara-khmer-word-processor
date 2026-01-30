@@ -10,6 +10,7 @@ import {
   $createParagraphNode,
   $isTextNode,
 } from "lexical"
+import { FORCE_RESEGMENT_COMMAND } from "./khmer-word-break-plugin"
 import { $setBlocksType } from "@lexical/selection"
 import { $createHeadingNode, $isHeadingNode, type HeadingTagType } from "@lexical/rich-text"
 import { INSERT_UNORDERED_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND, REMOVE_LIST_COMMAND } from "@lexical/list"
@@ -207,7 +208,7 @@ export function useToolbarCommands() {
 
   const joinWord = useCallback(() => {
     let cleanedWord = ''
-    
+
     // First read the selection to get the word
     editor.getEditorState().read(() => {
       const selection = $getSelection()
@@ -219,7 +220,7 @@ export function useToolbarCommands() {
         }
       }
     })
-    
+
     // Then collapse selection to end (so cursor stays near the joined word after resegment)
     editor.update(() => {
       const selection = $getSelection()
@@ -227,7 +228,7 @@ export function useToolbarCommands() {
         selection.anchor.set(selection.focus.key, selection.focus.offset, selection.focus.type)
       }
     })
-    
+
     // Save the joined word to the user's dictionary (if logged in)
     // The dictionary update will trigger a resegmentation automatically
     if (cleanedWord.length > 0) {
@@ -246,5 +247,108 @@ export function useToolbarCommands() {
     }
   }, [editor])
 
-  return { formatText, undo, redo, insertZWSP, joinWord }
+  const getSplitInfo = useCallback(() => {
+    let result: { word: string; cursorPosition: number } | null = null
+
+    editor.getEditorState().read(() => {
+      const selection = $getSelection()
+      if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+        return
+      }
+
+      // Get the text node at cursor
+      const anchor = selection.anchor
+      const node = anchor.getNode()
+      if (!$isTextNode(node)) {
+        return
+      }
+
+      const textContent = node.getTextContent()
+      const offset = anchor.offset
+
+      // Find the word boundaries around the cursor
+      // Look backwards for ZWSP or start of text
+      let startIndex = offset - 1
+      while (startIndex >= 0 && textContent[startIndex] !== ZWSP && textContent[startIndex] !== WJ) {
+        startIndex--
+      }
+      startIndex++ // Move to character after ZWSP or to start
+
+      // Look forwards for ZWSP or end of text
+      let endIndex = offset
+      while (endIndex < textContent.length && textContent[endIndex] !== ZWSP && textContent[endIndex] !== WJ) {
+        endIndex++
+      }
+
+      // Extract the word
+      const word = textContent.slice(startIndex, endIndex)
+
+      // Remove any zero-width characters from the word
+      const cleanWord = word.replace(/[\u200B\u2060]/g, '')
+
+      // Calculate cursor position within the clean word
+      const beforeCursor = textContent.slice(startIndex, offset).replace(/[\u200B\u2060]/g, '')
+      const cursorPosition = beforeCursor.length
+
+      if (cleanWord.length > 0) {
+        result = { word: cleanWord, cursorPosition }
+      }
+    })
+
+    return result
+  }, [editor])
+
+  const confirmSplit = useCallback(async (originalWord: string, word1: string, word2: string) => {
+    // 1. Delete the original word from user dictionary (if present)
+    try {
+      await fetch(`/api/dictionary/user?word=${encodeURIComponent(originalWord)}`, {
+        method: 'DELETE',
+      })
+    } catch {
+      // Ignore error if word wasn't in dictionary
+    }
+
+    // 2. Add the original word to the ignore list (prevents master dictionary from preferring it)
+    try {
+      await fetch('/api/dictionary/user/ignored', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word: originalWord }),
+      })
+    } catch {
+      // Ignore error if already in ignore list
+    }
+
+    // 3. Add both split words to dictionary
+    try {
+      await Promise.all([
+        fetch('/api/dictionary/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word: word1 }),
+        }),
+        fetch('/api/dictionary/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word: word2 }),
+        }),
+      ])
+
+      // 4. Trigger SWR revalidation for both dictionary and ignore list
+      await Promise.all([
+        mutate('/api/dictionary/user'),
+        mutate('/api/dictionary/user/ignored')
+      ])
+
+      // 5. Force resegmentation immediately (don't wait for word count to increase)
+      // This is important because split might not change word count if the split
+      // words already exist in the dictionary
+      editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+    } catch (error) {
+      console.error('Error splitting word:', error)
+      throw error
+    }
+  }, [editor])
+
+  return { formatText, undo, redo, insertZWSP, joinWord, getSplitInfo, confirmSplit }
 }

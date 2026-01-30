@@ -241,14 +241,6 @@ export function MobileToolbar({
         {/* Word break tools */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={onInsertZWSP} className="h-8 w-8 p-0">
-              <Link2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Insert break point</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" onClick={onJoinWord} className="h-8 w-8 p-0">
               <Unlink2 className="h-4 w-4" />
             </Button>

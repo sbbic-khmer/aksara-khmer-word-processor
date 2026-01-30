@@ -365,19 +365,22 @@ const scanAndMarkMisspellings = useCallback(() => {
             }
             unregister();
         };
-    }, [editor, typo, scanAndMarkMisspellings, SCAN_DEBOUNCE_MS, spellCheckEnabled]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editor, typo, spellCheckEnabled]);
 
     // Immediately trigger scan when spellCheckEnabled changes (e.g., to clear markers when disabled)
     useEffect(() => {
         scanAndMarkMisspellings();
-    }, [spellCheckEnabled, scanAndMarkMisspellings]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [spellCheckEnabled]);
 
     // Trigger scan when custom words change (added or ignored)
     useEffect(() => {
         if (!typo) return;
         console.log('[SpellCheck] Custom words changed, rescanning document');
         scanAndMarkMisspellings();
-    }, [addedWordsSet, ignoredWordsSet, typo, scanAndMarkMisspellings]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [addedWordsSet, ignoredWordsSet, typo]);
 
     /**
      * For Khmer text, each TextNode after word-breaking represents a word segment.

@@ -1,7 +1,7 @@
 "use client"
 
 import useSWR from "swr"
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 
 interface DictionaryWord {
   id: string
@@ -13,19 +13,22 @@ interface UserDictionaryResponse {
   words: DictionaryWord[]
 }
 
+// Stable empty response to avoid creating new arrays on every render
+const EMPTY_RESPONSE: UserDictionaryResponse = { words: [] }
+
 const fetcher = async (url: string): Promise<UserDictionaryResponse> => {
   try {
     const res = await fetch(url)
     if (!res.ok) {
-      // Return empty array if not authenticated or error
-      return { words: [] }
+      // Return stable empty response if not authenticated or error
+      return EMPTY_RESPONSE
     }
     const data = await res.json()
     return data
   } catch (error) {
     console.log("[v0] Error fetching user dictionary:", error)
-    // Return empty array on any error
-    return { words: [] }
+    // Return stable empty response on any error
+    return EMPTY_RESPONSE
   }
 }
 
@@ -42,13 +45,17 @@ export function useUserDictionary() {
       revalidateOnFocus: true,
       // Don't retry on error (user might not be logged in)
       shouldRetryOnError: false,
+      // Provide stable fallback data
+      fallbackData: EMPTY_RESPONSE,
     }
   )
 
-  const words = data?.words || []
-  
+  // Use data if available, otherwise use stable empty response
+  const words = data?.words ?? EMPTY_RESPONSE.words
+
   // Extract just the word strings for the breaker
-  const wordStrings = words.map(w => w.word)
+  // Memoize to prevent creating new arrays on every render (would cause infinite loop)
+  const wordStrings = useMemo(() => words.map(w => w.word), [words])
 
   const refresh = useCallback(() => {
     mutate()

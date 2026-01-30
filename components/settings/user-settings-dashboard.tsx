@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserReplacementsManager } from "./user-replacements-manager"
 import { UserDictionaryManager } from "./user-dictionary-manager"
+import { IgnoredDictionaryWordsManager } from "./ignored-dictionary-words-manager"
 import { SpellCheckCustomWordsManager } from "./spell-check-custom-words-manager"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
@@ -40,7 +41,10 @@ export function UserSettingsDashboard() {
           </TabsList>
 
           <TabsContent value="dictionary">
-            <UserDictionaryManager />
+            <div className="space-y-6">
+              <UserDictionaryManager />
+              <IgnoredDictionaryWordsManager />
+            </div>
           </TabsContent>
 
           <TabsContent value="spell-check">

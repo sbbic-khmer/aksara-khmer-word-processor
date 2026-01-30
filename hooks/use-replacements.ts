@@ -14,12 +14,22 @@ interface ReplacementsData {
   combined: Record<string, { correct_word: string; source: string }>
 }
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url)
-  if (!res.ok) {
-    throw new Error(`Fetch failed: ${res.status}`)
+// Stable empty response to avoid creating new objects on every render
+const EMPTY_RESPONSE: ReplacementsData = { combined: {} }
+
+const fetcher = async (url: string): Promise<ReplacementsData> => {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) {
+      // Return stable empty response if not authenticated or error
+      return EMPTY_RESPONSE
+    }
+    return res.json()
+  } catch (error) {
+    console.log("[v0] Error fetching replacements:", error)
+    // Return stable empty response on any error
+    return EMPTY_RESPONSE
   }
-  return res.json()
 }
 
 // Create a singleton breaker instance for word segmentation
@@ -40,6 +50,10 @@ export function useReplacements() {
     revalidateOnMount: true, // Always fetch fresh data on mount
     // Keep the data fresh but don't refetch too often
     dedupingInterval: 5000,
+    // Don't retry on error (user might not be logged in)
+    shouldRetryOnError: false,
+    // Provide stable fallback data
+    fallbackData: EMPTY_RESPONSE,
   })
 
   // Apply replacements to text using word-based matching
@@ -104,7 +118,7 @@ export function useReplacements() {
   )
 
   return {
-    replacements: data?.combined || {},
+    replacements: data?.combined ?? EMPTY_RESPONSE.combined,
     isLoading,
     error,
     applyReplacements,

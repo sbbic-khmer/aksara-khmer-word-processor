@@ -1,7 +1,7 @@
 "use client"
 
 import useSWR from "swr"
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 
 interface CustomWord {
   id: string
@@ -14,19 +14,22 @@ interface SpellCheckCustomWordsResponse {
   ignored: CustomWord[]
 }
 
+// Stable empty response to avoid creating new arrays on every render
+const EMPTY_RESPONSE: SpellCheckCustomWordsResponse = { added: [], ignored: [] }
+
 const fetcher = async (url: string): Promise<SpellCheckCustomWordsResponse> => {
   try {
     const res = await fetch(url)
     if (!res.ok) {
-      // Return empty arrays if not authenticated or error
-      return { added: [], ignored: [] }
+      // Return stable empty response if not authenticated or error
+      return EMPTY_RESPONSE
     }
     const data = await res.json()
     return data
   } catch (error) {
     console.log("[v0] Error fetching spell check custom words:", error)
-    // Return empty arrays on any error
-    return { added: [], ignored: [] }
+    // Return stable empty response on any error
+    return EMPTY_RESPONSE
   }
 }
 
@@ -43,15 +46,19 @@ export function useSpellCheckCustomWords() {
       revalidateOnFocus: true,
       // Don't retry on error (user might not be logged in)
       shouldRetryOnError: false,
+      // Provide stable fallback data
+      fallbackData: EMPTY_RESPONSE,
     }
   )
 
-  const addedWords = data?.added || []
-  const ignoredWords = data?.ignored || []
+  // Use data if available, otherwise use stable empty response
+  const addedWords = data?.added ?? EMPTY_RESPONSE.added
+  const ignoredWords = data?.ignored ?? EMPTY_RESPONSE.ignored
 
   // Extract just the word strings for spell checking
-  const addedWordStrings = addedWords.map(w => w.word)
-  const ignoredWordStrings = ignoredWords.map(w => w.word)
+  // Memoize to prevent creating new arrays on every render (would cause infinite loop)
+  const addedWordStrings = useMemo(() => addedWords.map(w => w.word), [addedWords])
+  const ignoredWordStrings = useMemo(() => ignoredWords.map(w => w.word), [ignoredWords])
 
   const refresh = useCallback(() => {
     mutate()
