@@ -25,7 +25,9 @@ import {
   SpellCheck,
   SpellCheck2,
   BookCheck,
+  Settings,
 } from "lucide-react"
+import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -451,6 +453,18 @@ export function FormattingToolbar({
             </Button>
           </TooltipTrigger>
           <TooltipContent>{grammarCheckEnabled ? "បិទត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ" : "បើកត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ"}</TooltipContent>
+        </Tooltip>
+
+        {/* Settings */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link href="/settings">
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent>Settings</TooltipContent>
         </Tooltip>
       </>
     </TooltipProvider>
