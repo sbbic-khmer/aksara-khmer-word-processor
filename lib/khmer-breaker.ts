@@ -133,8 +133,15 @@ class KhmerTrie {
    * Find ALL dictionary matches starting at position (not just longest).
    * Returns array of { length, frequency } for each match found.
    * Used by beam search to explore multiple segmentation paths.
+   *
+   * If a match is followed by ៗ (repetition sign), extends the match to include it.
    */
-  findAllMatches(text: string, startIndex: number, maxLength: number): Array<{ length: number; frequency: number }> {
+  findAllMatches(
+    text: string,
+    startIndex: number,
+    maxLength: number,
+    charSets?: KhmerCharSets,
+  ): Array<{ length: number; frequency: number }> {
     const matches: Array<{ length: number; frequency: number }> = []
     let node = this.root
     let currentLength = 0
@@ -147,7 +154,13 @@ class KhmerTrie {
       currentLength++
 
       if (node.isWord) {
-        matches.push({ length: currentLength, frequency: node.frequency })
+        let extendedLength = currentLength
+        // Check if the next character is ៗ (repetition sign)
+        // If so, include it with this word
+        if (charSets && i + 1 < text.length && charSets.isRepetitionSign(text[i + 1])) {
+          extendedLength = currentLength + 1
+        }
+        matches.push({ length: extendedLength, frequency: node.frequency })
       }
     }
     return matches
@@ -182,6 +195,7 @@ class KhmerCharSets {
   KHMER_BASE_END = 0x17ff
   COENG = "\u17D2"
   BANTOC = "\u17CB" // ់ - Khmer sign BANTOC (final consonant marker)
+  REPETITION_SIGN = "\u17D7" // ៗ - Khmer sign LEK TOO (repetition sign)
 
   consonants: Set<string>
   independentVowels: Set<string>
@@ -245,6 +259,10 @@ class KhmerCharSets {
     return char === this.BANTOC
   }
 
+  isRepetitionSign(char: string): boolean {
+    return char === this.REPETITION_SIGN
+  }
+
   isConsonant(char: string): boolean {
     return this.consonants.has(char)
   }
@@ -294,12 +312,14 @@ class KhmerCharSets {
 
   /**
    * Check if character is punctuation (Khmer or common).
-   * Khmer punctuation: ។ ៕ ៖ ៗ ៘ ៙ ៚ (U+17D4-U+17DA)
+   * Khmer punctuation: ។ ៕ ៖ ៘ ៙ ៚ (U+17D4-U+17DA, excluding ៗ U+17D7)
+   * Note: ៗ (U+17D7) is the repetition sign and is NOT punctuation - it's a suffix
+   * that attaches to words (e.g., អ្វីៗ = "things", ផ្សេងៗ = "various")
    */
   isPunctuation(char: string): boolean {
     const code = char.codePointAt(0)!
-    // Khmer punctuation range
-    if (code >= 0x17d4 && code <= 0x17da) return true
+    // Khmer punctuation range (excluding ៗ repetition sign at U+17D7)
+    if (code >= 0x17d4 && code <= 0x17da && code !== 0x17d7) return true
     // Common punctuation
     if ('.,;:!?()[]{}"\'-–—…'.includes(char)) return true
     return false
@@ -348,6 +368,7 @@ class KhmerCharSets {
    * Implements Unicode-compliant break rules for Khmer:
    * - Never break before combining marks (dependent vowels, signs, etc.)
    * - Never break before or after COENG
+   * - Never break before repetition sign (ៗ)
    * - Never break around Word Joiner (U+2060)
    */
   canBreakAt(text: string, index: number): boolean {
@@ -362,12 +383,17 @@ class KhmerCharSets {
     // 2) CRITICAL: never break after or before COENG
     if (this.isCoeng(before) || this.isCoeng(after)) return false
 
-    // 3) Unicode LB9: never break BEFORE a combining mark.
+    // 3) Never break BEFORE repetition sign (ៗ)
+    // The repetition sign is a suffix that must attach to the preceding word
+    // Example: អ្វីៗ (things), ផ្សេងៗ (various)
+    if (this.isRepetitionSign(after)) return false
+
+    // 4) Unicode LB9: never break BEFORE a combining mark.
     // In Khmer this means dependent vowels, signs, and other marks
     // must stay attached to the previous base/cluster.
     if (this.isCombiningMark(after)) return false
 
-    // 4) Don't break right after a combining mark unless the next char
+    // 5) Don't break right after a combining mark unless the next char
     // begins a new cluster (is a base), or is whitespace/punctuation.
     // This prevents ugly breaks like "...VOWEL | non-base"
     if (this.isCombiningMark(before) && !this.isBase(after) && !/\s/.test(after) && !this.isPunctuation(after)) {
@@ -1144,7 +1170,7 @@ export class KhmerBreaker {
         
         // Khmer text - find dictionary matches
         const maxLen = Math.min(KhmerBreaker.MAX_WORD_LEN, endPos - s.pos)
-        const matches = this.trie.findAllMatches(text, s.pos, maxLen)
+        const matches = this.trie.findAllMatches(text, s.pos, maxLen, this.charSets)
         
         // Build candidate tokens
         const candidates: Array<{ len: number; score: number }> = []
@@ -1184,9 +1210,15 @@ export class KhmerBreaker {
         
         // OOV fallback: consume multiple clusters until next strong known word start
         // This prevents over-splitting of unknown words like names and transliterations
-        const oovEnd = this.findOovChunkEnd(text, s.pos)
+        let oovEnd = this.findOovChunkEnd(text, s.pos)
+
+        // If the OOV chunk is followed by ៗ (repetition sign), include it
+        if (oovEnd < endPos && this.charSets.isRepetitionSign(text[oovEnd])) {
+          oovEnd++
+        }
+
         const oovLen = oovEnd - s.pos
-        
+
         // Count clusters in the OOV chunk for better scoring
         const oovClusters = this.charSets.extractClusters(text.slice(s.pos, oovEnd)).length
         

@@ -1131,6 +1131,8 @@ function EditorWrapper({
         .then((doc) => {
           try {
             if (doc.editor_state) {
+              // Skip the content change from loading to avoid triggering auto-save
+              skipNextContentChangeRef.current = true
               const state = editor.parseEditorState(doc.editor_state)
               editor.setEditorState(state)
               // Force resegmentation after content is loaded
@@ -1453,10 +1455,10 @@ function EditorWrapper({
         if (response.ok) {
           const doc = await response.json()
 
-          skipNextContentChangeRef.current = true
-
           if (doc.editor_state) {
             try {
+              // Only skip content change if we're actually going to set editor state
+              skipNextContentChangeRef.current = true
               const state = editor.parseEditorState(doc.editor_state)
               editor.setEditorState(state)
               // Force resegmentation after content is loaded
@@ -1464,6 +1466,8 @@ function EditorWrapper({
                 editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
               }, 50)
             } catch (error) {
+              // Reset skip flag if parsing fails
+              skipNextContentChangeRef.current = false
               console.error("[v0] Error loading editor state:", error)
             }
           }
@@ -1746,13 +1750,16 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       async (newTitle: string) => {
         setDocumentState((prev) => ({ ...prev, title: newTitle, saveStatus: "saving" }))
 
+        // Use ref to get current state (avoids stale closure issues)
+        const currentId = documentStateRef.current.id
+
         try {
-          if (documentState.id) {
+          if (currentId) {
             // Update existing document title
-            await fetch(`/api/documents/${documentState.id}`, {
+            await fetch(`/api/documents/${currentId}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.JSON.stringify({ title: newTitle }),
+              body: JSON.stringify({ title: newTitle }),
             })
             setDocumentState((prev) => ({ ...prev, saveStatus: "saved", hasUnsavedChanges: false }))
           } else {
@@ -1782,7 +1789,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
           setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
         }
       },
-      [documentState.id, updateLastOpenedDocumentId],
+      [updateLastOpenedDocumentId],
     )
 
     useImperativeHandle(ref, () => ({
