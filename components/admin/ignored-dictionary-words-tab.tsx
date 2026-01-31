@@ -143,7 +143,7 @@ export function IgnoredDictionaryWordsTab() {
     setSelectedWords(new Set())
   }
 
-  // Generate regex to match frequency dictionary lines
+  // Generate regex to match frequency dictionary lines (includes newline for clean removal)
   const generateRegex = useMemo(() => {
     if (selectedWords.size === 0) return ""
     const wordsArray = Array.from(selectedWords)
@@ -152,10 +152,11 @@ export function IgnoredDictionaryWordsTab() {
       w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     )
     // Generate regex that matches: { word: "WORD", frequency: NUMBER },
+    // Includes (\r?\n|$) at end to remove the newline, preventing blank lines
     if (escapedWords.length === 1) {
-      return `^\\s*\\{ word: "${escapedWords[0]}", frequency: \\d+ \\},?\\s*$`
+      return `^\\s*\\{ word: "${escapedWords[0]}", frequency: \\d+ \\},?\\s*(\\r?\\n|$)`
     }
-    return `^\\s*\\{ word: "(${escapedWords.join("|")})", frequency: \\d+ \\},?\\s*$`
+    return `^\\s*\\{ word: "(${escapedWords.join("|")})", frequency: \\d+ \\},?\\s*(\\r?\\n|$)`
   }, [selectedWords])
 
   const copyRegex = async () => {
