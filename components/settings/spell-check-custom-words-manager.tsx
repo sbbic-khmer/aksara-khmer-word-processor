@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo } from "react"
+import { useState, useCallback, useRef } from "react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Plus, Trash2, Loader2, Info, Search } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { usePagination, PaginationControls } from "./pagination-controls"
 
 interface CustomWord {
   id: string
@@ -36,21 +37,27 @@ export function SpellCheckCustomWordsManager() {
   const [searchQueryAdded, setSearchQueryAdded] = useState("")
   const [searchQueryIgnored, setSearchQueryIgnored] = useState("")
   const [activeTab, setActiveTab] = useState("added")
+  const tableRef = useRef<HTMLDivElement>(null)
 
   const addedWords = data?.added || []
   const ignoredWords = data?.ignored || []
 
-  const filteredAddedWords = useMemo(() => {
-    if (!addedWords || !searchQueryAdded.trim()) return addedWords
-    const query = searchQueryAdded.toLowerCase().trim()
-    return addedWords.filter((item) => item.word.toLowerCase().includes(query))
-  }, [addedWords, searchQueryAdded])
+  const wordSearchFilter = useCallback(
+    (item: CustomWord, query: string) => item.word.toLowerCase().includes(query),
+    []
+  )
 
-  const filteredIgnoredWords = useMemo(() => {
-    if (!ignoredWords || !searchQueryIgnored.trim()) return ignoredWords
-    const query = searchQueryIgnored.toLowerCase().trim()
-    return ignoredWords.filter((item) => item.word.toLowerCase().includes(query))
-  }, [ignoredWords, searchQueryIgnored])
+  const addedPagination = usePagination({
+    items: addedWords,
+    searchQuery: searchQueryAdded,
+    searchFilter: wordSearchFilter,
+  })
+
+  const ignoredPagination = usePagination({
+    items: ignoredWords,
+    searchQuery: searchQueryIgnored,
+    searchFilter: wordSearchFilter,
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -122,6 +129,7 @@ export function SpellCheckCustomWordsManager() {
         </AlertDescription>
       </Alert>
 
+      <div ref={tableRef}>
       <Card>
         <CardHeader>
           <CardTitle>Spell Check Custom Words</CardTitle>
@@ -201,55 +209,68 @@ export function SpellCheckCustomWordsManager() {
                         className="pl-9"
                       />
                     </div>
-                    {searchQueryAdded && (
+                    {(searchQueryAdded || addedWords.length > 10) && (
                       <p className="text-sm text-gray-500 mt-2">
-                        Showing {filteredAddedWords.length} of {addedWords.length} words
+                        {searchQueryAdded
+                          ? `Found ${addedPagination.totalItems} of ${addedWords.length} words`
+                          : `${addedWords.length} words total`}
                       </p>
                     )}
                   </div>
                 )}
 
-                {filteredAddedWords.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Word</TableHead>
-                        <TableHead>Added</TableHead>
-                        <TableHead className="w-[80px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredAddedWords.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell
-                            className="font-medium text-lg"
-                            dir="auto"
-                            style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
-                          >
-                            {item.word}
-                          </TableCell>
-                          <TableCell className="text-gray-500">
-                            {new Date(item.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(item.id, "add")}
-                              disabled={deleteId === item.id}
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
-                            >
-                              {deleteId === item.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </TableCell>
+                {addedPagination.paginatedItems.length > 0 ? (
+                  <div className="space-y-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Word</TableHead>
+                          <TableHead>Added</TableHead>
+                          <TableHead className="w-[80px]">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {addedPagination.paginatedItems.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell
+                              className="font-medium text-lg"
+                              dir="auto"
+                              style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                            >
+                              {item.word}
+                            </TableCell>
+                            <TableCell className="text-gray-500">
+                              {new Date(item.created_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(item.id, "add")}
+                                disabled={deleteId === item.id}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
+                              >
+                                {deleteId === item.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <PaginationControls
+                      currentPage={addedPagination.currentPage}
+                      totalPages={addedPagination.totalPages}
+                      pageSize={addedPagination.pageSize}
+                      totalItems={addedPagination.totalItems}
+                      onPageChange={addedPagination.setCurrentPage}
+                      onPageSizeChange={addedPagination.setPageSize}
+                      scrollTargetRef={tableRef}
+                    />
+                  </div>
                 ) : searchQueryAdded ? (
                   <div className="text-center py-8 text-gray-500">
                     No words found matching "{searchQueryAdded}"
@@ -324,55 +345,68 @@ export function SpellCheckCustomWordsManager() {
                         className="pl-9"
                       />
                     </div>
-                    {searchQueryIgnored && (
+                    {(searchQueryIgnored || ignoredWords.length > 10) && (
                       <p className="text-sm text-gray-500 mt-2">
-                        Showing {filteredIgnoredWords.length} of {ignoredWords.length} words
+                        {searchQueryIgnored
+                          ? `Found ${ignoredPagination.totalItems} of ${ignoredWords.length} words`
+                          : `${ignoredWords.length} words total`}
                       </p>
                     )}
                   </div>
                 )}
 
-                {filteredIgnoredWords.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Word</TableHead>
-                        <TableHead>Added</TableHead>
-                        <TableHead className="w-[80px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredIgnoredWords.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell
-                            className="font-medium text-lg"
-                            dir="auto"
-                            style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
-                          >
-                            {item.word}
-                          </TableCell>
-                          <TableCell className="text-gray-500">
-                            {new Date(item.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(item.id, "ignore")}
-                              disabled={deleteId === item.id}
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
-                            >
-                              {deleteId === item.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </TableCell>
+                {ignoredPagination.paginatedItems.length > 0 ? (
+                  <div className="space-y-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Word</TableHead>
+                          <TableHead>Added</TableHead>
+                          <TableHead className="w-[80px]">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {ignoredPagination.paginatedItems.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell
+                              className="font-medium text-lg"
+                              dir="auto"
+                              style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                            >
+                              {item.word}
+                            </TableCell>
+                            <TableCell className="text-gray-500">
+                              {new Date(item.created_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(item.id, "ignore")}
+                                disabled={deleteId === item.id}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
+                              >
+                                {deleteId === item.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <PaginationControls
+                      currentPage={ignoredPagination.currentPage}
+                      totalPages={ignoredPagination.totalPages}
+                      pageSize={ignoredPagination.pageSize}
+                      totalItems={ignoredPagination.totalItems}
+                      onPageChange={ignoredPagination.setCurrentPage}
+                      onPageSizeChange={ignoredPagination.setPageSize}
+                      scrollTargetRef={tableRef}
+                    />
+                  </div>
                 ) : searchQueryIgnored ? (
                   <div className="text-center py-8 text-gray-500">
                     No words found matching "{searchQueryIgnored}"
@@ -388,6 +422,7 @@ export function SpellCheckCustomWordsManager() {
           </Tabs>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

@@ -2,8 +2,9 @@
 
 import type React from "react"
 
-import { useState, useMemo } from "react"
+import { useState, useCallback, useRef } from "react"
 import useSWR from "swr"
+import { usePagination, PaginationControls } from "@/components/settings/pagination-controls"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -36,18 +37,30 @@ export function MasterReplacementsTab() {
   const [isSaving, setIsSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const tableRef = useRef<HTMLDivElement>(null)
 
-  const filteredData = useMemo(() => {
-    if (!data || !searchQuery.trim()) return data
-    const query = searchQuery.toLowerCase().trim()
-    return data.filter(
-      (item) =>
-        item.incorrect_word.toLowerCase().includes(query) ||
-        item.correct_word.toLowerCase().includes(query) ||
-        (item.notes && item.notes.toLowerCase().includes(query)) ||
-        (item.created_by_email && item.created_by_email.toLowerCase().includes(query)),
-    )
-  }, [data, searchQuery])
+  const searchFilter = useCallback(
+    (item: MasterReplacement, query: string) =>
+      item.incorrect_word.toLowerCase().includes(query) ||
+      item.correct_word.toLowerCase().includes(query) ||
+      (item.notes && item.notes.toLowerCase().includes(query)) ||
+      (item.created_by_email && item.created_by_email.toLowerCase().includes(query)),
+    []
+  )
+
+  const {
+    paginatedItems,
+    currentPage,
+    pageSize,
+    totalPages,
+    totalItems,
+    setCurrentPage,
+    setPageSize,
+  } = usePagination({
+    items: data || [],
+    searchQuery,
+    searchFilter,
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -121,6 +134,7 @@ export function MasterReplacementsTab() {
   }
 
   return (
+    <div ref={tableRef}>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Master Replacement Table</CardTitle>
@@ -191,67 +205,80 @@ export function MasterReplacementsTab() {
                 className="pl-9"
               />
             </div>
-            {searchQuery && (
+            {(searchQuery || data.length > 10) && (
               <p className="text-sm text-gray-500 mt-2">
-                Showing {filteredData?.length || 0} of {data.length} replacements
+                {searchQuery
+                  ? `Found ${totalItems} of ${data.length} replacements`
+                  : `${data.length} replacements total`}
               </p>
             )}
           </div>
         )}
-        {filteredData && filteredData.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Incorrect</TableHead>
-                <TableHead>Correct</TableHead>
-                <TableHead>Notes</TableHead>
-                <TableHead>Added By</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredData.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell
-                    className="font-medium text-lg"
-                    dir="auto"
-                    style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
-                  >
-                    {item.incorrect_word}
-                  </TableCell>
-                  <TableCell
-                    className="text-lg"
-                    dir="auto"
-                    style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
-                  >
-                    {item.correct_word}
-                  </TableCell>
-                  <TableCell className="text-gray-500 truncate max-w-[200px]">{item.notes || "-"}</TableCell>
-                  <TableCell className="text-gray-500">{item.created_by_email || "System"}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(item)} className="h-8 w-8 p-0">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(item.id)}
-                        disabled={deleteId === item.id}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
-                      >
-                        {deleteId === item.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </TableCell>
+        {paginatedItems.length > 0 ? (
+          <div className="space-y-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Incorrect</TableHead>
+                  <TableHead>Correct</TableHead>
+                  <TableHead>Notes</TableHead>
+                  <TableHead>Added By</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {paginatedItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell
+                      className="font-medium text-lg"
+                      dir="auto"
+                      style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                    >
+                      {item.incorrect_word}
+                    </TableCell>
+                    <TableCell
+                      className="text-lg"
+                      dir="auto"
+                      style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                    >
+                      {item.correct_word}
+                    </TableCell>
+                    <TableCell className="text-gray-500 truncate max-w-[200px]">{item.notes || "-"}</TableCell>
+                    <TableCell className="text-gray-500">{item.created_by_email || "System"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(item)} className="h-8 w-8 p-0">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(item.id)}
+                          disabled={deleteId === item.id}
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
+                        >
+                          {deleteId === item.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={totalItems}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+              scrollTargetRef={tableRef}
+            />
+          </div>
         ) : searchQuery ? (
           <div className="text-center py-8 text-gray-500">No replacements found matching "{searchQuery}"</div>
         ) : (
@@ -259,5 +286,6 @@ export function MasterReplacementsTab() {
         )}
       </CardContent>
     </Card>
+    </div>
   )
 }

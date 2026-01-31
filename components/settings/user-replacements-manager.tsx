@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo } from "react"
+import { useState, useCallback, useRef } from "react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { Plus, Pencil, Trash2, Loader2, Info, Search } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { usePagination, PaginationControls } from "./pagination-controls"
 
 interface UserReplacement {
   id: string
@@ -36,17 +37,32 @@ export function UserReplacementsManager() {
   const [isSaving, setIsSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const tableRef = useRef<HTMLDivElement>(null)
 
-  const filteredData = useMemo(() => {
-    if (!data || !searchQuery.trim()) return data
-    const query = searchQuery.toLowerCase().trim()
-    return data.filter(
-      (item) =>
-        item.incorrect_word.toLowerCase().includes(query) ||
-        item.correct_word.toLowerCase().includes(query) ||
-        (item.notes && item.notes.toLowerCase().includes(query)),
-    )
-  }, [data, searchQuery])
+  const replacements = data || []
+
+  const searchFilter = useCallback(
+    (item: UserReplacement, query: string) =>
+      item.incorrect_word.toLowerCase().includes(query) ||
+      item.correct_word.toLowerCase().includes(query) ||
+      (item.notes && item.notes.toLowerCase().includes(query)),
+    []
+  )
+
+  const {
+    paginatedItems,
+    filteredItems,
+    currentPage,
+    pageSize,
+    totalPages,
+    totalItems,
+    setCurrentPage,
+    setPageSize,
+  } = usePagination({
+    items: replacements,
+    searchQuery,
+    searchFilter,
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -129,6 +145,7 @@ export function UserReplacementsManager() {
         </AlertDescription>
       </Alert>
 
+      <div ref={tableRef}>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -193,7 +210,7 @@ export function UserReplacementsManager() {
           </Dialog>
         </CardHeader>
         <CardContent>
-          {data && data.length > 0 && (
+          {replacements.length > 0 && (
             <div className="mb-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -204,25 +221,28 @@ export function UserReplacementsManager() {
                   className="pl-9"
                 />
               </div>
-              {searchQuery && (
+              {(searchQuery || replacements.length > 10) && (
                 <p className="text-sm text-gray-500 mt-2">
-                  Showing {filteredData?.length || 0} of {data.length} replacements
+                  {searchQuery
+                    ? `Found ${totalItems} of ${replacements.length} replacements`
+                    : `${replacements.length} replacements total`}
                 </p>
               )}
             </div>
           )}
-          {filteredData && filteredData.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Incorrect</TableHead>
-                  <TableHead>Correct</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.map((item) => (
+          {paginatedItems.length > 0 ? (
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Incorrect</TableHead>
+                    <TableHead>Correct</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell
                       className="font-medium text-lg"
@@ -260,9 +280,19 @@ export function UserReplacementsManager() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                  ))}
+                </TableBody>
+              </Table>
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+                scrollTargetRef={tableRef}
+              />
+            </div>
           ) : searchQuery ? (
             <div className="text-center py-8 text-gray-500">No replacements found matching "{searchQuery}"</div>
           ) : (
@@ -272,6 +302,7 @@ export function UserReplacementsManager() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

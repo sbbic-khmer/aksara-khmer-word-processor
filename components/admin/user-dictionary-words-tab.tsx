@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback, useRef } from "react"
 import useSWR from "swr"
+import { usePagination, PaginationControls } from "@/components/settings/pagination-controls"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
@@ -23,16 +24,33 @@ export function UserDictionaryWordsTab() {
   const { data, error, isLoading } = useSWR<{ words: AggregatedWord[] }>("/api/dictionary/admin", fetcher)
   const [searchQuery, setSearchQuery] = useState("")
   const [copiedWord, setCopiedWord] = useState<string | null>(null)
+  const tableRef = useRef<HTMLDivElement>(null)
 
   const words = data?.words || []
 
-  const filteredWords = useMemo(() => {
-    if (!words || !searchQuery.trim()) return words
-    const query = searchQuery.toLowerCase().trim()
-    return words.filter((item) => 
-      item.word.toLowerCase().includes(query)
-    )
-  }, [words, searchQuery])
+  // Sort by user_count (popularity) descending first
+  const sortedWords = useMemo(() => {
+    return [...words].sort((a, b) => b.user_count - a.user_count)
+  }, [words])
+
+  const searchFilter = useCallback(
+    (item: AggregatedWord, query: string) => item.word.toLowerCase().includes(query),
+    []
+  )
+
+  const {
+    paginatedItems,
+    currentPage,
+    pageSize,
+    totalPages,
+    totalItems,
+    setCurrentPage,
+    setPageSize,
+  } = usePagination({
+    items: sortedWords,
+    searchQuery,
+    searchFilter,
+  })
 
   const handleCopyWord = async (word: string) => {
     try {
@@ -43,11 +61,6 @@ export function UserDictionaryWordsTab() {
       // Clipboard API not available
     }
   }
-
-  // Sort by user_count (popularity) descending
-  const sortedWords = useMemo(() => {
-    return [...filteredWords].sort((a, b) => b.user_count - a.user_count)
-  }, [filteredWords])
 
   if (isLoading) {
     return (
@@ -99,6 +112,7 @@ export function UserDictionaryWordsTab() {
         </Card>
       </div>
 
+      <div ref={tableRef}>
       <Card>
         <CardHeader>
           <div>
@@ -120,63 +134,76 @@ export function UserDictionaryWordsTab() {
                   className="pl-9"
                 />
               </div>
-              {searchQuery && (
+              {(searchQuery || words.length > 10) && (
                 <p className="text-sm text-gray-500 mt-2">
-                  Showing {filteredWords.length} of {words.length} words
+                  {searchQuery
+                    ? `Found ${totalItems} of ${words.length} words`
+                    : `${words.length} words total`}
                 </p>
               )}
             </div>
           )}
-          {sortedWords.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Word</TableHead>
-                  <TableHead>Users</TableHead>
-                  <TableHead>First Added</TableHead>
-                  <TableHead className="w-[80px]">Copy</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedWords.map((item) => (
-                  <TableRow key={item.word}>
-                    <TableCell
-                      className="font-medium text-lg"
-                      dir="auto"
-                      style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
-                    >
-                      {item.word}
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={item.user_count > 2 ? "default" : item.user_count > 1 ? "secondary" : "outline"}
-                        className="gap-1"
-                      >
-                        <Users className="h-3 w-3" />
-                        {item.user_count}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-gray-500">
-                      {new Date(item.first_added).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyWord(item.word)}
-                        className="h-8 w-8 p-0"
-                      >
-                        {copiedWord === item.word ? (
-                          <Check className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TableCell>
+          {paginatedItems.length > 0 ? (
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Word</TableHead>
+                    <TableHead>Users</TableHead>
+                    <TableHead>First Added</TableHead>
+                    <TableHead className="w-[80px]">Copy</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedItems.map((item) => (
+                    <TableRow key={item.word}>
+                      <TableCell
+                        className="font-medium text-lg"
+                        dir="auto"
+                        style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                      >
+                        {item.word}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={item.user_count > 2 ? "default" : item.user_count > 1 ? "secondary" : "outline"}
+                          className="gap-1"
+                        >
+                          <Users className="h-3 w-3" />
+                          {item.user_count}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-gray-500">
+                        {new Date(item.first_added).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyWord(item.word)}
+                          className="h-8 w-8 p-0"
+                        >
+                          {copiedWord === item.word ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+                scrollTargetRef={tableRef}
+              />
+            </div>
           ) : searchQuery ? (
             <div className="text-center py-8 text-gray-500">No words found matching "{searchQuery}"</div>
           ) : (
@@ -186,6 +213,7 @@ export function UserDictionaryWordsTab() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useCallback, useRef } from "react"
 import useSWR from "swr"
+import { usePagination, PaginationControls } from "@/components/settings/pagination-controls"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
@@ -30,14 +31,28 @@ export function SpellCheckIgnoredWordsTab() {
   )
 
   const [searchQuery, setSearchQuery] = useState("")
+  const tableRef = useRef<HTMLDivElement>(null)
 
   const ignoredWords = data?.ignored || []
 
-  const filteredWords = useMemo(() => {
-    if (!ignoredWords || !searchQuery.trim()) return ignoredWords
-    const query = searchQuery.toLowerCase().trim()
-    return ignoredWords.filter((item) => item.word.toLowerCase().includes(query))
-  }, [ignoredWords, searchQuery])
+  const searchFilter = useCallback(
+    (item: IgnoredWord, query: string) => item.word.toLowerCase().includes(query),
+    []
+  )
+
+  const {
+    paginatedItems,
+    currentPage,
+    pageSize,
+    totalPages,
+    totalItems,
+    setCurrentPage,
+    setPageSize,
+  } = usePagination({
+    items: ignoredWords,
+    searchQuery,
+    searchFilter,
+  })
 
   if (isLoading) {
     return (
@@ -68,6 +83,7 @@ export function SpellCheckIgnoredWordsTab() {
         </AlertDescription>
       </Alert>
 
+      <div ref={tableRef}>
       <Card>
         <CardHeader>
           <CardTitle>Spell Check Ignored Words</CardTitle>
@@ -87,53 +103,66 @@ export function SpellCheckIgnoredWordsTab() {
                   className="pl-9"
                 />
               </div>
-              {searchQuery && (
+              {(searchQuery || ignoredWords.length > 10) && (
                 <p className="text-sm text-gray-500 mt-2">
-                  Showing {filteredWords.length} of {ignoredWords.length} words
+                  {searchQuery
+                    ? `Found ${totalItems} of ${ignoredWords.length} words`
+                    : `${ignoredWords.length} words total`}
                 </p>
               )}
             </div>
           )}
 
-          {filteredWords.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[60px]">Rank</TableHead>
-                  <TableHead>Word</TableHead>
-                  <TableHead className="text-right">Users</TableHead>
-                  <TableHead>First Ignored</TableHead>
-                  <TableHead>Last Ignored</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredWords.map((item, index) => (
-                  <TableRow key={item.word}>
-                    <TableCell className="font-medium text-gray-500">
-                      #{index + 1}
-                    </TableCell>
-                    <TableCell
-                      className="font-medium text-lg"
-                      dir="auto"
-                      style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
-                    >
-                      {item.word}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="inline-flex items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900 px-2.5 py-0.5 text-sm font-medium text-amber-800 dark:text-amber-200">
-                        {item.user_count}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-gray-500 text-sm">
-                      {new Date(item.first_added).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-gray-500 text-sm">
-                      {new Date(item.last_added).toLocaleDateString()}
-                    </TableCell>
+          {paginatedItems.length > 0 ? (
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[60px]">Rank</TableHead>
+                    <TableHead>Word</TableHead>
+                    <TableHead className="text-right">Users</TableHead>
+                    <TableHead>First Ignored</TableHead>
+                    <TableHead>Last Ignored</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {paginatedItems.map((item, index) => (
+                    <TableRow key={item.word}>
+                      <TableCell className="font-medium text-gray-500">
+                        #{(currentPage - 1) * pageSize + index + 1}
+                      </TableCell>
+                      <TableCell
+                        className="font-medium text-lg"
+                        dir="auto"
+                        style={{ fontFamily: '"Noto Sans Khmer", sans-serif' }}
+                      >
+                        {item.word}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="inline-flex items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900 px-2.5 py-0.5 text-sm font-medium text-amber-800 dark:text-amber-200">
+                          {item.user_count}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-gray-500 text-sm">
+                        {new Date(item.first_added).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-gray-500 text-sm">
+                        {new Date(item.last_added).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+                scrollTargetRef={tableRef}
+              />
+            </div>
           ) : searchQuery ? (
             <div className="text-center py-8 text-gray-500">
               No words found matching "{searchQuery}"
@@ -145,6 +174,7 @@ export function SpellCheckIgnoredWordsTab() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

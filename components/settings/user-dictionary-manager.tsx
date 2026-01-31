@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo } from "react"
+import { useState, useCallback, useRef } from "react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { Plus, Trash2, Loader2, Info, Search } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { usePagination, PaginationControls } from "./pagination-controls"
 
 interface DictionaryWord {
   id: string
@@ -27,14 +28,29 @@ export function UserDictionaryManager() {
   const [isSaving, setIsSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const tableRef = useRef<HTMLDivElement>(null)
 
   const words = data?.words || []
 
-  const filteredWords = useMemo(() => {
-    if (!words || !searchQuery.trim()) return words
-    const query = searchQuery.toLowerCase().trim()
-    return words.filter((item) => item.word.toLowerCase().includes(query))
-  }, [words, searchQuery])
+  const searchFilter = useCallback(
+    (item: DictionaryWord, query: string) => item.word.toLowerCase().includes(query),
+    []
+  )
+
+  const {
+    paginatedItems,
+    filteredItems,
+    currentPage,
+    pageSize,
+    totalPages,
+    totalItems,
+    setCurrentPage,
+    setPageSize,
+  } = usePagination({
+    items: words,
+    searchQuery,
+    searchFilter,
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,6 +120,7 @@ export function UserDictionaryManager() {
         </AlertDescription>
       </Alert>
 
+      <div ref={tableRef}>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -161,24 +178,27 @@ export function UserDictionaryManager() {
                   className="pl-9"
                 />
               </div>
-              {searchQuery && (
+              {(searchQuery || words.length > 10) && (
                 <p className="text-sm text-gray-500 mt-2">
-                  Showing {filteredWords.length} of {words.length} words
+                  {searchQuery
+                    ? `Found ${totalItems} of ${words.length} words`
+                    : `${words.length} words total`}
                 </p>
               )}
             </div>
           )}
-          {filteredWords.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Word</TableHead>
-                  <TableHead>Added</TableHead>
-                  <TableHead className="w-[80px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredWords.map((item) => (
+          {paginatedItems.length > 0 ? (
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Word</TableHead>
+                    <TableHead>Added</TableHead>
+                    <TableHead className="w-[80px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell
                       className="font-medium text-lg"
@@ -206,9 +226,19 @@ export function UserDictionaryManager() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                  ))}
+                </TableBody>
+              </Table>
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={totalItems}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+                scrollTargetRef={tableRef}
+              />
+            </div>
           ) : searchQuery ? (
             <div className="text-center py-8 text-gray-500">No words found matching "{searchQuery}"</div>
           ) : (
@@ -218,6 +248,7 @@ export function UserDictionaryManager() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }
