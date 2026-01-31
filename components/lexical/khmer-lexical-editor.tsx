@@ -1490,11 +1490,20 @@ function EditorWrapper({
   )
 
   const handleContentChange = useCallback(() => {
+    if (isDebugEnabled()) {
+      console.log("[handleContentChange] Called, skipFlag:", skipNextContentChangeRef.current)
+    }
     if (skipNextContentChangeRef.current) {
+      if (isDebugEnabled()) {
+        console.log("[handleContentChange] Skipping due to skip flag")
+      }
       skipNextContentChangeRef.current = false
       return
     }
 
+    if (isDebugEnabled()) {
+      console.log("[handleContentChange] Setting hasUnsavedChanges: true")
+    }
     setDocumentState((prev) => ({ ...prev, hasUnsavedChanges: true, saveStatus: "idle" }))
 
     if (autoSaveTimeoutRef.current) {

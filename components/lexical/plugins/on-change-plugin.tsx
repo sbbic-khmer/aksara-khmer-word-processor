@@ -5,6 +5,7 @@ import { $getRoot, $isTextNode } from "lexical"
 import { useEffect, useRef } from "react"
 import { $isKhmerBreakNode } from "../nodes/khmer-break-node"
 import type { KhmerBreaker } from "@/lib/khmer-breaker"
+import { isDebugEnabled } from "@/lib/debug"
 
 interface OnChangePluginProps {
   onChange: (text: string, wordCount: number, charCount: number) => void
@@ -61,7 +62,19 @@ export function OnChangePlugin({ onChange, onContentChange, breaker }: OnChangeP
         // Use null as initial state to ensure first change after load is detected
         const hasActualChange = previousTextRef.current !== null && textWithoutWJ !== previousTextRef.current
 
+        if (isDebugEnabled()) {
+          console.log("[OnChangePlugin] Update listener fired:", {
+            previousTextLength: previousTextRef.current?.length ?? "null",
+            currentTextLength: textWithoutWJ.length,
+            hasActualChange,
+            willTriggerContentChange: hasActualChange && !!onContentChange,
+          })
+        }
+
         if (hasActualChange && onContentChange) {
+          if (isDebugEnabled()) {
+            console.log("[OnChangePlugin] Calling onContentChange()")
+          }
           onContentChange()
         }
 

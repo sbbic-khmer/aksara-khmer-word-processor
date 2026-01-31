@@ -612,16 +612,57 @@ useEffect(() => {
         // Clear processed tracking to allow reprocessing
         processedNodesRef.current = new WeakSet<TextNode>()
         processedParagraphKeysRef.current = new Set<string>()
-        
+
+        // Get cursor position BEFORE resegmenting so we can restore it
+        let cursorParagraphKey: string | null = null
+        let cursorOffset: number | null = null
+
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          const anchorNode = selection.anchor.getNode()
+          // Find the paragraph containing the anchor
+          let paragraphNode = anchorNode
+          while (paragraphNode && !$isParagraphNode(paragraphNode)) {
+            paragraphNode = paragraphNode.getParent() as ElementNode
+          }
+
+          if (paragraphNode && $isParagraphNode(paragraphNode)) {
+            cursorParagraphKey = paragraphNode.getKey()
+
+            // Calculate offset within the paragraph
+            if ($isTextNode(anchorNode)) {
+              const paragraphChildren = paragraphNode.getChildren()
+              let offset = 0
+              for (const child of paragraphChildren) {
+                if (child === anchorNode) {
+                  cursorOffset = offset + selection.anchor.offset
+                  break
+                }
+                if ($isTextNode(child)) {
+                  offset += child.getTextContentSize()
+                }
+              }
+            }
+
+            if (isCursorDebugEnabled()) {
+              cursorDebugLog("forceResegmentAllParagraphs - cursor saved", {
+                cursorParagraphKey,
+                cursorOffset,
+              })
+            }
+          }
+        }
+
         const root = $getRoot()
         const children = root.getChildren()
-        
+
         children.forEach((child) => {
           if ($isParagraphNode(child)) {
             const textContent = child.getTextContent()
             if (textContent && textContent.length > 0) {
-              // Directly call resegmentParagraph instead of relying on transform
-              resegmentParagraph(child, null)
+              // Pass cursor offset only for the paragraph that contains the cursor
+              const paragraphCursorOffset = child.getKey() === cursorParagraphKey ? cursorOffset : null
+              resegmentParagraph(child, paragraphCursorOffset)
             }
           }
         })
