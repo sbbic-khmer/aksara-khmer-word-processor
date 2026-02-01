@@ -35,6 +35,9 @@ export const metadata: Metadata = {
   keywords: ["Khmer", "word processor", "Cambodian", "typing", "voice to text", "spelling checker", "grammar checker", "LibreOffice", "ODT"],
   authors: [{ name: "Aksara Pro" }],
   creator: "Aksara Pro",
+  other: {
+    "google-adsense-account": "ca-pub-2915849441916066",
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
