@@ -40,19 +40,30 @@ function EditorContent({ testMode = false }: EditorWithAdsProps) {
 
   return (
     <>
+      {/*
+        Responsive ad layout:
+        - ≥1440px: Left ad | Editor | Right ad (three-column)
+        - 1024px-1439px: Editor | Right ad (two-column)
+        - <1024px: Editor only (mobile popup ads)
+      */}
       <div className="flex h-screen">
-        {/* Main editor area */}
+        {/* Left sidebar - only shows on extra large screens (≥1440px) */}
+        <aside className="hidden min-[1440px]:block w-[316px] flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700">
+          <SidebarAd testMode={testMode} position="left" />
+        </aside>
+
+        {/* Main editor area - always visible, centered between ads on large screens */}
         <div ref={editorContainerRef} className="flex-1 min-w-0">
           <KhmerLexicalEditor />
         </div>
 
-        {/* Desktop sidebar - only shows on lg screens (≥1024px) */}
-        <aside className="hidden lg:block w-[316px] flex-shrink-0 bg-gray-100 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700">
-          <SidebarAd testMode={testMode} />
+        {/* Right sidebar - shows on lg screens and up (≥1024px) */}
+        <aside className="hidden lg:block w-[316px] flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
+          <SidebarAd testMode={testMode} position="right" />
         </aside>
       </div>
 
-      {/* Mobile ad popup - only renders on mobile (<1024px via CSS) */}
+      {/* Mobile ad popup - only triggers on mobile (<1024px via useAdTimer) */}
       <MobileAdPopup
         isOpen={showPopup}
         onDismiss={dismissAd}
