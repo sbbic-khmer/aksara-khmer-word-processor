@@ -7,6 +7,8 @@ import { UserDictionaryWordsTab } from "./user-dictionary-words-tab"
 import { SpellCheckAddedWordsTab } from "./spell-check-added-words-tab"
 import { SpellCheckIgnoredWordsTab } from "./spell-check-ignored-words-tab"
 import { IgnoredDictionaryWordsTab } from "./ignored-dictionary-words-tab"
+import { UserAdControlTab } from "./user-ad-control-tab"
+import { AdFrequencyTab } from "./ad-frequency-tab"
 import { Button } from "@/components/ui/button"
 import {
   ArrowLeft,
@@ -16,6 +18,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Megaphone,
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -55,6 +58,15 @@ const navigation: NavItem[] = [
       { id: "spell-check-ignored", label: "Ignored Words" },
     ],
   },
+  {
+    id: "ads",
+    label: "Ads",
+    icon: <Megaphone className="h-4 w-4" />,
+    children: [
+      { id: "user-ads", label: "User Ad Control" },
+      { id: "ad-frequency", label: "Ad Frequency" },
+    ],
+  },
 ]
 
 export function AdminDashboard() {
@@ -63,6 +75,7 @@ export function AdminDashboard() {
     "voice-to-text",
     "word-breaking",
     "spell-check",
+    "ads",
   ])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -103,6 +116,10 @@ export function AdminDashboard() {
         return <SpellCheckAddedWordsTab />
       case "spell-check-ignored":
         return <SpellCheckIgnoredWordsTab />
+      case "user-ads":
+        return <UserAdControlTab />
+      case "ad-frequency":
+        return <AdFrequencyTab />
       default:
         return <MasterReplacementsTab />
     }

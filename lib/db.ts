@@ -13,7 +13,14 @@ export interface User {
   name: string | null
   role: "user" | "admin"
   profile_picture_url: string | null
+  show_ads: boolean
   created_at: Date
+  updated_at: Date
+}
+
+export interface AppSetting {
+  key: string
+  value: unknown
   updated_at: Date
 }
 
