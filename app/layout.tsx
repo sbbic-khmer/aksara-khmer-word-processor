@@ -36,7 +36,9 @@ export const metadata: Metadata = {
   authors: [{ name: "Aksara Pro" }],
   creator: "Aksara Pro",
   other: {
-    "google-adsense-account": "ca-pub-2915849441916066",
+    ...(process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID && {
+      "google-adsense-account": process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID,
+    }),
   },
   openGraph: {
     type: "website",
