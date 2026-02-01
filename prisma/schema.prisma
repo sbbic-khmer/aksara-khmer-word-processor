@@ -1,0 +1,250 @@
+// Prisma schema for Aksara - Khmer Text Editor
+// Migrated from raw SQL to Prisma ORM with Better Auth integration
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // INTERNAL_DATABASE_URL: Railway internal network (production runtime - lower latency, no egress costs)
+  // DATABASE_URL: Public URL (local dev, migrations, Prisma Studio)
+  url       = env("INTERNAL_DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Better Auth Tables
+// These tables are managed by Better Auth but we define them for Prisma access
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  name          String?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Custom fields for Aksara
+  storageLimitBytes BigInt   @default(5242880) // 5MB default
+  isAdmin           Boolean  @default(false)
+  showAds           Boolean  @default(true)
+
+  // Better Auth relations
+  sessions Session[]
+  accounts Account[]
+
+  // App relations
+  documents              Document[]
+  preferences            UserPreference?
+  dictionaryWords        UserDictionaryWord[]
+  ignoredDictionaryWords UserIgnoredDictionaryWord[]
+  spellCheckAddedWords   SpellCheckAddedWord[]
+  spellCheckIgnoredWords SpellCheckIgnoredWord[]
+  userReplacements       UserReplacement[]
+  createdMasterReplacements MasterReplacement[] @relation("CreatedBy")
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// ============================================================================
+// App Tables
+// ============================================================================
+
+model Document {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String   @default("Untitled")
+  content     String   @default("")
+  editorState Json?    // Lexical editor state
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([updatedAt(sort: Desc)])
+  @@map("document")
+}
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+
+  // Voice input settings
+  vadSilenceThreshold Float   @default(1.0)
+  vadThreshold        Float   @default(0.4)
+  preferredMicDeviceId String?
+
+  // Editor settings
+  showBreaks Boolean @default(true)
+  theme      String  @default("light")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preference")
+}
+
+// Word breaking: Words user has joined (high frequency for word breaker)
+model UserDictionaryWord {
+  id        String   @id @default(cuid())
+  userId    String
+  word      String
+  frequency Int      @default(50000) // High frequency for preference
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@index([userId])
+  @@index([word])
+  @@map("user_dictionary_word")
+}
+
+// Word breaking: Words user wants to ignore from master dictionary (split)
+model UserIgnoredDictionaryWord {
+  id        String   @id @default(cuid())
+  userId    String
+  word      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@index([userId])
+  @@index([word])
+  @@map("user_ignored_dictionary_word")
+}
+
+// Spell check: Words to add to spell checker (treated as correct)
+model SpellCheckAddedWord {
+  id        String   @id @default(cuid())
+  userId    String
+  word      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@index([userId])
+  @@index([word])
+  @@map("spell_check_added_word")
+}
+
+// Spell check: Words to ignore during spell checking
+model SpellCheckIgnoredWord {
+  id        String   @id @default(cuid())
+  userId    String
+  word      String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@index([userId])
+  @@index([word])
+  @@map("spell_check_ignored_word")
+}
+
+// Grammar: Master replacement rules (admin-managed, global)
+model MasterReplacement {
+  id            String    @id @default(cuid())
+  incorrectWord String    @unique
+  correctWord   String
+  notes         String?
+  createdById   String?
+  promotedFrom  String?   // Reference to user replacement if promoted
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  createdBy User? @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([incorrectWord])
+  @@map("master_replacement")
+}
+
+// Grammar: User-specific replacement rules
+model UserReplacement {
+  id               String    @id @default(cuid())
+  userId           String
+  incorrectWord    String
+  correctWord      String
+  notes            String?
+  promotedToMaster Boolean   @default(false)
+  promotedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, incorrectWord])
+  @@index([userId])
+  @@index([incorrectWord])
+  @@map("user_replacement")
+}
+
+// Global app settings (key-value store)
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("app_setting")
+}
