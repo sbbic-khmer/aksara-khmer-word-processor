@@ -1,6 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { neon } from "@neondatabase/serverless"
 import { getCurrentUser } from "@/lib/auth"
+import {
+  canUserSaveDocument,
+  calculateDocumentSize,
+  formatBytes,
+  MAX_DOCUMENT_SIZE,
+} from "@/lib/storage"
 
 const sql = neon(process.env.DATABASE_URL!)
 
@@ -41,6 +47,34 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params
     const { title, content, editorState, lastSavedAt, forceOverwrite } = await request.json()
+
+    // Calculate document size for validation
+    const documentSize = calculateDocumentSize(content, editorState)
+
+    // Check document size limit (1MB max per document)
+    if (documentSize > MAX_DOCUMENT_SIZE) {
+      return NextResponse.json(
+        {
+          error: `Document is too large (${formatBytes(documentSize)}). Maximum size is ${formatBytes(MAX_DOCUMENT_SIZE)}.`,
+          code: "DOCUMENT_TOO_LARGE",
+        },
+        { status: 413 }
+      )
+    }
+
+    // Check user's storage quota (pass existing doc ID to account for replacement)
+    const quotaCheck = await canUserSaveDocument(user.id, documentSize, id)
+    if (!quotaCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: quotaCheck.message,
+          code: "STORAGE_QUOTA_EXCEEDED",
+          used: quotaCheck.used,
+          limit: quotaCheck.limit,
+        },
+        { status: 413 }
+      )
+    }
 
     // If lastSavedAt is provided and we're not forcing overwrite, check for conflicts
     if (lastSavedAt && !forceOverwrite) {

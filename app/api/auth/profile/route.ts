@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { sql } from "@/lib/db"
+import { isValidImageUrl } from "@/lib/validation"
 
 export async function PUT(request: Request) {
   try {
@@ -11,9 +12,17 @@ export async function PUT(request: Request) {
 
     const { name, profile_picture_url } = await request.json()
 
+    // Validate profile picture URL if provided
+    if (profile_picture_url && !isValidImageUrl(profile_picture_url)) {
+      return NextResponse.json(
+        { error: "Invalid profile picture URL. Must be a valid HTTPS image URL." },
+        { status: 400 }
+      )
+    }
+
     await sql`
-      UPDATE users 
-      SET 
+      UPDATE users
+      SET
         name = COALESCE(${name}, name),
         profile_picture_url = COALESCE(${profile_picture_url}, profile_picture_url),
         updated_at = NOW()

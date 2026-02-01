@@ -9,6 +9,7 @@ import { SpellCheckIgnoredWordsTab } from "./spell-check-ignored-words-tab"
 import { IgnoredDictionaryWordsTab } from "./ignored-dictionary-words-tab"
 import { UserAdControlTab } from "./user-ad-control-tab"
 import { AdFrequencyTab } from "./ad-frequency-tab"
+import { StorageManagementTab } from "./storage-management-tab"
 import { Button } from "@/components/ui/button"
 import {
   ArrowLeft,
@@ -19,6 +20,7 @@ import {
   Menu,
   X,
   Megaphone,
+  HardDrive,
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -67,6 +69,14 @@ const navigation: NavItem[] = [
       { id: "ad-frequency", label: "Ad Frequency" },
     ],
   },
+  {
+    id: "storage",
+    label: "Storage",
+    icon: <HardDrive className="h-4 w-4" />,
+    children: [
+      { id: "storage-management", label: "User Storage Limits" },
+    ],
+  },
 ]
 
 export function AdminDashboard() {
@@ -76,6 +86,7 @@ export function AdminDashboard() {
     "word-breaking",
     "spell-check",
     "ads",
+    "storage",
   ])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -120,6 +131,8 @@ export function AdminDashboard() {
         return <UserAdControlTab />
       case "ad-frequency":
         return <AdFrequencyTab />
+      case "storage-management":
+        return <StorageManagementTab />
       default:
         return <MasterReplacementsTab />
     }

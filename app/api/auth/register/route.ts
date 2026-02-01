@@ -3,6 +3,12 @@ import { cookies } from "next/headers"
 import { sql } from "@/lib/db"
 import { hashPassword, createSession, SESSION_COOKIE_NAME } from "@/lib/auth"
 import { verifyTurnstileToken, getClientIp } from "@/lib/turnstile"
+import {
+  checkRateLimit,
+  recordAttempt,
+  getRegisterRateLimitKey,
+  RATE_LIMITS,
+} from "@/lib/rate-limit"
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const SIGNUPS_ENABLED = process.env.SIGNUPS_ENABLED === "true"
@@ -13,10 +19,23 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const clientIp = getClientIp(request.headers)
+    const rateLimitKey = getRegisterRateLimitKey(clientIp)
+
+    // Check rate limit before processing
+    const rateCheck = checkRateLimit(rateLimitKey, RATE_LIMITS.register)
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: `Too many registration attempts. Please try again in ${Math.ceil(rateCheck.resetIn / 60)} minutes.`,
+        },
+        { status: 429 }
+      )
+    }
+
     const { email, password, name, turnstileToken } = await request.json()
 
     // Verify Turnstile token first (before any expensive operations)
-    const clientIp = getClientIp(request.headers)
     const turnstileResult = await verifyTurnstileToken(turnstileToken, clientIp)
     if (!turnstileResult.success) {
       return NextResponse.json({ error: turnstileResult.error }, { status: 400 })
@@ -35,6 +54,8 @@ export async function POST(request: NextRequest) {
     // Check if user already exists
     const existing = await sql`SELECT id FROM users WHERE email = ${email.toLowerCase()}`
     if (existing.length > 0) {
+      // Record attempt to prevent email enumeration via registration
+      recordAttempt(rateLimitKey, RATE_LIMITS.register)
       return NextResponse.json({ error: "Email already registered" }, { status: 409 })
     }
 

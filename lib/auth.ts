@@ -79,18 +79,8 @@ export async function getCurrentUser(): Promise<User | null> {
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)
 
   if (!sessionToken?.value) {
-    // This prevents accidental production exposure
-    if (process.env.NODE_ENV === "development" && process.env.ALLOW_DEV_AUTH_BYPASS === "true") {
-      return {
-        id: "00000000-0000-0000-0000-000000000001",
-        email: "dev@localhost",
-        password_hash: "",
-        name: "Developer",
-        role: "admin",
-        created_at: new Date(),
-        updated_at: new Date(),
-      }
-    }
+    // SECURITY: Dev auth bypass removed for production safety
+    // For local development, create a real test account instead
     return null
   }
 

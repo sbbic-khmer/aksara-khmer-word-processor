@@ -6,6 +6,7 @@ import { UserReplacementsManager } from "./user-replacements-manager"
 import { UserDictionaryManager } from "./user-dictionary-manager"
 import { IgnoredDictionaryWordsManager } from "./ignored-dictionary-words-manager"
 import { SpellCheckCustomWordsManager } from "./spell-check-custom-words-manager"
+import { StorageUsage } from "./storage-usage"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -33,6 +34,11 @@ export function UserSettingsDashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6">
+        {/* Storage Usage */}
+        <div className="mb-6">
+          <StorageUsage />
+        </div>
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="dictionary">My Word Breaking Dictionary</TabsTrigger>

@@ -14,6 +14,7 @@ export interface User {
   role: "user" | "admin"
   profile_picture_url: string | null
   show_ads: boolean
+  storage_limit_bytes: number
   created_at: Date
   updated_at: Date
 }
