@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Sun, Moon, Loader2, Cloud, CloudOff, FileText } from "lucide-react"
+import { Sun, Moon, Loader2, Cloud, CloudOff, CloudUpload, FileText, Check, AlertCircle } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { UserMenu } from "@/components/user-menu"
 import { cn } from "@/lib/utils"
@@ -89,32 +89,61 @@ export function EditorHeader({
   }
 
   const renderSaveStatus = (compact = false) => {
-    if (saveStatus === "saving" || hasUnsavedChanges) {
+    // Actually saving right now - show spinner
+    if (saveStatus === "saving") {
       return (
-        <span className="text-xs text-gray-400 flex items-center gap-1">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          {!compact && <span className="hidden sm:inline">Saving...</span>}
+        <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          {!compact && <span className="hidden sm:inline">Saving</span>}
         </span>
       )
     }
 
+    // Error state - show warning in red
     if (saveStatus === "error") {
-      return <span className="text-xs text-red-500">!</span>
+      return (
+        <span className="text-xs text-red-500 flex items-center gap-1.5">
+          <AlertCircle className="h-3.5 w-3.5" />
+          {!compact && <span className="hidden sm:inline">Error</span>}
+        </span>
+      )
     }
 
+    // Has unsaved changes but not currently saving - cloud upload indicates "needs to sync"
+    if (hasUnsavedChanges) {
+      return (
+        <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <CloudUpload className="h-3.5 w-3.5" />
+          {!compact && <span className="hidden sm:inline">Unsaved changes</span>}
+        </span>
+      )
+    }
+
+    // No document yet - not saved to cloud
     if (!documentId) {
       return (
-        <span className="text-xs text-gray-400 flex items-center gap-1">
-          <CloudOff className="h-3 w-3" />
-          {!compact && <span className="hidden sm:inline">Not saved</span>}
+        <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <CloudOff className="h-3.5 w-3.5" />
+          {!compact && <span className="hidden sm:inline">Local only</span>}
         </span>
       )
     }
 
+    // Saved successfully - brief checkmark
+    if (saveStatus === "saved") {
+      return (
+        <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <Check className="h-3.5 w-3.5" />
+          {!compact && <span className="hidden sm:inline">Saved</span>}
+        </span>
+      )
+    }
+
+    // Default idle state - synced to cloud
     return (
-      <span className="text-xs text-gray-400 flex items-center gap-1">
-        <Cloud className="h-3 w-3" />
-        {!compact && <span className="hidden sm:inline">Saved</span>}
+      <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+        <Cloud className="h-3.5 w-3.5" />
+        {!compact && <span className="hidden sm:inline">Synced</span>}
       </span>
     )
   }
