@@ -1189,42 +1189,6 @@ function EditorWrapper({
     }
   }, [])
 
-  // Save on visibility change (user switches tabs) and beforeunload (user closes page)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden" && documentStateRef.current.hasUnsavedChanges) {
-        // Clear pending timers and save immediately
-        if (autoSaveTimeoutRef.current) {
-          clearTimeout(autoSaveTimeoutRef.current)
-          autoSaveTimeoutRef.current = null
-        }
-        if (maxIntervalTimeoutRef.current) {
-          clearTimeout(maxIntervalTimeoutRef.current)
-          maxIntervalTimeoutRef.current = null
-        }
-        triggerAutoSave()
-      }
-    }
-
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (documentStateRef.current.hasUnsavedChanges) {
-        // Try to save (may not complete before page closes)
-        triggerAutoSave()
-        // Show browser's "unsaved changes" warning
-        e.preventDefault()
-        e.returnValue = ""
-      }
-    }
-
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-    window.addEventListener("beforeunload", handleBeforeUnload)
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-      window.removeEventListener("beforeunload", handleBeforeUnload)
-    }
-  }, [triggerAutoSave])
-
   useEffect(() => {
     if (documentState.id) {
       updateLastOpenedDocumentId(documentState.id)
@@ -1431,6 +1395,42 @@ function EditorWrapper({
       setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
     }
   }, [documentState.id, documentState.title, performSave, setDocumentState])
+
+  // Save on visibility change (user switches tabs) and beforeunload (user closes page)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden" && documentStateRef.current.hasUnsavedChanges) {
+        // Clear pending timers and save immediately
+        if (autoSaveTimeoutRef.current) {
+          clearTimeout(autoSaveTimeoutRef.current)
+          autoSaveTimeoutRef.current = null
+        }
+        if (maxIntervalTimeoutRef.current) {
+          clearTimeout(maxIntervalTimeoutRef.current)
+          maxIntervalTimeoutRef.current = null
+        }
+        triggerAutoSave()
+      }
+    }
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (documentStateRef.current.hasUnsavedChanges) {
+        // Try to save (may not complete before page closes)
+        triggerAutoSave()
+        // Show browser's "unsaved changes" warning
+        e.preventDefault()
+        e.returnValue = ""
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    window.addEventListener("beforeunload", handleBeforeUnload)
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+    }
+  }, [triggerAutoSave])
 
   const handleSaveAs = useCallback(() => {
     setIsSaveAs(true)
