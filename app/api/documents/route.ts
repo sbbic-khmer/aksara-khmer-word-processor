@@ -7,6 +7,7 @@ import {
   formatBytes,
   MAX_DOCUMENT_SIZE,
 } from "@/lib/storage"
+import { compressString, getCompressionStats } from "@/lib/compression"
 
 // GET - List all documents for the current user
 export async function GET() {
@@ -80,12 +81,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Compress editorState before storing to reduce storage size
+    let compressedEditorState: string | null = null
+    if (editorState) {
+      const editorStateStr = typeof editorState === "string" ? editorState : JSON.stringify(editorState)
+      compressedEditorState = compressString(editorStateStr)
+
+      // Log compression stats
+      const stats = getCompressionStats(editorStateStr, compressedEditorState)
+      console.log(`[New Document] Compression: ${(stats.originalSize / 1024).toFixed(1)}KB → ${(stats.compressedSize / 1024).toFixed(1)}KB (${((1 - stats.ratio) * 100).toFixed(0)}% reduction)`)
+    }
+
     const document = await prisma.document.create({
       data: {
         userId: user.id,
         title: title || "Untitled",
         content: content || "",
-        editorState: editorState || null,
+        editorState: compressedEditorState,
       },
     })
 

@@ -7,6 +7,7 @@ import {
   formatBytes,
   MAX_DOCUMENT_SIZE,
 } from "@/lib/storage"
+import { compressString, decompressString, getCompressionStats } from "@/lib/compression"
 
 // GET - Get a specific document
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,11 +27,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
+    // Decompress editorState if it was stored compressed
+    // This handles both old (uncompressed) and new (compressed) documents
+    let editorState = document.editorState
+    if (typeof editorState === "string") {
+      const decompressed = decompressString(editorState)
+      // Parse the JSON string back to object
+      try {
+        editorState = JSON.parse(decompressed)
+      } catch {
+        // If parsing fails, it might already be an object (shouldn't happen but be safe)
+        editorState = document.editorState
+      }
+    }
+
     return NextResponse.json({
       id: document.id,
       title: document.title,
       content: document.content,
-      editor_state: document.editorState,
+      editor_state: editorState,
       created_at: document.createdAt,
       updated_at: document.updatedAt,
     })
@@ -104,12 +119,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
+    // Compress editorState before storing to reduce storage size
+    // Typically reduces size by 60-80%
+    let compressedEditorState: string | undefined
+    if (editorState !== undefined) {
+      const editorStateStr = typeof editorState === "string" ? editorState : JSON.stringify(editorState)
+      compressedEditorState = compressString(editorStateStr)
+
+      // Log compression stats
+      const stats = getCompressionStats(editorStateStr, compressedEditorState)
+      console.log(`[Document ${id}] Compression: ${(stats.originalSize / 1024).toFixed(1)}KB → ${(stats.compressedSize / 1024).toFixed(1)}KB (${((1 - stats.ratio) * 100).toFixed(0)}% reduction)`)
+    }
+
     const document = await prisma.document.updateMany({
       where: { id, userId: user.id },
       data: {
         ...(title !== undefined && { title }),
         ...(content !== undefined && { content }),
-        ...(editorState !== undefined && { editorState }),
+        ...(compressedEditorState !== undefined && { editorState: compressedEditorState }),
       },
     })
 

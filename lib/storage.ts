@@ -5,7 +5,24 @@ export const DEFAULT_STORAGE_LIMIT = 10 * 1024 * 1024 // 10MB
 export const MAX_DOCUMENT_SIZE = 2 * 1024 * 1024 // 2MB per document
 
 /**
+ * Calculate the actual stored size of an editorState field.
+ * Handles both compressed strings (new format) and JSON objects (old format).
+ */
+function getStoredEditorStateSize(editorState: unknown): number {
+  if (!editorState) return 0
+
+  // If it's already a string (compressed format), get its byte length directly
+  if (typeof editorState === "string") {
+    return Buffer.byteLength(editorState, "utf8")
+  }
+
+  // If it's an object (old uncompressed format), stringify it
+  return Buffer.byteLength(JSON.stringify(editorState), "utf8")
+}
+
+/**
  * Get the total storage used by a user (sum of all document sizes)
+ * Uses actual stored sizes (compressed if applicable)
  */
 export async function getUserStorageUsed(userId: string): Promise<number> {
   const documents = await prisma.document.findMany({
@@ -18,10 +35,7 @@ export async function getUserStorageUsed(userId: string): Promise<number> {
 
   return documents.reduce((total, doc) => {
     const contentSize = Buffer.byteLength(doc.content || "", "utf8")
-    const editorStateSize = Buffer.byteLength(
-      JSON.stringify(doc.editorState) || "",
-      "utf8"
-    )
+    const editorStateSize = getStoredEditorStateSize(doc.editorState)
     return total + contentSize + editorStateSize
   }, 0)
 }
@@ -86,10 +100,7 @@ export async function canUserSaveDocument(
     })
     if (existing) {
       const contentSize = Buffer.byteLength(existing.content || "", "utf8")
-      const editorStateSize = Buffer.byteLength(
-        JSON.stringify(existing.editorState) || "",
-        "utf8"
-      )
+      const editorStateSize = getStoredEditorStateSize(existing.editorState)
       effectiveUsed -= contentSize + editorStateSize
     }
   }
