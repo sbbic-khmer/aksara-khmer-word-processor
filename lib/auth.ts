@@ -27,10 +27,10 @@ export const auth = betterAuth({
           return false
         }
 
-        // For bcrypt hashes, use default verification
-        // Better Auth uses bcrypt by default, so we return undefined
-        // to let it handle the verification
-        return undefined
+        // For bcrypt hashes, explicitly verify with bcrypt
+        // (returning undefined doesn't seem to fall back to default)
+        const bcrypt = await import("bcryptjs")
+        return bcrypt.compare(password, hash)
       },
     },
   },
