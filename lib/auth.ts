@@ -1,17 +1,38 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { prisma } from "./prisma"
+import { isPbkdf2Hash, verifyPbkdf2Password } from "./password-migration"
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
 
-  // Email/password authentication
+  // Email/password authentication with PBKDF2 migration support
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
     maxPasswordLength: 128,
+    // Custom password verification to handle migrated PBKDF2 hashes
+    password: {
+      async verify({ hash, password }) {
+        // Check if this is a migrated PBKDF2 hash
+        if (isPbkdf2Hash(hash)) {
+          const isValid = await verifyPbkdf2Password(password, hash)
+          if (isValid) {
+            // Return true to indicate valid password
+            // Better Auth will automatically re-hash with bcrypt on next update
+            return true
+          }
+          return false
+        }
+
+        // For bcrypt hashes, use default verification
+        // Better Auth uses bcrypt by default, so we return undefined
+        // to let it handle the verification
+        return undefined
+      },
+    },
   },
 
   // Session configuration
