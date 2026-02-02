@@ -39,33 +39,59 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
   // Handle right-click or tap on misspelled word
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     // Only show spell check menu if right-clicking directly on a misspelled word
-    const target = e.target as HTMLElement;
-    const misspelledElement = target.classList?.contains('spellcheck-misspelled') 
-      ? target 
-      : target.closest?.('.spellcheck-misspelled') as HTMLElement | null;
-    
+    // Handle both Element targets and Text node targets (when clicking directly on text)
+    const target = e.target as Node;
+
+    // If target is a Text node, get its parent element
+    const element = target.nodeType === Node.TEXT_NODE
+      ? target.parentElement
+      : target as HTMLElement;
+
+    if (!element) {
+      setIsOpen(false);
+      return;
+    }
+
+    const misspelledElement = element.classList?.contains('spellcheck-misspelled')
+      ? element
+      : element.closest?.('.spellcheck-misspelled') as HTMLElement | null;
+
     if (!misspelledElement) {
       // Not clicking on a misspelled word - don't show spell check menu
       // Let the browser's default context menu or other handlers take over
       setIsOpen(false);
       return;
     }
-    
+
     // Prevent the browser's default context menu
     e.preventDefault();
-    
-    // Set position and open immediately - the spell check plugin handles word detection
-    // via its own contextmenu event listener which fires first
+
+    // Set position and open with a small delay to allow React state to update
+    // This fixes the race condition where selectedWord isn't set yet
     setPosition({ x: e.clientX, y: e.clientY });
-    setIsOpen(true);
+
+    // Use requestAnimationFrame to ensure the spell check plugin has set selectedWord
+    requestAnimationFrame(() => {
+      setIsOpen(true);
+    });
   }, []);
 
   // Handle click/tap on misspelled word (for mobile support)
   const handleClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement;
-    const misspelledElement = target.classList?.contains('spellcheck-misspelled') 
-      ? target 
-      : target.closest?.('.spellcheck-misspelled') as HTMLElement | null;
+    // Handle both Element targets and Text node targets
+    const target = e.target as Node;
+    const element = target.nodeType === Node.TEXT_NODE
+      ? target.parentElement
+      : target as HTMLElement;
+
+    if (!element) {
+      if (isOpen) setIsOpen(false);
+      return;
+    }
+
+    const misspelledElement = element.classList?.contains('spellcheck-misspelled')
+      ? element
+      : element.closest?.('.spellcheck-misspelled') as HTMLElement | null;
     
     if (!misspelledElement) {
       // Clicking elsewhere - close the menu if open
@@ -178,7 +204,10 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
   const hasMisspelledWord = !!selectedWord;
   const isLoadingSuggestions = selectedWord && !suggestionsLoaded && !isLoading;
   const noSuggestionsFound = selectedWord && suggestionsLoaded && suggestions.length === 0;
-  const showMenu = isOpen && (hasMisspelledWord || isLoading || error);
+  // Show menu if open - we already verified click was on misspelled element in handleContextMenu
+  // Show loading state if word detection is still in progress
+  const isDetectingWord = isOpen && !selectedWord && !isLoading && !error;
+  const showMenu = isOpen;
 
   return (
     <div
@@ -207,6 +236,13 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
             <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span>កំពុងផ្ទុកវចនានុក្រម...</span>
+            </div>
+          )}
+
+          {isDetectingWord && (
+            <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>កំពុងរកពាក្យ...</span>
             </div>
           )}
 
