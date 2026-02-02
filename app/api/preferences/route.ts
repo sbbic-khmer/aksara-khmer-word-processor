@@ -55,6 +55,27 @@ export async function PUT(request: NextRequest) {
       last_opened_document_id,
     } = body
 
+    // Validate numeric ranges
+    if (vad_silence_threshold !== undefined) {
+      const value = parseFloat(vad_silence_threshold)
+      if (isNaN(value) || value < 0 || value > 10) {
+        return NextResponse.json(
+          { error: "vad_silence_threshold must be between 0 and 10" },
+          { status: 400 }
+        )
+      }
+    }
+
+    if (vad_threshold !== undefined) {
+      const value = parseFloat(vad_threshold)
+      if (isNaN(value) || value < 0 || value > 1) {
+        return NextResponse.json(
+          { error: "vad_threshold must be between 0 and 1" },
+          { status: 400 }
+        )
+      }
+    }
+
     const preferences = await prisma.userPreference.upsert({
       where: { userId: user.id },
       update: {
