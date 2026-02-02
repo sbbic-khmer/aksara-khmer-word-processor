@@ -16,8 +16,8 @@ interface OnChangePluginProps {
 const WJ = "\u2060"
 const ZWSP = "\u200B"
 
-// Debounce delay for word count calculation (expensive beam search)
-const WORD_COUNT_DEBOUNCE_MS = 500
+// Timeout for requestIdleCallback to ensure it eventually runs
+const IDLE_CALLBACK_TIMEOUT_MS = 1000
 
 // Simple approximation of Khmer word count without beam search
 // Counts text nodes (which correspond to words after segmentation)
@@ -39,45 +39,99 @@ function approximateWordCount(root: ReturnType<typeof $getRoot>): number {
   return count
 }
 
+// requestIdleCallback with fallback for Safari
+const requestIdle =
+  typeof requestIdleCallback !== "undefined"
+    ? requestIdleCallback
+    : (cb: IdleRequestCallback) => setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline), 1)
+
+const cancelIdle =
+  typeof cancelIdleCallback !== "undefined"
+    ? cancelIdleCallback
+    : clearTimeout
+
 export function OnChangePlugin({ onChange, onContentChange, breaker }: OnChangePluginProps) {
   const [editor] = useLexicalComposerContext()
   const previousTextRef = useRef<string | null>(null)
-  const wordCountTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const idleCallbackRef = useRef<number | ReturnType<typeof setTimeout> | null>(null)
   const lastWordCountRef = useRef<number>(0)
   const onChangeRef = useRef(onChange)
+
+  // Cache word counts per paragraph to avoid recalculating unchanged paragraphs
+  const paragraphWordCountCache = useRef<Map<string, number>>(new Map())
 
   // Keep onChange ref up to date
   onChangeRef.current = onChange
 
-  // Debounced word count calculation using beam search
-  const scheduleWordCount = useCallback((text: string, charCount: number) => {
-    if (wordCountTimerRef.current) {
-      clearTimeout(wordCountTimerRef.current)
+  // Calculate word count only for changed paragraphs using requestIdleCallback
+  const scheduleWordCount = useCallback((paragraphs: string[], charCount: number, fullText: string) => {
+    // Cancel any pending idle callback
+    if (idleCallbackRef.current !== null) {
+      cancelIdle(idleCallbackRef.current as number)
     }
 
-    wordCountTimerRef.current = setTimeout(() => {
-      wordCountTimerRef.current = null
+    idleCallbackRef.current = requestIdle((deadline) => {
+      idleCallbackRef.current = null
 
-      // Run beam search for accurate word count
-      if (breaker && text.trim()) {
-        const segments = breaker.getSegments(text)
-        const wordCount = segments.filter((s) => s.trim() && !/^\s+$/.test(s)).length
-        lastWordCountRef.current = wordCount
-        onChangeRef.current(text, wordCount, charCount)
+      if (!breaker) return
+
+      let totalWordCount = 0
+      const newCache = new Map<string, number>()
+
+      for (const paragraph of paragraphs) {
+        const trimmed = paragraph.trim()
+        if (!trimmed) continue
+
+        // Check if we have a cached count for this exact paragraph
+        const cachedCount = paragraphWordCountCache.current.get(trimmed)
+
+        if (cachedCount !== undefined) {
+          // Use cached count
+          totalWordCount += cachedCount
+          newCache.set(trimmed, cachedCount)
+        } else {
+          // Calculate word count for this paragraph (only changed ones hit this path)
+          const segments = breaker.getSegments(trimmed)
+          const wordCount = segments.filter((s) => s.trim() && !/^\s+$/.test(s)).length
+          totalWordCount += wordCount
+          newCache.set(trimmed, wordCount)
+
+          // If we're running out of idle time, schedule continuation
+          if (deadline.timeRemaining() < 5 && !deadline.didTimeout) {
+            // For simplicity, just continue - the work is chunked by paragraph
+          }
+        }
       }
-    }, WORD_COUNT_DEBOUNCE_MS)
+
+      // Update cache with new paragraph contents
+      paragraphWordCountCache.current = newCache
+
+      lastWordCountRef.current = totalWordCount
+      onChangeRef.current(fullText, totalWordCount, charCount)
+
+      if (isDebugEnabled()) {
+        console.log("[OnChangePlugin] Word count calculated:", {
+          totalWordCount,
+          paragraphsCached: newCache.size,
+        })
+      }
+    }, { timeout: IDLE_CALLBACK_TIMEOUT_MS })
   }, [breaker])
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
         const root = $getRoot()
+        const paragraphs: string[] = []
         let text = ""
 
-        // Walk through all nodes to build plain text
+        // Walk through all nodes to build plain text and collect paragraphs
         const children = root.getChildren()
         children.forEach((node, index) => {
           const nodeText = extractTextFromNode(node)
+          // Clean paragraph text for caching (remove WJ and ZWSP)
+          const cleanParagraph = nodeText.replace(new RegExp(WJ, "g"), "").replace(new RegExp(ZWSP, "g"), "")
+          paragraphs.push(cleanParagraph)
           text += nodeText
           // Add newline between paragraphs
           if (index < children.length - 1) {
@@ -91,7 +145,7 @@ export function OnChangePlugin({ onChange, onContentChange, breaker }: OnChangeP
         const charCount = textWithoutWJ.length
 
         // Use fast approximate word count for immediate feedback
-        // The accurate count will be calculated after debounce
+        // The accurate count will be calculated during idle time
         const approximateCount = approximateWordCount(root)
 
         // Use the last accurate count if available, otherwise use approximate
@@ -99,8 +153,8 @@ export function OnChangePlugin({ onChange, onContentChange, breaker }: OnChangeP
 
         onChange(text, wordCount, charCount)
 
-        // Schedule accurate word count calculation (debounced)
-        scheduleWordCount(textWithoutWJ, charCount)
+        // Schedule accurate word count calculation during idle time
+        scheduleWordCount(paragraphs, charCount, text)
 
         // Use null as initial state to ensure first change after load is detected
         const hasActualChange = previousTextRef.current !== null && textWithoutWJ !== previousTextRef.current
@@ -127,11 +181,11 @@ export function OnChangePlugin({ onChange, onContentChange, breaker }: OnChangeP
     })
   }, [editor, onChange, onContentChange, breaker, scheduleWordCount])
 
-  // Cleanup timer on unmount
+  // Cleanup idle callback on unmount
   useEffect(() => {
     return () => {
-      if (wordCountTimerRef.current) {
-        clearTimeout(wordCountTimerRef.current)
+      if (idleCallbackRef.current !== null) {
+        cancelIdle(idleCallbackRef.current as number)
       }
     }
   }, [])

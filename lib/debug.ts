@@ -1,31 +1,19 @@
 // Debug logging utility
-// In development: logging is ALWAYS enabled (ignores localStorage)
-// In production: logging is disabled by default, but can be enabled via File menu
+// All debug modes are OFF by default on page reload.
+// Users can enable them via File menu during the session.
 //
-// WORDBREAKER DEBUG MODE:
-// Separate toggle for verbose word breaker logging (very noisy)
-// - In dev AND prod: disabled by default, can be enabled via File menu
-// - Uses separate localStorage key: "aksara-wordbreaker-debug-enabled"
-
-// Check if we're in development mode (only client-safe checks)
-function isDev(): boolean {
-  return (
-    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
-    (typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" ||
-        window.location.hostname.includes("v0.app") ||
-        window.location.hostname.includes("vusercontent.net")))
-  )
-}
+// Debug modes:
+// - aksara-debug-enabled: General debug logging
+// - aksara-wordbreaker-debug-enabled: Verbose word breaker logging (very noisy)
+// - aksara-cursor-debug-enabled: Cursor/selection debugging
+// - aksara-perf-debug-enabled: Performance measurement logging
 
 export function isDebugEnabled(): boolean {
-  // Check localStorage in both dev and production
-  let storedValue: string | null = null
+  // Check localStorage - debug is off by default, even in dev mode
   if (typeof window !== "undefined") {
-    storedValue = localStorage.getItem("aksara-debug-enabled")
+    return localStorage.getItem("aksara-debug-enabled") === "true"
   }
-
-  return isDev() || storedValue === "true"
+  return false
 }
 
 export function setDebugEnabled(enabled: boolean): void {
@@ -161,4 +149,22 @@ export async function measurePerformanceAsync<T>(name: string, fn: () => Promise
   }
 
   return result
+}
+
+/**
+ * Clear all debug modes on page load.
+ * Users can re-enable them via File menu during the session.
+ */
+export function clearAllDebugModes(): void {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("aksara-debug-enabled")
+    localStorage.removeItem("aksara-wordbreaker-debug-enabled")
+    localStorage.removeItem("aksara-cursor-debug-enabled")
+    localStorage.removeItem("aksara-perf-debug-enabled")
+  }
+}
+
+// Auto-clear debug modes on module load (runs once per page load)
+if (typeof window !== "undefined") {
+  clearAllDebugModes()
 }

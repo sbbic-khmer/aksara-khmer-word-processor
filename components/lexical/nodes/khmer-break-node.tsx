@@ -27,7 +27,9 @@ export class KhmerBreakNode extends DecoratorNode<React.JSX.Element> {
   createDOM(config: EditorConfig): HTMLElement {
     const element = document.createElement("span")
     element.className = "break-marker"
-    element.contentEditable = "false"
+    // Use ZWS (zero-width space) to make the break marker selectable
+    // This allows drag-to-select to flow through naturally
+    element.textContent = "\u200B"
     element.style.cssText = `
       display: inline-block;
       width: 1px;
@@ -35,8 +37,6 @@ export class KhmerBreakNode extends DecoratorNode<React.JSX.Element> {
       background: rgb(96 165 250 / 0.6);
       margin: 0 1px;
       vertical-align: middle;
-      user-select: none;
-      pointer-events: none;
     `
     return element
   }
