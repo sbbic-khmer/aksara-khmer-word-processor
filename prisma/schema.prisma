@@ -29,6 +29,7 @@ model User {
 
   // Custom fields for Aksara
   storageLimitBytes Int      @default(5242880) // 5MB default (Int is fine, max ~2GB)
+  storageUsedBytes  Int      @default(0)       // Cached total storage used (maintained on doc changes)
   isAdmin           Boolean  @default(false)
   showAds           Boolean  @default(true)
 
@@ -105,7 +106,8 @@ model Document {
   userId      String
   title       String   @default("Untitled")
   content     String   @default("")
-  editorState Json?    // Lexical editor state
+  editorState Json?    // Lexical editor state (stored compressed as string)
+  sizeBytes   Int      @default(0) // Actual stored size (content + editorState after compression)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -4,10 +4,11 @@ import { getCurrentUser } from "@/lib/auth-server"
 import {
   canUserSaveDocument,
   calculateDocumentSize,
+  calculateStoredSize,
   formatBytes,
   MAX_DOCUMENT_SIZE,
 } from "@/lib/storage"
-import { compressString, getCompressionStats } from "@/lib/compression"
+import { compressString } from "@/lib/compression"
 
 // GET - List all documents for the current user
 export async function GET() {
@@ -53,22 +54,32 @@ export async function POST(request: NextRequest) {
 
     const { title, content, editorState } = await request.json()
 
-    // Calculate document size
-    const documentSize = calculateDocumentSize(content, editorState)
+    // Calculate document size before compression (for MAX_DOCUMENT_SIZE check)
+    const uncompressedSize = calculateDocumentSize(content, editorState)
 
-    // Check document size limit (1MB max per document)
-    if (documentSize > MAX_DOCUMENT_SIZE) {
+    // Check document size limit (2MB max per document)
+    if (uncompressedSize > MAX_DOCUMENT_SIZE) {
       return NextResponse.json(
         {
-          error: `Document is too large (${formatBytes(documentSize)}). Maximum size is ${formatBytes(MAX_DOCUMENT_SIZE)}.`,
+          error: `Document is too large (${formatBytes(uncompressedSize)}). Maximum size is ${formatBytes(MAX_DOCUMENT_SIZE)}.`,
           code: "DOCUMENT_TOO_LARGE",
         },
         { status: 413 }
       )
     }
 
-    // Check user's storage quota
-    const quotaCheck = await canUserSaveDocument(user.id, documentSize)
+    // Compress editorState before storing to reduce storage size
+    let compressedEditorState: string | null = null
+    if (editorState) {
+      const editorStateStr = typeof editorState === "string" ? editorState : JSON.stringify(editorState)
+      compressedEditorState = compressString(editorStateStr)
+    }
+
+    // Calculate the actual stored size (after compression)
+    const storedSize = calculateStoredSize(content, compressedEditorState)
+
+    // Check user's storage quota (new document, so existing size is 0)
+    const quotaCheck = await canUserSaveDocument(user.id, storedSize, 0)
     if (!quotaCheck.allowed) {
       return NextResponse.json(
         {
@@ -81,31 +92,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Compress editorState before storing to reduce storage size
-    let compressedEditorState: string | null = null
-    if (editorState) {
-      const editorStateStr = typeof editorState === "string" ? editorState : JSON.stringify(editorState)
-      compressedEditorState = compressString(editorStateStr)
+    // Create document and update user storage atomically
+    const document = await prisma.$transaction(async (tx) => {
+      const doc = await tx.document.create({
+        data: {
+          userId: user.id,
+          title: title || "Untitled",
+          content: content || "",
+          editorState: compressedEditorState,
+          sizeBytes: storedSize,
+        },
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
 
-      // Log compression stats
-      const stats = getCompressionStats(editorStateStr, compressedEditorState)
-      console.log(`[New Document] Compression: ${(stats.originalSize / 1024).toFixed(1)}KB → ${(stats.compressedSize / 1024).toFixed(1)}KB (${((1 - stats.ratio) * 100).toFixed(0)}% reduction)`)
-    }
+      // Increment user's cached storage total
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          storageUsedBytes: { increment: storedSize },
+        },
+      })
 
-    const document = await prisma.document.create({
-      data: {
-        userId: user.id,
-        title: title || "Untitled",
-        content: content || "",
-        editorState: compressedEditorState,
-      },
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-        updatedAt: true,
-        // Don't return content or editorState - client already has them
-      },
+      return doc
     })
 
     return NextResponse.json({
