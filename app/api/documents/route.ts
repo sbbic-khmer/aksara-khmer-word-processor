@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Calculate document size before compression (for MAX_DOCUMENT_SIZE check)
     const uncompressedSize = calculateDocumentSize(content, editorState)
 
-    // Check document size limit (2MB max per document)
+    // Check document size limit (before compression)
     if (uncompressedSize > MAX_DOCUMENT_SIZE) {
       return NextResponse.json(
         {

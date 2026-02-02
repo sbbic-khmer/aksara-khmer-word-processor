@@ -32,6 +32,7 @@ import {
   $getRoot,
   $isTextNode,
   $isParagraphNode,
+  $isElementNode,
   type LexicalNode,
   type ElementNode,
   createCommand,
@@ -715,9 +716,10 @@ useEffect(() => {
             cursorParagraphKey = paragraphNode.getKey()
 
             // Calculate offset within the paragraph
+            const paragraphChildren = paragraphNode.getChildren()
+            let offset = 0
+
             if ($isTextNode(anchorNode)) {
-              const paragraphChildren = paragraphNode.getChildren()
-              let offset = 0
               for (const child of paragraphChildren) {
                 if (child === anchorNode) {
                   cursorOffset = offset + selection.anchor.offset
@@ -727,12 +729,36 @@ useEffect(() => {
                   offset += child.getTextContentSize()
                 }
               }
+            } else if ($isKhmerBreakNode(anchorNode)) {
+              // Cursor is on a break node (can happen with ZWS character)
+              // Treat it as being at the end of the preceding text content
+              for (const child of paragraphChildren) {
+                if (child === anchorNode) {
+                  cursorOffset = offset
+                  break
+                }
+                if ($isTextNode(child)) {
+                  offset += child.getTextContentSize()
+                }
+              }
+            } else if ($isElementNode(anchorNode)) {
+              // Cursor is on an element node (e.g., paragraph itself after backspace)
+              // selection.anchor.offset is the child index
+              const childIndex = selection.anchor.offset
+              for (let i = 0; i < childIndex && i < paragraphChildren.length; i++) {
+                const child = paragraphChildren[i]
+                if ($isTextNode(child)) {
+                  offset += child.getTextContentSize()
+                }
+              }
+              cursorOffset = offset
             }
 
             if (isCursorDebugEnabled()) {
               cursorDebugLog("forceResegmentAllParagraphs - cursor saved", {
                 cursorParagraphKey,
                 cursorOffset,
+                anchorNodeType: $isTextNode(anchorNode) ? 'text' : $isKhmerBreakNode(anchorNode) ? 'break' : $isElementNode(anchorNode) ? 'element' : 'other',
               })
             }
           }
@@ -795,9 +821,10 @@ useEffect(() => {
             cursorParagraphKey = paragraphNode.getKey()
 
             // Calculate offset within the paragraph
+            const paragraphChildren = paragraphNode.getChildren()
+            let offset = 0
+
             if ($isTextNode(anchorNode)) {
-              const paragraphChildren = paragraphNode.getChildren()
-              let offset = 0
               for (const child of paragraphChildren) {
                 if (child === anchorNode) {
                   cursorOffset = offset + selection.anchor.offset
@@ -807,12 +834,36 @@ useEffect(() => {
                   offset += child.getTextContentSize()
                 }
               }
+            } else if ($isKhmerBreakNode(anchorNode)) {
+              // Cursor is on a break node (can happen with ZWS character)
+              // Treat it as being at the end of the preceding text content
+              for (const child of paragraphChildren) {
+                if (child === anchorNode) {
+                  cursorOffset = offset
+                  break
+                }
+                if ($isTextNode(child)) {
+                  offset += child.getTextContentSize()
+                }
+              }
+            } else if ($isElementNode(anchorNode)) {
+              // Cursor is on an element node (e.g., paragraph itself after backspace)
+              // selection.anchor.offset is the child index
+              const childIndex = selection.anchor.offset
+              for (let i = 0; i < childIndex && i < paragraphChildren.length; i++) {
+                const child = paragraphChildren[i]
+                if ($isTextNode(child)) {
+                  offset += child.getTextContentSize()
+                }
+              }
+              cursorOffset = offset
             }
 
             if (isCursorDebugEnabled()) {
               cursorDebugLog("processPendingParagraphs - cursor calculated", {
                 cursorParagraphKey,
                 cursorOffset,
+                anchorNodeType: $isTextNode(anchorNode) ? 'text' : $isKhmerBreakNode(anchorNode) ? 'break' : $isElementNode(anchorNode) ? 'element' : 'other',
               })
             }
           }
