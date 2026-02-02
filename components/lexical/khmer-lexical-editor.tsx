@@ -1221,6 +1221,7 @@ function EditorWrapper({
       docId: string,
       title: string,
       forceOverwrite = false,
+      isAutoSave = false,
     ): Promise<{
       success: boolean
       conflict?: boolean
@@ -1244,6 +1245,7 @@ function EditorWrapper({
             editorState,
             lastSavedAt: currentState.lastSavedAt,
             forceOverwrite,
+            isAutoSave,
           }),
         })
 
@@ -1347,7 +1349,8 @@ function EditorWrapper({
     }
     setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
 
-    const result = await performSave(currentState.id, currentState.title)
+    // Pass isAutoSave=true to skip expensive quota check for routine saves
+    const result = await performSave(currentState.id, currentState.title, false, true)
 
     if (result.conflict && result.serverUpdatedAt) {
       // Show conflict dialog

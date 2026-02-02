@@ -99,13 +99,18 @@ export async function POST(request: NextRequest) {
         content: content || "",
         editorState: compressedEditorState,
       },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        // Don't return content or editorState - client already has them
+      },
     })
 
     return NextResponse.json({
       id: document.id,
       title: document.title,
-      content: document.content,
-      editor_state: document.editorState,
       created_at: document.createdAt,
       updated_at: document.updatedAt,
     })

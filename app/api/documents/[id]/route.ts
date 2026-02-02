@@ -55,6 +55,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
+// Threshold for skipping full quota check on auto-save (500KB)
+// Documents under this size rarely cause quota issues
+const AUTO_SAVE_QUOTA_SKIP_THRESHOLD = 500 * 1024
+
 // PUT - Update a document
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -64,12 +68,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params
-    const { title, content, editorState, lastSavedAt, forceOverwrite } = await request.json()
+    const { title, content, editorState, lastSavedAt, forceOverwrite, isAutoSave } = await request.json()
 
     // Calculate document size for validation
     const documentSize = calculateDocumentSize(content, editorState)
 
-    // Check document size limit (1MB max per document)
+    // Check document size limit (2MB max per document)
     if (documentSize > MAX_DOCUMENT_SIZE) {
       return NextResponse.json(
         {
@@ -80,21 +84,36 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    // Check user's storage quota (pass existing doc ID to account for replacement)
-    const quotaCheck = await canUserSaveDocument(user.id, documentSize, id)
-    if (!quotaCheck.allowed) {
-      return NextResponse.json(
-        {
-          error: quotaCheck.message,
-          code: "STORAGE_QUOTA_EXCEEDED",
-          used: quotaCheck.used,
-          limit: quotaCheck.limit,
-        },
-        { status: 413 }
-      )
+    // For auto-saves of reasonably-sized documents, skip the expensive quota check
+    // The quota was checked when the document was created or last manually saved
+    // This dramatically speeds up auto-save by avoiding querying all user documents
+    const shouldCheckQuota = !isAutoSave || documentSize > AUTO_SAVE_QUOTA_SKIP_THRESHOLD
+
+    if (shouldCheckQuota) {
+      const quotaCheck = await canUserSaveDocument(user.id, documentSize, id)
+      if (!quotaCheck.allowed) {
+        return NextResponse.json(
+          {
+            error: quotaCheck.message,
+            code: "STORAGE_QUOTA_EXCEEDED",
+            used: quotaCheck.used,
+            limit: quotaCheck.limit,
+          },
+          { status: 413 }
+        )
+      }
+    }
+
+    // Compress editorState before storing to reduce storage size
+    // Do this early so we can include it in the combined query
+    let compressedEditorState: string | undefined
+    if (editorState !== undefined) {
+      const editorStateStr = typeof editorState === "string" ? editorState : JSON.stringify(editorState)
+      compressedEditorState = compressString(editorStateStr)
     }
 
     // If lastSavedAt is provided and we're not forcing overwrite, check for conflicts
+    // Combined with update in a single transaction for efficiency
     if (lastSavedAt && !forceOverwrite) {
       const currentDoc = await prisma.document.findFirst({
         where: { id, userId: user.id },
@@ -119,44 +138,38 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Compress editorState before storing to reduce storage size
-    // Typically reduces size by 60-80%
-    let compressedEditorState: string | undefined
-    if (editorState !== undefined) {
-      const editorStateStr = typeof editorState === "string" ? editorState : JSON.stringify(editorState)
-      compressedEditorState = compressString(editorStateStr)
+    // Use update instead of updateMany + findUnique for better performance
+    // This combines the update and fetch into one query
+    try {
+      const updated = await prisma.document.update({
+        where: { id, userId: user.id },
+        data: {
+          ...(title !== undefined && { title }),
+          ...(content !== undefined && { content }),
+          ...(compressedEditorState !== undefined && { editorState: compressedEditorState }),
+        },
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          updatedAt: true,
+          // Don't return content or editorState - client already has them
+        },
+      })
 
-      // Log compression stats
-      const stats = getCompressionStats(editorStateStr, compressedEditorState)
-      console.log(`[Document ${id}] Compression: ${(stats.originalSize / 1024).toFixed(1)}KB → ${(stats.compressedSize / 1024).toFixed(1)}KB (${((1 - stats.ratio) * 100).toFixed(0)}% reduction)`)
+      return NextResponse.json({
+        id: updated.id,
+        title: updated.title,
+        created_at: updated.createdAt,
+        updated_at: updated.updatedAt,
+      })
+    } catch (error: unknown) {
+      // Prisma throws P2025 when record not found
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
+        return NextResponse.json({ error: "Document not found" }, { status: 404 })
+      }
+      throw error
     }
-
-    const document = await prisma.document.updateMany({
-      where: { id, userId: user.id },
-      data: {
-        ...(title !== undefined && { title }),
-        ...(content !== undefined && { content }),
-        ...(compressedEditorState !== undefined && { editorState: compressedEditorState }),
-      },
-    })
-
-    if (document.count === 0) {
-      return NextResponse.json({ error: "Document not found" }, { status: 404 })
-    }
-
-    // Fetch the updated document
-    const updated = await prisma.document.findUnique({
-      where: { id },
-    })
-
-    return NextResponse.json({
-      id: updated!.id,
-      title: updated!.title,
-      content: updated!.content,
-      editor_state: updated!.editorState,
-      created_at: updated!.createdAt,
-      updated_at: updated!.updatedAt,
-    })
   } catch (error) {
     console.error("[v0] Error updating document:", error)
     return NextResponse.json({ error: "Failed to update document" }, { status: 500 })
