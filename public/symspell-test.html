@@ -58,7 +58,8 @@
 
   <script type="module">
     // Create worker with module support
-    const worker = new Worker('/workers/symspell-test-worker.js', { type: 'module' });
+    // Use the production spell-check worker
+    const worker = new Worker('/workers/spell-check-worker.js', { type: 'module' });
 
     let isReady = false;
 

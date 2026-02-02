@@ -274,7 +274,8 @@ export function KhmerSpellCheckPlugin() {
         if (typeof window === 'undefined') return;
         
         try {
-            const worker = new Worker('/workers/spell-check-worker.js');
+            // Use module worker to support ES imports in spell-check-worker.js
+            const worker = new Worker('/workers/spell-check-worker.js', { type: 'module' });
             
             worker.onmessage = (e) => {
                 const { type, word, suggestions, elapsed, error } = e.data;
