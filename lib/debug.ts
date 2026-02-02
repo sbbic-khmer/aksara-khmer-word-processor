@@ -91,3 +91,74 @@ export function cursorDebugLog(...args: unknown[]): void {
     console.log("[v0:cursor]", ...args)
   }
 }
+
+// Performance debug mode - for measuring operation latency
+// Enable via localStorage.setItem('aksara-perf-debug-enabled', 'true')
+export function isPerfDebugEnabled(): boolean {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("aksara-perf-debug-enabled")
+    return stored === "true"
+  }
+  return false
+}
+
+export function setPerfDebugEnabled(enabled: boolean): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("aksara-perf-debug-enabled", String(enabled))
+  }
+}
+
+// Performance threshold in ms - operations exceeding this will warn
+const PERF_THRESHOLD_MS = 16 // 60fps = 16.67ms per frame
+
+/**
+ * Measure execution time of a function and log if debug mode is enabled.
+ * Warns if execution exceeds 16ms (1 frame at 60fps).
+ *
+ * Usage:
+ *   const result = measurePerformance('beamSearch', () => breaker.segment(text));
+ *
+ * @param name - Human-readable name for the operation
+ * @param fn - Function to measure
+ * @returns The result of the function
+ */
+export function measurePerformance<T>(name: string, fn: () => T): T {
+  // Early return when disabled - minimal overhead
+  if (!isPerfDebugEnabled()) {
+    return fn()
+  }
+
+  const start = performance.now()
+  const result = fn()
+  const elapsed = performance.now() - start
+
+  if (elapsed > PERF_THRESHOLD_MS) {
+    console.warn(`[Perf] ${name} took ${elapsed.toFixed(1)}ms (exceeds ${PERF_THRESHOLD_MS}ms threshold)`)
+  } else {
+    console.log(`[Perf] ${name}: ${elapsed.toFixed(1)}ms`)
+  }
+
+  return result
+}
+
+/**
+ * Async version of measurePerformance for async functions.
+ */
+export async function measurePerformanceAsync<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  // Early return when disabled - minimal overhead
+  if (!isPerfDebugEnabled()) {
+    return fn()
+  }
+
+  const start = performance.now()
+  const result = await fn()
+  const elapsed = performance.now() - start
+
+  if (elapsed > PERF_THRESHOLD_MS) {
+    console.warn(`[Perf] ${name} took ${elapsed.toFixed(1)}ms (exceeds ${PERF_THRESHOLD_MS}ms threshold)`)
+  } else {
+    console.log(`[Perf] ${name}: ${elapsed.toFixed(1)}ms`)
+  }
+
+  return result
+}

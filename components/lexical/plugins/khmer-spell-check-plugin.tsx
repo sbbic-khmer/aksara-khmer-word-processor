@@ -20,6 +20,7 @@ import Typo from 'typo-js';
 import { useSpellCheck } from '../contexts/spell-check-context';
 import { $isKhmerBreakNode } from '../nodes/khmer-break-node';
 import { useSpellCheckCustomWords } from '@/hooks/use-spell-check-custom-words';
+import { measurePerformance, isPerfDebugEnabled } from '@/lib/debug';
 
 /**
  * Cross-browser caret range from point helper
@@ -96,6 +97,69 @@ function cleanKhmerWord(text: string): string {
 // This includes ៗ (U+17D7) so it's preserved when replacing a word with a suggestion
 const PUNCTUATION_PATTERN = /[\u200B\u200C\u200D\u2060\u17D4-\u17DA.,!?;:'"()\[\]{}«»‹›""''–—…]/;
 
+// Spell check cache - stores word → isCorrect mapping to avoid redundant typo.check() calls
+// Since the same words appear repeatedly in documents, this significantly reduces dictionary lookups
+const spellCheckCache = new Map<string, boolean>();
+const SPELL_CHECK_CACHE_MAX_SIZE = 1000;
+
+/**
+ * Check if a word is spelled correctly, using cache when available.
+ * Uses LRU eviction when cache exceeds max size.
+ */
+function isWordInDictionary(word: string, typo: Typo, debugMode: boolean): boolean {
+    // Check cache first
+    if (spellCheckCache.has(word)) {
+        if (debugMode) {
+            console.log('[SpellCheck] Cache HIT for:', word);
+        }
+        return spellCheckCache.get(word)!;
+    }
+
+    // Cache miss - check with typo-js
+    if (debugMode) {
+        console.log('[SpellCheck] Cache MISS for:', word);
+    }
+    const isCorrect = typo.check(word);
+
+    // Store in cache with LRU eviction
+    if (spellCheckCache.size >= SPELL_CHECK_CACHE_MAX_SIZE) {
+        // Delete oldest entry (first key in Map maintains insertion order)
+        const firstKey = spellCheckCache.keys().next().value;
+        if (firstKey !== undefined) {
+            spellCheckCache.delete(firstKey);
+        }
+    }
+    spellCheckCache.set(word, isCorrect);
+
+    return isCorrect;
+}
+
+/**
+ * Clear the spell check cache. Call when user adds/ignores words
+ * to ensure those words are re-checked with updated dictionaries.
+ */
+export function clearSpellCheckCache(): void {
+    const size = spellCheckCache.size;
+    spellCheckCache.clear();
+    if (typeof window !== 'undefined' && localStorage.getItem('aksara-debug-enabled') === 'true') {
+        console.log(`[SpellCheck] Cleared cache (${size} entries)`);
+    }
+}
+
+// Track previous span contents for incremental spell checking
+// Using WeakMap so removed spans are automatically garbage collected
+const previousSpanContents = new WeakMap<Element, string>();
+// Track all spans we've seen to detect removed ones
+let previousSpanSet = new Set<Element>();
+
+/**
+ * Clear span tracking. Call when forcing a full rescan.
+ */
+export function clearSpanTracking(): void {
+    previousSpanSet = new Set<Element>();
+    // WeakMap entries for removed elements will be garbage collected automatically
+}
+
 // Extract leading and trailing punctuation from a word.
 // Returns { leading, core, trailing } where core is the actual word.
 // This is used to preserve punctuation when replacing a word.
@@ -135,6 +199,7 @@ export function KhmerSpellCheckPlugin() {
         debugMode,
         setSuggestionsLoaded,
         spellCheckEnabled,
+        setRequestSuggestionsHandler,
     } = useSpellCheck();
 
     const [typo, setTypo] = useState<Typo | null>(null);
@@ -233,8 +298,14 @@ export function KhmerSpellCheckPlugin() {
                 }
             };
             
-            worker.onerror = (err) => {
-                console.error('[SpellCheck] Worker error:', err);
+            worker.onerror = (err: ErrorEvent) => {
+                console.error('[SpellCheck] Worker error:', {
+                    message: err.message,
+                    filename: err.filename,
+                    lineno: err.lineno,
+                    colno: err.colno,
+                    error: err.error
+                });
             };
             
             // Initialize the worker's dictionary
@@ -250,94 +321,148 @@ export function KhmerSpellCheckPlugin() {
         }
     }, [debugMode, setSuggestions, setSuggestionsLoaded]);
 
+    // Register the suggestion request handler for the context menu to use
+    useEffect(() => {
+        const handler = (word: string) => {
+            if (!workerRef.current || !workerReady) {
+                console.log('[SpellCheck] Worker not ready for suggestion request');
+                return;
+            }
+
+            // Clear previous suggestions and mark as loading
+            setSuggestions([]);
+            setSuggestionsLoaded(false);
+
+            // Request suggestions from worker
+            pendingRequestRef.current = word;
+            if (debugMode) {
+                console.log('[SpellCheck] Context menu requesting suggestions for:', word);
+            }
+            workerRef.current.postMessage({
+                type: 'suggest',
+                word: word,
+                requestId: word
+            });
+        };
+
+        setRequestSuggestionsHandler(() => handler);
+    }, [workerReady, debugMode, setSuggestions, setSuggestionsLoaded, setRequestSuggestionsHandler]);
+
     /**
-     * Scan all text spans in the DOM and mark misspelled words visually
-     * This approach directly scans DOM elements rather than trying to map Lexical nodes
+     * Check a single span for misspellings
      */
-const scanAndMarkMisspellings = useCallback(() => {
-    if (!typo) return;
-    
-    const rootEl = editor.getRootElement();
-    if (!rootEl) return;
-    
-    // Find all text spans in the editor
-    const spans = rootEl.querySelectorAll('span[data-lexical-text="true"]');
-    
-    // If spell check is disabled, remove all misspelled markers and return
-    if (!spellCheckEnabled) {
-        spans.forEach(span => {
+    const checkSpanForMisspellings = useCallback((span: Element) => {
+        const text = span.textContent;
+        if (!text || /^\s+$/.test(text)) {
             span.classList.remove(MISSPELLED_CLASS);
-        });
-        return;
-    }
-        
-        if (debugMode) {
-            console.log('[SpellCheck] Scanning', spans.length, 'text spans');
+            return;
         }
-        
-        spans.forEach((span) => {
-            const text = span.textContent;
-            if (!text || /^\s+$/.test(text)) {
+
+        // Split text by spaces to check each word individually
+        const words = text.split(/\s+/).filter(w => w.length > 0);
+
+        // If span contains multiple space-separated words, skip (can't mark individual words)
+        if (words.length > 1) {
+            span.classList.remove(MISSPELLED_CLASS);
+            return;
+        }
+
+        // Single word span - check if it's misspelled
+        const cleanWord = cleanKhmerWord(text);
+        if (!cleanWord) {
+            span.classList.remove(MISSPELLED_CLASS);
+            return;
+        }
+
+        let isMisspelled = false;
+
+        // Only check Khmer text - skip non-Khmer (English, etc.)
+        if (containsKhmer(cleanWord)) {
+            // Check if word is in user's added words (should be considered correct)
+            if (addedWordsSet.has(cleanWord)) {
                 span.classList.remove(MISSPELLED_CLASS);
                 return;
             }
 
-            // Split text by spaces to check each word individually
-            // This handles cases where Lexical merges multiple TextNodes into one DOM span
-            const words = text.split(/\s+/).filter(w => w.length > 0);
-            
-            // If span contains multiple space-separated words, we can't accurately mark individual words
-            // So we skip spell checking for multi-word spans (only check single-word spans)
-            if (words.length > 1) {
-                // Multi-word span: remove any existing misspelled marker since we can't be accurate
-                span.classList.remove(MISSPELLED_CLASS);
-                return;
-            }
-            
-            // Single word span - check if it's misspelled
-            const cleanWord = cleanKhmerWord(text);
-            if (!cleanWord) {
-                span.classList.remove(MISSPELLED_CLASS);
-                return;
-            }
-            
-            let isMisspelled = false;
-
-            // Only check Khmer text - skip non-Khmer (English, etc.)
-            if (containsKhmer(cleanWord)) {
-                // Check if word is in user's added words (should be considered correct)
-                if (addedWordsSet.has(cleanWord)) {
-                    span.classList.remove(MISSPELLED_CLASS);
-                    return;
-                }
-
-                // Check if word is in user's ignored words (skip spell check)
-                if (ignoredWordsSet.has(cleanWord)) {
-                    span.classList.remove(MISSPELLED_CLASS);
-                    return;
-                }
-
-                const inDict = typo.check(cleanWord);
-                if (debugMode) {
-                    console.log('[SpellCheck] Checking Khmer word:', cleanWord, 'inDict:', inDict);
-                }
-                isMisspelled = !inDict;
-            } else {
-                // Non-Khmer text is ignored by the Khmer spell checker
+            // Check if word is in user's ignored words (skip spell check)
+            if (ignoredWordsSet.has(cleanWord)) {
                 span.classList.remove(MISSPELLED_CLASS);
                 return;
             }
 
-            if (isMisspelled) {
-                span.classList.add(MISSPELLED_CLASS);
-                if (debugMode) {
-                    console.log('[SpellCheck] Misspelled word:', cleanWord);
-                }
-            } else {
-                span.classList.remove(MISSPELLED_CLASS);
+            const inDict = isWordInDictionary(cleanWord, typo!, debugMode);
+            isMisspelled = !inDict;
+        } else {
+            // Non-Khmer text is ignored by the Khmer spell checker
+            span.classList.remove(MISSPELLED_CLASS);
+            return;
+        }
+
+        if (isMisspelled) {
+            span.classList.add(MISSPELLED_CLASS);
+            if (debugMode) {
+                console.log('[SpellCheck] Misspelled word:', cleanWord);
             }
+        } else {
+            span.classList.remove(MISSPELLED_CLASS);
+        }
+    }, [typo, MISSPELLED_CLASS, debugMode, addedWordsSet, ignoredWordsSet]);
+
+    /**
+     * Scan text spans in the DOM and mark misspelled words visually
+     * Uses incremental checking - only checks spans that have changed since last scan
+     */
+    const scanAndMarkMisspellings = useCallback(() => {
+        if (!typo) return;
+
+        const rootEl = editor.getRootElement();
+        if (!rootEl) return;
+
+        // Find all text spans in the editor
+        const spans = rootEl.querySelectorAll('span[data-lexical-text="true"]');
+
+        // If spell check is disabled, remove all misspelled markers and return
+        if (!spellCheckEnabled) {
+            spans.forEach(span => {
+                span.classList.remove(MISSPELLED_CLASS);
+            });
+            previousSpanSet = new Set<Element>();
+            return;
+        }
+
+        // Track current spans and count changed spans
+        const currentSpanSet = new Set<Element>();
+        let changedCount = 0;
+        let unchangedCount = 0;
+
+        // Wrap the actual spell checking loop with performance measurement
+        measurePerformance(`spellCheck:scan(${spans.length} spans)`, () => {
+            spans.forEach((span) => {
+                currentSpanSet.add(span);
+                const currentContent = span.textContent || '';
+                const previousContent = previousSpanContents.get(span);
+
+                // Check if span is unchanged
+                if (previousContent === currentContent) {
+                    unchangedCount++;
+                    return; // Skip unchanged spans - keep existing spell check marks
+                }
+
+                // Span is new or changed - update tracking and check
+                changedCount++;
+                previousSpanContents.set(span, currentContent);
+                checkSpanForMisspellings(span);
+            });
+
+            // Clean up tracking for removed spans (they're no longer in DOM)
+            // Note: WeakMap handles garbage collection, but we track the set for logging
+            previousSpanSet = currentSpanSet;
         });
-    }, [editor, typo, MISSPELLED_CLASS, debugMode, spellCheckEnabled, addedWordsSet, ignoredWordsSet]);
+
+        if (debugMode) {
+            console.log(`[SpellCheck] Incremental scan: ${changedCount} changed, ${unchangedCount} unchanged of ${spans.length} total`);
+        }
+    }, [editor, typo, MISSPELLED_CLASS, debugMode, spellCheckEnabled, checkSpanForMisspellings]);
 
     // Register update listener to scan for misspellings on content change
     useEffect(() => {
@@ -517,11 +642,7 @@ const scanAndMarkMisspellings = useCallback(() => {
                 return;
             }
 
-            const checkStart = debugMode ? performance.now() : 0;
-            const isCorrect = typo.check(cleanWord);
-            if (debugMode) {
-                console.log('[SpellCheck] typo.check() took', (performance.now() - checkStart).toFixed(2), 'ms, result:', isCorrect);
-            }
+            const isCorrect = isWordInDictionary(cleanWord, typo, debugMode);
 
             if (!isCorrect) {
                 // Set the selected word immediately so context menu can show

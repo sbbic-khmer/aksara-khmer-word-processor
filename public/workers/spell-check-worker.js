@@ -1,14 +1,47 @@
 // Web Worker for spell check suggestions
-// This runs typo.suggest() off the main thread to prevent UI freezing
+// Uses typo-js for dictionary-based spell checking and suggestions
 
 let typo = null;
 
-// Load typo-js library
-importScripts('https://unpkg.com/typo-js@1.2.4/typo.js');
+// Cache for suggestions (helps with repeated lookups)
+const suggestionCache = new Map();
+const CACHE_MAX_SIZE = 500;
 
-// Initialize the dictionary
+// Load typo-js library from local copy (bundled to avoid CSP issues)
+try {
+    importScripts('/lib/typo.js');
+} catch (e) {
+    console.error('[SpellCheck] Failed to load typo-js:', e);
+}
+
+/**
+ * Get suggestions with caching
+ */
+function getSuggestions(word, limit = 5) {
+    if (suggestionCache.has(word)) {
+        return { suggestions: suggestionCache.get(word), cached: true };
+    }
+
+    // Use typo-js suggest method
+    const suggestions = typo.suggest(word, limit);
+
+    // Cache result
+    if (suggestionCache.size >= CACHE_MAX_SIZE) {
+        const firstKey = suggestionCache.keys().next().value;
+        suggestionCache.delete(firstKey);
+    }
+    suggestionCache.set(word, suggestions);
+
+    return { suggestions, cached: false };
+}
+
+/**
+ * Initialize the dictionary
+ */
 async function initDictionary() {
     try {
+        console.log('[SpellCheck] Loading dictionary files...');
+
         const [affResponse, dicResponse] = await Promise.all([
             fetch('/dictionaries/km_KH.aff'),
             fetch('/dictionaries/km_KH.dic')
@@ -23,10 +56,18 @@ async function initDictionary() {
             dicResponse.text()
         ]);
 
+        console.log('[SpellCheck] Initializing typo.js...');
         typo = new Typo('km_KH', aff, dic);
-        self.postMessage({ type: 'ready' });
+
+        // Count words for logging
+        const lines = dic.split('\n');
+        const wordCount = lines.length - 1; // First line is count
+
+        console.log('[SpellCheck] Dictionary loaded with', wordCount, 'words');
+        self.postMessage({ type: 'ready', wordCount });
     } catch (error) {
-        self.postMessage({ type: 'error', error: error.message });
+        console.error('[SpellCheck] Init error:', error);
+        self.postMessage({ type: 'error', error: error.message || String(error) });
     }
 }
 
@@ -41,10 +82,10 @@ self.onmessage = function(e) {
 
     if (type === 'suggest') {
         if (!typo) {
-            self.postMessage({ 
-                type: 'suggestions', 
-                requestId, 
-                word, 
+            self.postMessage({
+                type: 'suggestions',
+                requestId,
+                word,
                 suggestions: [],
                 error: 'Dictionary not loaded'
             });
@@ -53,33 +94,35 @@ self.onmessage = function(e) {
 
         try {
             const startTime = performance.now();
-            const suggestions = typo.suggest(word) || [];
+            const { suggestions, cached } = getSuggestions(word, 5);
             const elapsed = performance.now() - startTime;
 
-            self.postMessage({ 
-                type: 'suggestions', 
-                requestId, 
-                word, 
-                suggestions: suggestions.slice(0, 5),
-                elapsed
+            self.postMessage({
+                type: 'suggestions',
+                requestId,
+                word,
+                suggestions,
+                elapsed,
+                cached
             });
         } catch (error) {
-            self.postMessage({ 
-                type: 'suggestions', 
-                requestId, 
-                word, 
+            console.error('[SpellCheck] Suggest error:', error);
+            self.postMessage({
+                type: 'suggestions',
+                requestId,
+                word,
                 suggestions: [],
-                error: error.message
+                error: error.message || String(error)
             });
         }
     }
 
     if (type === 'check') {
         if (!typo) {
-            self.postMessage({ 
-                type: 'checkResult', 
-                requestId, 
-                word, 
+            self.postMessage({
+                type: 'checkResult',
+                requestId,
+                word,
                 isCorrect: true,
                 error: 'Dictionary not loaded'
             });
@@ -88,20 +131,28 @@ self.onmessage = function(e) {
 
         try {
             const isCorrect = typo.check(word);
-            self.postMessage({ 
-                type: 'checkResult', 
-                requestId, 
-                word, 
+            self.postMessage({
+                type: 'checkResult',
+                requestId,
+                word,
                 isCorrect
             });
         } catch (error) {
-            self.postMessage({ 
-                type: 'checkResult', 
-                requestId, 
-                word, 
+            self.postMessage({
+                type: 'checkResult',
+                requestId,
+                word,
                 isCorrect: true,
-                error: error.message
+                error: error.message || String(error)
             });
         }
     }
+
+    if (type === 'clearCache') {
+        suggestionCache.clear();
+        self.postMessage({ type: 'cacheCleared' });
+    }
 };
+
+// Log that worker script loaded
+console.log('[SpellCheck] Worker script loaded');

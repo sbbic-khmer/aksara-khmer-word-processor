@@ -1,8 +1,8 @@
 import { prisma } from "./prisma"
 
 // Default limits
-export const DEFAULT_STORAGE_LIMIT = 5 * 1024 * 1024 // 5MB
-export const MAX_DOCUMENT_SIZE = 1 * 1024 * 1024 // 1MB
+export const DEFAULT_STORAGE_LIMIT = 10 * 1024 * 1024 // 10MB
+export const MAX_DOCUMENT_SIZE = 2 * 1024 * 1024 // 2MB per document
 
 /**
  * Get the total storage used by a user (sum of all document sizes)

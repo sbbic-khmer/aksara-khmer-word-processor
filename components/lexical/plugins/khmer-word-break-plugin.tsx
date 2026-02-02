@@ -14,8 +14,9 @@
  * 
  * The `--word-id` has no visual effect but ensures each word renders as its own DOM element.
  * This style is persisted in the saved editor state, so it survives page reloads.
- * 
- * Example: `--word-id: 1706454123456-0` for the first word, `--word-id: 1706454123456-1` for the second, etc.
+ *
+ * Example: `--word-id: 0` for the first word, `--word-id: 1` for the second, etc.
+ * (Uses a simple session-scoped counter for efficiency instead of timestamps.)
  */
 
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
@@ -41,11 +42,66 @@ export const FORCE_RESEGMENT_COMMAND = createCommand<void>("FORCE_RESEGMENT_COMM
 import { useEffect, useRef, useCallback } from "react"
 import { $createKhmerBreakNode, $isKhmerBreakNode } from "../nodes/khmer-break-node"
 import type { KhmerBreaker } from "@/lib/khmer-breaker"
-import { isWordBreakerDebugEnabled, isCursorDebugEnabled, cursorDebugLog } from "@/lib/debug"
+import { isWordBreakerDebugEnabled, isCursorDebugEnabled, cursorDebugLog, measurePerformance } from "@/lib/debug"
 
 const ZWSP = "\u200B"
 const ZWJ = "\u200D"  // Zero-width joiner
 const ZWNJ = "\u200C" // Zero-width non-joiner
+
+// Module-level counter for unique word IDs (replaces timestamp-based IDs for better performance)
+// This counter is used to assign unique IDs to each word TextNode, preventing Lexical from
+// merging adjacent nodes. A simple incrementing counter achieves the same uniqueness guarantee
+// as timestamps but with less overhead from Date.now() calls and shorter strings.
+let wordIdCounter = 0
+
+// Segmentation cache - stores beam search results keyed by paragraph text
+// This avoids re-running expensive beam search on unchanged paragraphs
+const segmentationCache = new Map<string, string[]>()
+const SEGMENTATION_CACHE_MAX_SIZE = 100
+
+/**
+ * Get cached segmentation results or compute and cache new ones.
+ * Uses LRU eviction when cache exceeds max size.
+ */
+function getCachedSegments(text: string, breaker: KhmerBreaker): string[] {
+  // Check cache first
+  if (segmentationCache.has(text)) {
+    if (isWordBreakerDebugEnabled()) {
+      console.log(`[v0:wb] Cache HIT for ${text.length} chars`)
+    }
+    return segmentationCache.get(text)!
+  }
+
+  // Cache miss - run beam search
+  if (isWordBreakerDebugEnabled()) {
+    console.log(`[v0:wb] Cache MISS for ${text.length} chars`)
+  }
+  const segments = breaker.getSegments(text)
+
+  // Store in cache with LRU eviction
+  if (segmentationCache.size >= SEGMENTATION_CACHE_MAX_SIZE) {
+    // Delete oldest entry (first key in Map maintains insertion order)
+    const firstKey = segmentationCache.keys().next().value
+    if (firstKey !== undefined) {
+      segmentationCache.delete(firstKey)
+    }
+  }
+  segmentationCache.set(text, segments)
+
+  return segments
+}
+
+/**
+ * Clear the segmentation cache. Call when user dictionary changes
+ * to ensure words are re-segmented with updated dictionary.
+ */
+export function clearSegmentationCache(): void {
+  const size = segmentationCache.size
+  segmentationCache.clear()
+  if (isWordBreakerDebugEnabled()) {
+    console.log(`[v0:wb] Cleared segmentation cache (${size} entries)`)
+  }
+}
 
 // All zero-width characters that indicate user-defined breaks
 const USER_BREAK_CHARS = [ZWSP, ZWJ, ZWNJ]
@@ -88,6 +144,28 @@ interface KhmerWordBreakPluginProps {
   showBreaks: boolean
 }
 
+// Debounce delay for word segmentation (ms)
+// Shorter = more responsive but may still cause jank on very fast typing
+// Longer = smoother typing but visible delay before words appear segmented
+const RESEGMENT_DEBOUNCE_MS = 250
+
+// Use requestIdleCallback if available, otherwise fallback to setTimeout
+// This runs resegmentation during browser idle time for smoother UX
+const scheduleIdleCallback = (callback: () => void): number => {
+  if (typeof requestIdleCallback !== 'undefined') {
+    return requestIdleCallback(callback, { timeout: 500 }) as unknown as number
+  }
+  return setTimeout(callback, 0) as unknown as number
+}
+
+const cancelIdleCallback = (id: number): void => {
+  if (typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+    window.cancelIdleCallback(id)
+  } else {
+    clearTimeout(id)
+  }
+}
+
 export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPluginProps) {
   const [editor] = useLexicalComposerContext()
   const processingParagraphRef = useRef(false)
@@ -100,6 +178,14 @@ export function KhmerWordBreakPlugin({ breaker, showBreaks }: KhmerWordBreakPlug
   // Force resegment all paragraphs (used on mount and when showBreaks changes)
   // This is defined later after resegmentParagraph, but we need a ref to call it
   const forceResegmentAllParagraphsRef = useRef<() => void>(() => {})
+
+  // Debouncing state for word segmentation
+  // Instead of running beam search on every keystroke, we queue paragraphs
+  // and process them after typing pauses
+  const pendingParagraphsRef = useRef<Set<string>>(new Set())
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const idleCallbackRef = useRef<number | null>(null)
+  const resegmentParagraphRef = useRef<(paragraph: ElementNode, cursorOffset: number | null) => void>(() => {})
 
   // Initial mount: force resegment all paragraphs to ensure proper word boundaries
   useEffect(() => {
@@ -212,16 +298,15 @@ useEffect(() => {
 
       // Apply punctuation spacing fix before segmenting
       const { text: fixedText } = ensureSpaceAfterPunctuation(text)
-      const segments = breaker.getSegments(fixedText)
+      const segments = measurePerformance(`wordBreak:segment(${fixedText.length} chars)`, () => getCachedSegments(fixedText, breaker))
       const newNodes: LexicalNode[] = []
-      const baseTimestamp = Date.now()
 
       segments.forEach((segment, i) => {
         const newTextNode = $createTextNode(segment)
         newTextNode.setFormat(format)
         // Add unique word ID to prevent Lexical from merging adjacent TextNodes
         // This is critical for spell/grammar checking to work on individual words
-        const wordId = `--word-id: ${baseTimestamp}-${i}`
+        const wordId = `--word-id: ${wordIdCounter++}`
         newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
         processedNodesRef.current.add(newTextNode)
         newNodes.push(newTextNode)
@@ -301,7 +386,7 @@ useEffect(() => {
             const { format, style } = getFormatAtPosition(formatRanges, 0)
             const newTextNode = $createTextNode(text)
             newTextNode.setFormat(format)
-            const wordId = `--word-id: ${Date.now()}-0`
+            const wordId = `--word-id: ${wordIdCounter++}`
             newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
             processedNodesRef.current.add(newTextNode)
 
@@ -350,7 +435,7 @@ useEffect(() => {
             // Add a unique word ID to each node's style to prevent Lexical from merging
             // adjacent TextNodes into one DOM span. This is critical for spell/grammar
             // checking to work on individual words.
-            const wordId = `--word-id: ${Date.now()}-${segmentIndex}`
+            const wordId = `--word-id: ${wordIdCounter++}`
             newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
             
             processedNodesRef.current.add(newTextNode)
@@ -382,7 +467,7 @@ useEffect(() => {
           return
         }
 
-        const segments = breaker.getSegments(text)
+        const segments = measurePerformance(`wordBreak:resegment(${text.length} chars)`, () => getCachedSegments(text, breaker))
 
         if (segments.length <= 1 && !hasBreakNodes) {
           if (isWordBreakerDebugEnabled()) {
@@ -405,7 +490,7 @@ useEffect(() => {
           // Add a unique word ID to each node's style to prevent Lexical from merging
           // adjacent text nodes with identical styles into a single DOM span.
           // This is critical for grammar checking to work on individual words.
-          const wordId = `--word-id: ${Date.now()}-${i}`
+          const wordId = `--word-id: ${wordIdCounter++}`
           newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
           
           processedNodesRef.current.add(newTextNode)
@@ -483,7 +568,7 @@ useEffect(() => {
 
       // First, get auto word breaks for the text WITHOUT user break chars
       const textWithoutUserBreaks = text.replace(USER_BREAK_REGEX, '')
-      const autoSegments = breaker.getSegments(textWithoutUserBreaks)
+      const autoSegments = measurePerformance(`wordBreak:userBreaks(${textWithoutUserBreaks.length} chars)`, () => getCachedSegments(textWithoutUserBreaks, breaker))
       
       // Calculate auto break positions (cumulative character positions)
       const autoBreakPositions: number[] = []
@@ -544,7 +629,7 @@ useEffect(() => {
           // Add a unique word ID to each node's style to prevent Lexical from merging
           // adjacent TextNodes into one DOM span. This is critical for spell/grammar
           // checking to work on individual words.
-          const wordId = `--word-id: ${Date.now()}-${i}`
+          const wordId = `--word-id: ${wordIdCounter++}`
           newTextNode.setStyle(style ? `${style}; ${wordId}` : wordId)
           
           processedNodesRef.current.add(newTextNode)
@@ -672,81 +757,155 @@ useEffect(() => {
     // Store ref so it can be called from command handler
     forceResegmentAllParagraphsRef.current = forceResegmentAllParagraphs
 
-    const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
-      if (processedNodesRef.current.has(textNode)) return
+    // Store resegmentParagraph ref for use in debounced processor
+    resegmentParagraphRef.current = resegmentParagraph
 
+    // Process all pending paragraphs - called after debounce timer expires
+    const processPendingParagraphs = () => {
+      if (pendingParagraphsRef.current.size === 0) return
+
+      if (isWordBreakerDebugEnabled()) {
+        console.log(`[v0:wb] Processing ${pendingParagraphsRef.current.size} pending paragraphs`)
+      }
+
+      editor.update(() => {
+        // Clear processed tracking to allow reprocessing
+        processedNodesRef.current = new WeakSet<TextNode>()
+        processedParagraphKeysRef.current = new Set<string>()
+
+        const root = $getRoot()
+        const pendingKeys = new Set(pendingParagraphsRef.current)
+        pendingParagraphsRef.current.clear()
+
+        // Calculate cursor position FRESH at resegmentation time
+        // This avoids the stale-offset problem with debouncing
+        let cursorParagraphKey: string | null = null
+        let cursorOffset: number | null = null
+
+        const selection = $getSelection()
+        if ($isRangeSelection(selection)) {
+          const anchorNode = selection.anchor.getNode()
+          // Find the paragraph containing the anchor
+          let paragraphNode = anchorNode
+          while (paragraphNode && !$isParagraphNode(paragraphNode)) {
+            paragraphNode = paragraphNode.getParent() as ElementNode
+          }
+
+          if (paragraphNode && $isParagraphNode(paragraphNode)) {
+            cursorParagraphKey = paragraphNode.getKey()
+
+            // Calculate offset within the paragraph
+            if ($isTextNode(anchorNode)) {
+              const paragraphChildren = paragraphNode.getChildren()
+              let offset = 0
+              for (const child of paragraphChildren) {
+                if (child === anchorNode) {
+                  cursorOffset = offset + selection.anchor.offset
+                  break
+                }
+                if ($isTextNode(child)) {
+                  offset += child.getTextContentSize()
+                }
+              }
+            }
+
+            if (isCursorDebugEnabled()) {
+              cursorDebugLog("processPendingParagraphs - cursor calculated", {
+                cursorParagraphKey,
+                cursorOffset,
+              })
+            }
+          }
+        }
+
+        // Process each pending paragraph
+        const children = root.getChildren()
+        for (const child of children) {
+          if ($isParagraphNode(child) && pendingKeys.has(child.getKey())) {
+            const textContent = child.getTextContent()
+            if (textContent && textContent.length > 0) {
+              // Only pass cursor offset for the paragraph containing the cursor
+              const paragraphCursorOffset = child.getKey() === cursorParagraphKey ? cursorOffset : null
+              resegmentParagraphRef.current(child, paragraphCursorOffset)
+            }
+          }
+        }
+      })
+    }
+
+    // Queue a paragraph for debounced resegmentation
+    // Two-phase approach:
+    // 1. Debounce: wait for typing to pause (RESEGMENT_DEBOUNCE_MS)
+    // 2. Idle: run during browser idle time (requestIdleCallback)
+    const queueResegment = (paragraphKey: string) => {
+      pendingParagraphsRef.current.add(paragraphKey)
+
+      // Clear existing timers
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+      if (idleCallbackRef.current) {
+        cancelIdleCallback(idleCallbackRef.current)
+        idleCallbackRef.current = null
+      }
+
+      // Phase 1: Debounce - wait for typing to pause
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null
+        // Phase 2: Schedule during idle time
+        idleCallbackRef.current = scheduleIdleCallback(() => {
+          idleCallbackRef.current = null
+          processPendingParagraphs()
+        })
+      }, RESEGMENT_DEBOUNCE_MS)
+    }
+
+    const removeTransform = editor.registerNodeTransform(TextNode, (textNode: TextNode) => {
+      // Fast path: skip if already processed
+      if (processedNodesRef.current.has(textNode)) return
       if (processingParagraphRef.current) return
 
       const parent = textNode.getParent()
       if (!parent || !$isParagraphNode(parent)) return
 
+      // Fast path: skip if paragraph already queued
       if (processedParagraphKeysRef.current.has(parent.getKey())) return
 
-      // Get current text content
+      // Get just this text node's content (cheap - single node, not whole paragraph)
       const textContent = textNode.getTextContent()
-      
-      // Skip if the text node is just whitespace - don't re-segment for space typing
+
+      // Skip if the text node is just whitespace
       if (isWhitespaceOnly(textContent)) {
         processedNodesRef.current.add(textNode)
         return
       }
-      
-      // Check if paragraph already has proper segmentation with break nodes
-      const children = parent.getChildren()
-      const hasBreakNodes = children.some($isKhmerBreakNode)
-      
-      // If paragraph has break nodes and text doesn't contain ZWSP that needs processing,
-      // we may not need to re-segment on every keystroke
-      const { text } = collectParagraphText(parent)
-      
-      // If the text only contains characters that don't need Khmer word breaking, skip
-      const hasKhmerChars = [...text].some(c => {
-        const code = c.charCodeAt(0)
-        return code >= 0x1780 && code <= 0x17FF
-      })
-      
-      if (!hasKhmerChars && !containsUserBreaks(text)) {
+
+      // FAST check for Khmer characters - check just this node's text, not entire paragraph
+      // Use a simple loop instead of spreading to array (faster for large strings)
+      let hasKhmerChars = false
+      for (let i = 0; i < textContent.length; i++) {
+        const code = textContent.charCodeAt(i)
+        if (code >= 0x1780 && code <= 0x17FF) {
+          hasKhmerChars = true
+          break
+        }
+      }
+
+      // Also check for user break characters (ZWSP, ZWJ, ZWNJ)
+      const hasUserBreaks = USER_BREAK_REGEX.test(textContent)
+
+      if (!hasKhmerChars && !hasUserBreaks) {
         processedNodesRef.current.add(textNode)
         return
       }
 
-      let cursorOffset: number | null = null
-      const selection = $getSelection()
-      if ($isRangeSelection(selection)) {
-        const anchorNode = selection.anchor.getNode()
-        if ($isTextNode(anchorNode)) {
-          let offset = 0
-          for (const child of children) {
-            if (child === anchorNode) {
-              cursorOffset = offset + selection.anchor.offset
-              break
-            }
-            if ($isTextNode(child)) {
-              offset += child.getTextContentSize()
-            }
-          }
-          if (isCursorDebugEnabled()) {
-            cursorDebugLog("NodeTransform - cursor calculated", { 
-              cursorOffset, 
-              anchorOffset: selection.anchor.offset,
-              anchorNodeText: anchorNode.getTextContent().slice(0, 20)
-            })
-          }
-        } else {
-          if (isCursorDebugEnabled()) {
-            cursorDebugLog("NodeTransform - anchorNode is NOT TextNode!", { 
-              anchorNodeType: anchorNode.getType(),
-              anchorOffset: selection.anchor.offset
-            })
-          }
-        }
-      } else {
-        if (isCursorDebugEnabled()) {
-          cursorDebugLog("NodeTransform - No range selection", { selectionType: selection ? selection.constructor.name : "null" })
-        }
-      }
+      // Mark the node as processed immediately to prevent repeated transforms
+      processedNodesRef.current.add(textNode)
 
-      resegmentParagraph(parent, cursorOffset)
+      // Queue for debounced resegmentation
+      // Cursor offset is calculated FRESH at resegmentation time (inside processPendingParagraphs)
+      // to avoid the stale-offset problem that would occur if we captured it here.
+      queueResegment(parent.getKey())
     })
 
     const removePasteCommand = editor.registerCommand(
@@ -860,6 +1019,15 @@ useEffect(() => {
 
     return () => {
       clearTimeout(timeoutId)
+      // Clean up debounce timers
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+        debounceTimerRef.current = null
+      }
+      if (idleCallbackRef.current) {
+        cancelIdleCallback(idleCallbackRef.current)
+        idleCallbackRef.current = null
+      }
       removeTransform()
       removePasteCommand()
       removeResegmentCommand()

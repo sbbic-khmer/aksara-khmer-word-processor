@@ -13,6 +13,9 @@ import React, {
     useCallback,
 } from 'react';
 import { mutate } from 'swr';
+import { clearSegmentationCache } from '../plugins/khmer-word-break-plugin';
+import { clearSpellCheckCache, clearSpanTracking } from '../plugins/khmer-spell-check-plugin';
+import { clearGrammarSpanTracking } from '../plugins/khmer-grammar-check-plugin';
 
 interface SpellCheckContextValue {
     selectedWord: string | null;
@@ -45,6 +48,9 @@ interface SpellCheckContextValue {
     addWordToDictionary: (word: string) => Promise<void>;
     ignoreWord: (word: string) => Promise<void>;
     triggerRescan: () => void;
+    // Request suggestions for a word (called by context menu)
+    requestSuggestions: (word: string) => void;
+    setRequestSuggestionsHandler: (handler: (word: string) => void) => void;
 }
 
 const SpellCheckContext = createContext<SpellCheckContextValue>({
@@ -71,6 +77,8 @@ const SpellCheckContext = createContext<SpellCheckContextValue>({
     addWordToDictionary: async () => { },
     ignoreWord: async () => { },
     triggerRescan: () => { },
+    requestSuggestions: () => { },
+    setRequestSuggestionsHandler: () => { },
 });
 
 export const useSpellCheck = () => useContext(SpellCheckContext);
@@ -90,6 +98,19 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
     const [replaceHandler, setReplaceHandler] = useState<
         (oldWord: string, newWord: string) => void
     >(() => () => { });
+
+    // store the suggestion request handler (set by the spell check plugin)
+    const [requestSuggestionsHandler, setRequestSuggestionsHandler] = useState<
+        (word: string) => void
+    >(() => () => { });
+
+    // Request suggestions for a word
+    const requestSuggestions = useCallback(
+        (word: string) => {
+            requestSuggestionsHandler(word);
+        },
+        [requestSuggestionsHandler]
+    );
 
     // ensure replaceWord always uses the latest handler
     const replaceWord = useCallback(
@@ -135,6 +156,12 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
             // Revalidate the custom words cache to fetch updated data
             await mutate('/api/spell-check/custom-words');
 
+            // Clear caches so words are re-checked/re-segmented with updated dictionary
+            clearSegmentationCache();
+            clearSpellCheckCache();
+            clearSpanTracking(); // Force full rescan of all spans
+            clearGrammarSpanTracking(); // Force grammar rescan too
+
             // Trigger rescan to remove red underline
             setRescanTrigger(prev => prev + 1);
         } catch (err) {
@@ -157,6 +184,12 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
 
             // Revalidate the custom words cache to fetch updated data
             await mutate('/api/spell-check/custom-words');
+
+            // Clear caches so words are re-checked/re-segmented with updated dictionary
+            clearSegmentationCache();
+            clearSpellCheckCache();
+            clearSpanTracking(); // Force full rescan of all spans
+            clearGrammarSpanTracking(); // Force grammar rescan too
 
             // Trigger rescan to remove red underline
             setRescanTrigger(prev => prev + 1);
@@ -189,6 +222,8 @@ export function SpellCheckProvider({ children }: { children: ReactNode }) {
                 addWordToDictionary,
                 ignoreWord,
                 triggerRescan,
+                requestSuggestions,
+                setRequestSuggestionsHandler,
             }}
         >
             {children}

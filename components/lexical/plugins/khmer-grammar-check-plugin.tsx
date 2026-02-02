@@ -11,9 +11,24 @@ import {
 } from 'lexical';
 import { useEffect, useRef, useCallback } from 'react';
 import { useGrammarCheck } from '../contexts/grammar-check-context';
+import { measurePerformance } from '@/lib/debug';
 
 // CSS class name for non-standard spelling (blue underline)
 const GRAMMAR_CLASS = 'grammar-nonstandard';
+
+// Track previous span contents for incremental grammar checking
+// Using WeakMap so removed spans are automatically garbage collected
+const previousGrammarSpanContents = new WeakMap<Element, string>();
+// Track all spans we've seen to detect removed ones
+let previousGrammarSpanSet = new Set<Element>();
+
+/**
+ * Clear grammar span tracking. Call when forcing a full rescan.
+ */
+export function clearGrammarSpanTracking(): void {
+    previousGrammarSpanSet = new Set<Element>();
+    // WeakMap entries for removed elements will be garbage collected automatically
+}
 
 // Check if text contains Khmer characters
 function containsKhmer(text: string): boolean {
@@ -66,6 +81,45 @@ function extractPunctuation(text: string): { leading: string; core: string; trai
         core: text.slice(start, end),
         trailing
     };
+}
+
+/**
+ * Check a single span for non-standard spellings and update its class accordingly
+ */
+function checkSpanForGrammar(
+    span: Element,
+    spellingRules: Map<string, { standard: string; alternatives: string[] }>
+): void {
+    const text = span.textContent;
+    if (!text || /^\s+$/.test(text)) {
+        span.classList.remove(GRAMMAR_CLASS);
+        return;
+    }
+
+    // Split text by whitespace AND ZWSP to get individual words
+    const words = text.split(/[\s\u200B]+/).filter(w => w.length > 0);
+
+    // Check each word in this span for non-standard spellings
+    let hasNonStandard = false;
+
+    for (const word of words) {
+        // Clean the word to remove punctuation before dictionary lookup
+        const cleanWord = cleanKhmerWord(word);
+        if (!cleanWord || !containsKhmer(cleanWord)) continue;
+
+        const rule = spellingRules.get(cleanWord);
+        if (rule && rule.standard !== cleanWord) {
+            hasNonStandard = true;
+            break;
+        }
+    }
+
+    // Add/remove class on the span
+    if (hasNonStandard) {
+        span.classList.add(GRAMMAR_CLASS);
+    } else {
+        span.classList.remove(GRAMMAR_CLASS);
+    }
 }
 
 /**
@@ -156,61 +210,59 @@ export function KhmerGrammarCheckPlugin() {
     }, [setIsLoading, setError, setSpellingRules]);
 
     /**
-     * Scan all text spans and mark words with non-standard spellings
+     * Scan text spans and mark words with non-standard spellings
+     * Uses incremental checking - only checks spans that have changed since last scan
      */
     const scanAndMarkNonStandard = useCallback(() => {
         if (spellingRules.size === 0) return;
-        
+
         const rootEl = editor.getRootElement();
         if (!rootEl) return;
-        
+
         const spans = rootEl.querySelectorAll('span[data-lexical-text="true"]');
-        
-        // If grammar check is disabled, remove all markers
+
+        // If grammar check is disabled, remove all markers and clear tracking
         if (!grammarCheckEnabled) {
             spans.forEach(span => {
                 span.classList.remove(GRAMMAR_CLASS);
             });
+            previousGrammarSpanSet = new Set<Element>();
             return;
         }
-        
-        
-        
-        spans.forEach((span) => {
-            const text = span.textContent;
-            if (!text || /^\s+$/.test(text)) {
-                span.classList.remove(GRAMMAR_CLASS);
-                return;
-            }
-            
-            // Split text by whitespace AND ZWSP to get individual words
-            const words = text.split(/[\s\u200B]+/).filter(w => w.length > 0);
-            
-            // Check each word in this span for non-standard spellings
-            let hasNonStandard = false;
-            
-            for (const word of words) {
-                // Clean the word to remove punctuation before dictionary lookup
-                const cleanWord = cleanKhmerWord(word);
-                if (!cleanWord || !containsKhmer(cleanWord)) continue;
-                
-                const rule = spellingRules.get(cleanWord);
-                if (rule && rule.standard !== cleanWord) {
-                    hasNonStandard = true;
-                    break;
+
+        // Track current spans and count changed spans
+        const currentSpanSet = new Set<Element>();
+        let changedCount = 0;
+        let unchangedCount = 0;
+
+        // Wrap the actual grammar checking loop with performance measurement
+        measurePerformance(`grammarCheck:scan(${spans.length} spans)`, () => {
+            spans.forEach((span) => {
+                currentSpanSet.add(span);
+                const currentContent = span.textContent || '';
+                const previousContent = previousGrammarSpanContents.get(span);
+
+                // Check if span is unchanged
+                if (previousContent === currentContent) {
+                    unchangedCount++;
+                    return; // Skip unchanged spans - keep existing grammar check marks
                 }
-            }
-            
-            // Add/remove class on the span
-            // Note: This may include attached punctuation visually, but replacement
-            // logic uses extractPunctuation() to preserve punctuation when fixing.
-            if (hasNonStandard) {
-                span.classList.add(GRAMMAR_CLASS);
-            } else {
-                span.classList.remove(GRAMMAR_CLASS);
-            }
-        });
-    }, [editor, spellingRules, grammarCheckEnabled]);
+
+                // Span is new or changed - update tracking and check
+                changedCount++;
+                previousGrammarSpanContents.set(span, currentContent);
+                checkSpanForGrammar(span, spellingRules);
+            });
+
+            // Clean up tracking for removed spans (they're no longer in DOM)
+            // Note: WeakMap handles garbage collection, but we track the set for logging
+            previousGrammarSpanSet = currentSpanSet;
+        }); // End measurePerformance
+
+        if (debugMode) {
+            console.log(`[GrammarCheck] Incremental scan: ${changedCount} changed, ${unchangedCount} unchanged of ${spans.length} total`);
+        }
+    }, [editor, spellingRules, grammarCheckEnabled, debugMode]);
 
     // Register update listener to scan on content change
     useEffect(() => {

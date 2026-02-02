@@ -41,6 +41,7 @@ import { EditorHeader } from "@/components/editor/editor-header"
 import { DocumentsDialog } from "@/components/editor/documents-dialog"
 import { SaveDialog } from "@/components/editor/save-dialog"
 import { ConflictDialog } from "@/components/editor/conflict-dialog"
+import { StorageErrorDialog } from "@/components/editor/storage-error-dialog"
 import { SplitWordDialog } from "@/components/editor/split-word-dialog"
 import { useReplacements } from "@/hooks/use-replacements"
 import { usePreferences } from "@/hooks/use-preferences"
@@ -1018,6 +1019,9 @@ function EditorWrapper({
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
   const [conflictServerUpdatedAt, setConflictServerUpdatedAt] = useState<string | null>(null)
+  const [storageErrorDialogOpen, setStorageErrorDialogOpen] = useState(false)
+  const [storageErrorCode, setStorageErrorCode] = useState<"DOCUMENT_TOO_LARGE" | "STORAGE_QUOTA_EXCEEDED" | null>(null)
+  const [storageErrorMessage, setStorageErrorMessage] = useState("")
   const [splitDialogOpen, setSplitDialogOpen] = useState(false)
   const [splitDialogData, setSplitDialogData] = useState<{ word: string; cursorPosition: number } | null>(null)
   const initialLoadRef = useRef(false)
@@ -1205,7 +1209,13 @@ function EditorWrapper({
       docId: string,
       title: string,
       forceOverwrite = false,
-    ): Promise<{ success: boolean; conflict?: boolean; serverUpdatedAt?: string; newUpdatedAt?: string }> => {
+    ): Promise<{
+      success: boolean
+      conflict?: boolean
+      serverUpdatedAt?: string
+      newUpdatedAt?: string
+      storageError?: { code: "DOCUMENT_TOO_LARGE" | "STORAGE_QUOTA_EXCEEDED"; message: string }
+    }> => {
       const currentState = documentStateRef.current
       const editorState = JSON.stringify(editor.getEditorState().toJSON())
       const content = editor.getEditorState().read(() => {
@@ -1229,6 +1239,18 @@ function EditorWrapper({
           // Conflict detected
           const data = await response.json()
           return { success: false, conflict: true, serverUpdatedAt: data.serverUpdatedAt }
+        }
+
+        if (response.status === 413) {
+          // Storage limit exceeded
+          const data = await response.json()
+          return {
+            success: false,
+            storageError: {
+              code: data.code || "DOCUMENT_TOO_LARGE",
+              message: data.error || "Document is too large to save.",
+            },
+          }
         }
 
         if (response.ok) {
@@ -1309,6 +1331,12 @@ function EditorWrapper({
       setConflictServerUpdatedAt(result.serverUpdatedAt)
       setConflictDialogOpen(true)
       setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
+    } else if (result.storageError) {
+      // Show storage error dialog
+      setStorageErrorCode(result.storageError.code)
+      setStorageErrorMessage(result.storageError.message)
+      setStorageErrorDialogOpen(true)
+      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
     } else if (result.success && result.newUpdatedAt) {
       setDocumentState((prev) => ({
         ...prev,
@@ -1340,6 +1368,12 @@ function EditorWrapper({
       setConflictServerUpdatedAt(result.serverUpdatedAt)
       setConflictDialogOpen(true)
       setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
+    } else if (result.storageError) {
+      // Show storage error dialog
+      setStorageErrorCode(result.storageError.code)
+      setStorageErrorMessage(result.storageError.message)
+      setStorageErrorDialogOpen(true)
+      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
     } else if (result.success && result.newUpdatedAt) {
       setDocumentState((prev) => ({
         ...prev,
@@ -1410,6 +1444,11 @@ function EditorWrapper({
             setConflictServerUpdatedAt(result.serverUpdatedAt)
             setConflictDialogOpen(true)
             setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
+          } else if (result.storageError) {
+            setStorageErrorCode(result.storageError.code)
+            setStorageErrorMessage(result.storageError.message)
+            setStorageErrorDialogOpen(true)
+            setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
           } else if (result.success && result.newUpdatedAt) {
             setDocumentState((prev) => ({
               ...prev,
@@ -1501,10 +1540,18 @@ function EditorWrapper({
       return
     }
 
-    if (isDebugEnabled()) {
-      console.log("[handleContentChange] Setting hasUnsavedChanges: true")
-    }
-    setDocumentState((prev) => ({ ...prev, hasUnsavedChanges: true, saveStatus: "idle" }))
+    // Only update state if not already marked as having unsaved changes
+    // This avoids unnecessary React re-renders on every keystroke
+    setDocumentState((prev) => {
+      if (prev.hasUnsavedChanges && prev.saveStatus === "idle") {
+        // Already in the right state, no update needed
+        return prev
+      }
+      if (isDebugEnabled()) {
+        console.log("[handleContentChange] Setting hasUnsavedChanges: true")
+      }
+      return { ...prev, hasUnsavedChanges: true, saveStatus: "idle" }
+    })
 
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current)
@@ -1543,7 +1590,12 @@ function EditorWrapper({
 
     const result = await performSave(documentState.id, documentState.title, true) // forceOverwrite = true
 
-    if (result.success && result.newUpdatedAt) {
+    if (result.storageError) {
+      setStorageErrorCode(result.storageError.code)
+      setStorageErrorMessage(result.storageError.message)
+      setStorageErrorDialogOpen(true)
+      setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+    } else if (result.success && result.newUpdatedAt) {
       setDocumentState((prev) => ({
         ...prev,
         hasUnsavedChanges: false,
@@ -1590,6 +1642,10 @@ function EditorWrapper({
 
   const handleConflictCancel = useCallback(() => {
     setConflictDialogOpen(false)
+  }, [])
+
+  const handleStorageErrorClose = useCallback(() => {
+    setStorageErrorDialogOpen(false)
   }, [])
 
   const handleSplitWord = useCallback(() => {
@@ -1662,6 +1718,14 @@ function EditorWrapper({
         onOverwrite={handleConflictOverwrite}
         onReload={handleConflictReload}
         onCancel={handleConflictCancel}
+      />
+
+      <StorageErrorDialog
+        open={storageErrorDialogOpen}
+        onOpenChange={setStorageErrorDialogOpen}
+        errorCode={storageErrorCode}
+        errorMessage={storageErrorMessage}
+        onClose={handleStorageErrorClose}
       />
 
       <SplitWordDialog
