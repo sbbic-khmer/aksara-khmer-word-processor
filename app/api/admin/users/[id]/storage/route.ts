@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { isAdmin } from "@/lib/auth"
-import { sql } from "@/lib/db"
+import { isAdmin } from "@/lib/auth-server"
+import { prisma } from "@/lib/prisma"
 
 // PATCH - Update a user's storage limit
 export async function PATCH(
@@ -22,11 +22,10 @@ export async function PATCH(
       )
     }
 
-    await sql`
-      UPDATE users
-      SET storage_limit_bytes = ${storageLimitBytes}, updated_at = NOW()
-      WHERE id = ${id}::uuid
-    `
+    await prisma.user.update({
+      where: { id },
+      data: { storageLimitBytes },
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

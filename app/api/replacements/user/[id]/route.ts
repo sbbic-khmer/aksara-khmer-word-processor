@@ -1,9 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { getCurrentUser } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { getCurrentUser } from "@/lib/auth-server"
 
 // PUT update a user replacement
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const user = await getCurrentUser()
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -14,28 +17,52 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { incorrect_word, correct_word, notes } = await request.json()
 
-    const result = await sql`
-      UPDATE user_replacements
-      SET incorrect_word = COALESCE(${incorrect_word}, incorrect_word),
-          correct_word = COALESCE(${correct_word}, correct_word),
-          notes = ${notes}
-      WHERE id = ${id} AND user_id = ${user.id}
-      RETURNING *
-    `
+    const replacement = await prisma.userReplacement.updateMany({
+      where: { id, userId: user.id },
+      data: {
+        ...(incorrect_word !== undefined && { incorrectWord: incorrect_word }),
+        ...(correct_word !== undefined && { correctWord: correct_word }),
+        notes: notes ?? null,
+      },
+    })
 
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Replacement not found" }, { status: 404 })
+    if (replacement.count === 0) {
+      return NextResponse.json(
+        { error: "Replacement not found" },
+        { status: 404 }
+      )
     }
 
-    return NextResponse.json(result[0])
+    // Fetch the updated replacement
+    const updated = await prisma.userReplacement.findUnique({
+      where: { id },
+    })
+
+    return NextResponse.json({
+      id: updated!.id,
+      user_id: updated!.userId,
+      incorrect_word: updated!.incorrectWord,
+      correct_word: updated!.correctWord,
+      notes: updated!.notes,
+      promoted_to_master: updated!.promotedToMaster,
+      promoted_at: updated!.promotedAt,
+      created_at: updated!.createdAt,
+      updated_at: updated!.updatedAt,
+    })
   } catch (error) {
     console.error("Error updating user replacement:", error)
-    return NextResponse.json({ error: "Failed to update replacement" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to update replacement" },
+      { status: 500 }
+    )
   }
 }
 
 // DELETE a user replacement
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const user = await getCurrentUser()
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -44,19 +71,23 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { id } = await params
 
   try {
-    const result = await sql`
-      DELETE FROM user_replacements
-      WHERE id = ${id} AND user_id = ${user.id}
-      RETURNING id
-    `
+    const result = await prisma.userReplacement.deleteMany({
+      where: { id, userId: user.id },
+    })
 
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Replacement not found" }, { status: 404 })
+    if (result.count === 0) {
+      return NextResponse.json(
+        { error: "Replacement not found" },
+        { status: 404 }
+      )
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Error deleting user replacement:", error)
-    return NextResponse.json({ error: "Failed to delete replacement" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Failed to delete replacement" },
+      { status: 500 }
+    )
   }
 }

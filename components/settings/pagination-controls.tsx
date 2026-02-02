@@ -50,16 +50,19 @@ export function usePagination<T>({
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
+  // Ensure items is always an array (API might return error object)
+  const safeItems = Array.isArray(items) ? items : []
+
   // Track previous values to detect changes
   const prevSearchQueryRef = useRef(searchQuery)
-  const prevItemsLengthRef = useRef(items.length)
+  const prevItemsLengthRef = useRef(safeItems.length)
 
   // Filter items based on search
   const filteredItems = useMemo(() => {
-    if (!searchQuery.trim() || !searchFilter) return items
+    if (!searchQuery.trim() || !searchFilter) return safeItems
     const query = searchQuery.toLowerCase().trim()
-    return items.filter((item) => searchFilter(item, query))
-  }, [items, searchQuery, searchFilter])
+    return safeItems.filter((item) => searchFilter(item, query))
+  }, [safeItems, searchQuery, searchFilter])
 
   // Calculate total pages
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize))
@@ -67,15 +70,15 @@ export function usePagination<T>({
   // Reset to page 1 when search query changes or items change significantly
   useEffect(() => {
     const searchChanged = prevSearchQueryRef.current !== searchQuery
-    const itemsChanged = prevItemsLengthRef.current !== items.length
+    const itemsChanged = prevItemsLengthRef.current !== safeItems.length
 
     if (searchChanged || itemsChanged) {
       setCurrentPage(1)
     }
 
     prevSearchQueryRef.current = searchQuery
-    prevItemsLengthRef.current = items.length
-  }, [searchQuery, items.length])
+    prevItemsLengthRef.current = safeItems.length
+  }, [searchQuery, safeItems.length])
 
   // Ensure current page doesn't exceed total pages
   const safeCurrentPage = Math.min(currentPage, totalPages)

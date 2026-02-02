@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { isAdmin } from "@/lib/auth"
-import { sql } from "@/lib/db"
+import { isAdmin } from "@/lib/auth-server"
+import { prisma } from "@/lib/prisma"
 import { DEFAULT_STORAGE_LIMIT } from "@/lib/storage"
 
 // GET - Get the global default storage limit
@@ -10,11 +10,11 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const result = await sql`
-      SELECT value FROM app_settings WHERE key = 'default_storage_limit_bytes'
-    `
+    const setting = await prisma.appSetting.findUnique({
+      where: { key: "default_storage_limit_bytes" },
+    })
 
-    const bytes = Number(result[0]?.value || DEFAULT_STORAGE_LIMIT)
+    const bytes = Number(setting?.value || DEFAULT_STORAGE_LIMIT)
 
     return NextResponse.json({
       defaultLimitBytes: bytes,
@@ -47,11 +47,11 @@ export async function PUT(request: Request) {
 
     const bytes = defaultLimitMB * 1024 * 1024
 
-    await sql`
-      INSERT INTO app_settings (key, value, updated_at)
-      VALUES ('default_storage_limit_bytes', ${String(bytes)}, NOW())
-      ON CONFLICT (key) DO UPDATE SET value = ${String(bytes)}, updated_at = NOW()
-    `
+    await prisma.appSetting.upsert({
+      where: { key: "default_storage_limit_bytes" },
+      update: { value: String(bytes) },
+      create: { key: "default_storage_limit_bytes", value: String(bytes) },
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -1,14 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
-import { getCurrentUser } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { getCurrentUser } from "@/lib/auth-server"
 import {
   canUserSaveDocument,
   calculateDocumentSize,
   formatBytes,
   MAX_DOCUMENT_SIZE,
 } from "@/lib/storage"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 // GET - Get a specific document
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -20,17 +18,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params
 
-    const result = await sql`
-      SELECT id, title, content, editor_state, created_at, updated_at
-      FROM documents
-      WHERE id = ${id}::uuid AND user_id = ${user.id}::uuid
-    `
+    const document = await prisma.document.findFirst({
+      where: { id, userId: user.id },
+    })
 
-    if (result.length === 0) {
+    if (!document) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    return NextResponse.json(result[0])
+    return NextResponse.json({
+      id: document.id,
+      title: document.title,
+      content: document.content,
+      editor_state: document.editorState,
+      created_at: document.createdAt,
+      updated_at: document.updatedAt,
+    })
   } catch (error) {
     console.error("[v0] Error fetching document:", error)
     return NextResponse.json({ error: "Failed to fetch document" }, { status: 500 })
@@ -78,13 +81,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // If lastSavedAt is provided and we're not forcing overwrite, check for conflicts
     if (lastSavedAt && !forceOverwrite) {
-      const currentDoc = await sql`
-        SELECT updated_at FROM documents
-        WHERE id = ${id}::uuid AND user_id = ${user.id}::uuid
-      `
+      const currentDoc = await prisma.document.findFirst({
+        where: { id, userId: user.id },
+        select: { updatedAt: true },
+      })
 
-      if (currentDoc.length > 0) {
-        const serverUpdatedAt = new Date(currentDoc[0].updated_at).getTime()
+      if (currentDoc) {
+        const serverUpdatedAt = new Date(currentDoc.updatedAt).getTime()
         const clientLastSavedAt = new Date(lastSavedAt).getTime()
 
         // If server version is newer (with 1 second tolerance for timing issues)
@@ -93,29 +96,40 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             {
               error: "Conflict detected",
               conflict: true,
-              serverUpdatedAt: currentDoc[0].updated_at,
+              serverUpdatedAt: currentDoc.updatedAt,
             },
-            { status: 409 },
+            { status: 409 }
           )
         }
       }
     }
 
-    const result = await sql`
-      UPDATE documents
-      SET 
-        title = COALESCE(${title}, title),
-        content = COALESCE(${content}, content),
-        editor_state = COALESCE(${JSON.stringify(editorState)}, editor_state)
-      WHERE id = ${id}::uuid AND user_id = ${user.id}::uuid
-      RETURNING id, title, content, editor_state, created_at, updated_at
-    `
+    const document = await prisma.document.updateMany({
+      where: { id, userId: user.id },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(content !== undefined && { content }),
+        ...(editorState !== undefined && { editorState }),
+      },
+    })
 
-    if (result.length === 0) {
+    if (document.count === 0) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    return NextResponse.json(result[0])
+    // Fetch the updated document
+    const updated = await prisma.document.findUnique({
+      where: { id },
+    })
+
+    return NextResponse.json({
+      id: updated!.id,
+      title: updated!.title,
+      content: updated!.content,
+      editor_state: updated!.editorState,
+      created_at: updated!.createdAt,
+      updated_at: updated!.updatedAt,
+    })
   } catch (error) {
     console.error("[v0] Error updating document:", error)
     return NextResponse.json({ error: "Failed to update document" }, { status: 500 })
@@ -132,13 +146,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id } = await params
 
-    const result = await sql`
-      DELETE FROM documents
-      WHERE id = ${id}::uuid AND user_id = ${user.id}::uuid
-      RETURNING id
-    `
+    const result = await prisma.document.deleteMany({
+      where: { id, userId: user.id },
+    })
 
-    if (result.length === 0) {
+    if (result.count === 0) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 

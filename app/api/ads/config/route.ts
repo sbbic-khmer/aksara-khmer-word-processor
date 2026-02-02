@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { getCurrentUser } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { getCurrentUser } from "@/lib/auth-server"
 
 // GET ad configuration for current user
 export async function GET() {
@@ -11,17 +11,16 @@ export async function GET() {
   }
 
   try {
-    // Get user's show_ads status (default to true if column doesn't exist yet)
-    const showAds = user.show_ads ?? true
+    // Get user's showAds status (default to true if not set)
+    const showAds = (user as { showAds?: boolean }).showAds ?? true
 
-    // Get frequency schedule from app_settings
-    const settingsResult = await sql`
-      SELECT value FROM app_settings WHERE key = 'ad_frequency_schedule'
-    `
+    // Get frequency schedule from app_setting
+    const setting = await prisma.appSetting.findUnique({
+      where: { key: "ad_frequency_schedule" },
+    })
 
     // Default schedule if not set
-    const frequencySchedule =
-      settingsResult.length > 0 ? settingsResult[0].value : [2, 5, 10, 15]
+    const frequencySchedule = setting?.value ?? [2, 5, 10, 15]
 
     return NextResponse.json({
       showAds,

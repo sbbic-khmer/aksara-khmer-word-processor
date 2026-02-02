@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { isAdmin } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { isAdmin } from "@/lib/auth-server"
 
 // GET current ad frequency schedule (admin only)
 export async function GET() {
@@ -10,13 +10,12 @@ export async function GET() {
   }
 
   try {
-    const result = await sql`
-      SELECT value FROM app_settings WHERE key = 'ad_frequency_schedule'
-    `
+    const setting = await prisma.appSetting.findUnique({
+      where: { key: "ad_frequency_schedule" },
+    })
 
     // Default schedule if not set
-    const schedule =
-      result.length > 0 ? result[0].value : [2, 5, 10, 15]
+    const schedule = setting?.value ?? [2, 5, 10, 15]
 
     return NextResponse.json({ schedule })
   } catch (error) {
@@ -64,16 +63,13 @@ export async function PUT(request: NextRequest) {
     }
 
     // Upsert the schedule
-    const result = await sql`
-      INSERT INTO app_settings (key, value, updated_at)
-      VALUES ('ad_frequency_schedule', ${JSON.stringify(schedule)}::jsonb, NOW())
-      ON CONFLICT (key) DO UPDATE SET
-        value = ${JSON.stringify(schedule)}::jsonb,
-        updated_at = NOW()
-      RETURNING value
-    `
+    const result = await prisma.appSetting.upsert({
+      where: { key: "ad_frequency_schedule" },
+      update: { value: schedule },
+      create: { key: "ad_frequency_schedule", value: schedule },
+    })
 
-    return NextResponse.json({ schedule: result[0].value })
+    return NextResponse.json({ schedule: result.value })
   } catch (error) {
     console.error("Error updating ad frequency schedule:", error)
     return NextResponse.json(

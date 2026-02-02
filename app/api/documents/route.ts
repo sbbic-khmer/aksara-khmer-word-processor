@@ -1,14 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
-import { getCurrentUser } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { getCurrentUser } from "@/lib/auth-server"
 import {
   canUserSaveDocument,
   calculateDocumentSize,
   formatBytes,
   MAX_DOCUMENT_SIZE,
 } from "@/lib/storage"
-
-const sql = neon(process.env.DATABASE_URL!)
 
 // GET - List all documents for the current user
 export async function GET() {
@@ -18,14 +16,26 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const documents = await sql`
-      SELECT id, title, created_at, updated_at
-      FROM documents
-      WHERE user_id = ${user.id}::uuid
-      ORDER BY updated_at DESC
-    `
+    const documents = await prisma.document.findMany({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: "desc" },
+    })
 
-    return NextResponse.json(documents)
+    // Map to expected format
+    const result = documents.map((doc) => ({
+      id: doc.id,
+      title: doc.title,
+      created_at: doc.createdAt,
+      updated_at: doc.updatedAt,
+    }))
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error("[v0] Error fetching documents:", error)
     return NextResponse.json({ error: "Failed to fetch documents" }, { status: 500 })
@@ -70,13 +80,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await sql`
-      INSERT INTO documents (user_id, title, content, editor_state)
-      VALUES (${user.id}::uuid, ${title || "Untitled"}, ${content || ""}, ${JSON.stringify(editorState) || null})
-      RETURNING id, title, content, editor_state, created_at, updated_at
-    `
+    const document = await prisma.document.create({
+      data: {
+        userId: user.id,
+        title: title || "Untitled",
+        content: content || "",
+        editorState: editorState || null,
+      },
+    })
 
-    return NextResponse.json(result[0])
+    return NextResponse.json({
+      id: document.id,
+      title: document.title,
+      content: document.content,
+      editor_state: document.editorState,
+      created_at: document.createdAt,
+      updated_at: document.updatedAt,
+    })
   } catch (error) {
     console.error("[v0] Error creating document:", error)
     return NextResponse.json({ error: "Failed to create document" }, { status: 500 })

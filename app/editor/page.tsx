@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { getCurrentUser } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth-server"
 import { EditorWithAds } from "@/components/editor/editor-with-ads"
 
 export default async function EditorPage() {

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { User, LogOut, Settings, Shield, Camera, Loader2, Key } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -17,51 +17,26 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-
-interface UserData {
-  id: string
-  email: string
-  name: string | null
-  role: string
-  profile_picture_url: string | null
-}
+import { useAuth } from "@/components/auth-provider"
+import { authClient } from "@/lib/auth-client"
 
 export function UserMenu() {
   const router = useRouter()
-  const [user, setUser] = useState<UserData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { user, isLoading, logout, isAdmin } = useAuth()
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isPasswordOpen, setIsPasswordOpen] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isSavingPassword, setIsSavingPassword] = useState(false)
-  const [editName, setEditName] = useState("")
+  const [editName, setEditName] = useState(user?.name || "")
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [passwordError, setPasswordError] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch("/api/auth/check")
-        const data = await res.json()
-        if (data.authenticated && data.user) {
-          setUser(data.user)
-          setEditName(data.user.name || "")
-        }
-      } catch (error) {
-        console.error("Auth check failed:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    checkAuth()
-  }, [])
-
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" })
+      await logout()
       router.push("/")
     } catch (error) {
       console.error("Logout failed:", error)
@@ -89,15 +64,11 @@ export function UserMenu() {
       reader.onload = async (event) => {
         const dataUrl = event.target?.result as string
 
-        const res = await fetch("/api/auth/profile", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ profile_picture_url: dataUrl }),
+        const result = await authClient.updateUser({
+          image: dataUrl,
         })
 
-        if (res.ok) {
-          setUser((prev) => (prev ? { ...prev, profile_picture_url: dataUrl } : null))
-        } else {
+        if (result.error) {
           alert("Failed to upload profile picture")
         }
         setIsUploading(false)
@@ -112,17 +83,14 @@ export function UserMenu() {
 
   const handleSaveProfile = async () => {
     try {
-      const res = await fetch("/api/auth/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editName }),
+      const result = await authClient.updateUser({
+        name: editName,
       })
 
-      if (res.ok) {
-        setUser((prev) => (prev ? { ...prev, name: editName } : null))
-        setIsProfileOpen(false)
-      } else {
+      if (result.error) {
         alert("Failed to update profile")
+      } else {
+        setIsProfileOpen(false)
       }
     } catch (error) {
       console.error("Profile update failed:", error)
@@ -151,22 +119,19 @@ export function UserMenu() {
     setIsSavingPassword(true)
 
     try {
-      const res = await fetch("/api/auth/password", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
+      const result = await authClient.changePassword({
+        currentPassword,
+        newPassword,
       })
 
-      const data = await res.json()
-
-      if (res.ok) {
+      if (result.error) {
+        setPasswordError(result.error.message || "Failed to change password")
+      } else {
         setIsPasswordOpen(false)
         setCurrentPassword("")
         setNewPassword("")
         setConfirmPassword("")
         alert("Password changed successfully")
-      } else {
-        setPasswordError(data.error || "Failed to change password")
       }
     } catch (error) {
       console.error("Password change failed:", error)
@@ -203,8 +168,8 @@ export function UserMenu() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="h-10 w-10 rounded-full p-0">
             <Avatar className="h-10 w-10">
-              {user.profile_picture_url && (
-                <AvatarImage src={user.profile_picture_url || "/placeholder.svg"} alt={user.name || "User"} />
+              {user?.image && (
+                <AvatarImage src={user?.image || "/placeholder.svg"} alt={user.name || "User"} />
               )}
               <AvatarFallback className="bg-primary/10 text-primary text-lg font-medium">{initials}</AvatarFallback>
             </Avatar>
@@ -228,7 +193,7 @@ export function UserMenu() {
             <Settings className="h-4 w-4 mr-2" />
             Settings
           </DropdownMenuItem>
-          {user.role === "admin" && (
+          {isAdmin && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="cursor-pointer" onClick={() => router.push("/admin")}>
@@ -255,8 +220,8 @@ export function UserMenu() {
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <Avatar className="h-24 w-24">
-                  {user.profile_picture_url && (
-                    <AvatarImage src={user.profile_picture_url || "/placeholder.svg"} alt={user.name || "User"} />
+                  {user?.image && (
+                    <AvatarImage src={user?.image || "/placeholder.svg"} alt={user.name || "User"} />
                   )}
                   <AvatarFallback className="bg-primary/10 text-primary text-2xl font-medium">
                     {initials}

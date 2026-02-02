@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { isAdmin } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { isAdmin } from "@/lib/auth-server"
 
 // PATCH toggle user's show_ads setting (admin only)
 export async function PATCH(
@@ -23,24 +23,18 @@ export async function PATCH(
       )
     }
 
-    // Verify user exists
-    const userCheck = await sql`
-      SELECT id FROM users WHERE id = ${userId}
-    `
+    // Verify user exists and update
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { showAds },
+      select: { id: true, email: true, showAds: true },
+    })
 
-    if (userCheck.length === 0) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    // Update user's show_ads setting
-    const result = await sql`
-      UPDATE users
-      SET show_ads = ${showAds}, updated_at = NOW()
-      WHERE id = ${userId}
-      RETURNING id, email, show_ads
-    `
-
-    return NextResponse.json(result[0])
+    return NextResponse.json({
+      id: user.id,
+      email: user.email,
+      show_ads: user.showAds,
+    })
   } catch (error) {
     console.error("Error updating user ad settings:", error)
     return NextResponse.json(
@@ -63,15 +57,20 @@ export async function GET(
   try {
     const { id: userId } = await params
 
-    const result = await sql`
-      SELECT id, email, show_ads FROM users WHERE id = ${userId}
-    `
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, showAds: true },
+    })
 
-    if (result.length === 0) {
+    if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    return NextResponse.json(result[0])
+    return NextResponse.json({
+      id: user.id,
+      email: user.email,
+      show_ads: user.showAds,
+    })
   } catch (error) {
     console.error("Error fetching user ad settings:", error)
     return NextResponse.json(

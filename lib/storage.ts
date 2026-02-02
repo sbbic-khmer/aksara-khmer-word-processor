@@ -1,4 +1,4 @@
-import { sql } from "./db"
+import { prisma } from "./prisma"
 
 // Default limits
 export const DEFAULT_STORAGE_LIMIT = 5 * 1024 * 1024 // 5MB
@@ -8,27 +8,33 @@ export const MAX_DOCUMENT_SIZE = 1 * 1024 * 1024 // 1MB
  * Get the total storage used by a user (sum of all document sizes)
  */
 export async function getUserStorageUsed(userId: string): Promise<number> {
-  const result = await sql`
-    SELECT COALESCE(
-      SUM(
-        OCTET_LENGTH(COALESCE(content, '')) +
-        OCTET_LENGTH(COALESCE(editor_state::text, ''))
-      ), 0
-    )::bigint as total_bytes
-    FROM documents
-    WHERE user_id = ${userId}::uuid
-  `
-  return Number(result[0]?.total_bytes || 0)
+  const documents = await prisma.document.findMany({
+    where: { userId },
+    select: {
+      content: true,
+      editorState: true,
+    },
+  })
+
+  return documents.reduce((total, doc) => {
+    const contentSize = Buffer.byteLength(doc.content || "", "utf8")
+    const editorStateSize = Buffer.byteLength(
+      JSON.stringify(doc.editorState) || "",
+      "utf8"
+    )
+    return total + contentSize + editorStateSize
+  }, 0)
 }
 
 /**
  * Get a user's storage limit (from their profile or default)
  */
 export async function getUserStorageLimit(userId: string): Promise<number> {
-  const result = await sql`
-    SELECT storage_limit_bytes FROM users WHERE id = ${userId}::uuid
-  `
-  return Number(result[0]?.storage_limit_bytes || DEFAULT_STORAGE_LIMIT)
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { storageLimitBytes: true },
+  })
+  return user?.storageLimitBytes ?? DEFAULT_STORAGE_LIMIT
 }
 
 /**
@@ -71,15 +77,20 @@ export async function canUserSaveDocument(
   // If updating an existing doc, subtract its current size from used
   let effectiveUsed = used
   if (existingDocId) {
-    const existing = await sql`
-      SELECT
-        OCTET_LENGTH(COALESCE(content, '')) +
-        OCTET_LENGTH(COALESCE(editor_state::text, '')) as size
-      FROM documents
-      WHERE id = ${existingDocId}::uuid AND user_id = ${userId}::uuid
-    `
-    if (existing[0]?.size) {
-      effectiveUsed -= Number(existing[0].size)
+    const existing = await prisma.document.findFirst({
+      where: { id: existingDocId, userId },
+      select: {
+        content: true,
+        editorState: true,
+      },
+    })
+    if (existing) {
+      const contentSize = Buffer.byteLength(existing.content || "", "utf8")
+      const editorStateSize = Buffer.byteLength(
+        JSON.stringify(existing.editorState) || "",
+        "utf8"
+      )
+      effectiveUsed -= contentSize + editorStateSize
     }
   }
 

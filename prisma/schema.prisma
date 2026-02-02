@@ -28,7 +28,7 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Custom fields for Aksara
-  storageLimitBytes BigInt   @default(5242880) // 5MB default
+  storageLimitBytes Int      @default(5242880) // 5MB default (Int is fine, max ~2GB)
   isAdmin           Boolean  @default(false)
   showAds           Boolean  @default(true)
 
@@ -45,6 +45,7 @@ model User {
   spellCheckIgnoredWords SpellCheckIgnoredWord[]
   userReplacements       UserReplacement[]
   createdMasterReplacements MasterReplacement[] @relation("CreatedBy")
+  promotedIgnoredWords   PromotedIgnoredWord[]
 
   @@map("user")
 }
@@ -120,13 +121,15 @@ model UserPreference {
   userId    String   @unique
 
   // Voice input settings
-  vadSilenceThreshold Float   @default(1.0)
-  vadThreshold        Float   @default(0.4)
+  vadSilenceThreshold  Float   @default(1.0)
+  vadThreshold         Float   @default(0.4)
   preferredMicDeviceId String?
+  sttProvider          String  @default("browser")
 
   // Editor settings
-  showBreaks Boolean @default(true)
-  theme      String  @default("light")
+  showBreaks           Boolean @default(true)
+  theme                String  @default("light")
+  lastOpenedDocumentId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -167,6 +170,19 @@ model UserIgnoredDictionaryWord {
   @@index([userId])
   @@index([word])
   @@map("user_ignored_dictionary_word")
+}
+
+// Admin-promoted ignored words (for dictionary curation)
+model PromotedIgnoredWord {
+  id         String   @id @default(cuid())
+  word       String   @unique
+  promotedBy String?
+  notes      String?
+  promotedAt DateTime @default(now())
+
+  promoter User? @relation(fields: [promotedBy], references: [id], onDelete: SetNull)
+
+  @@map("promoted_ignored_word")
 }
 
 // Spell check: Words to add to spell checker (treated as correct)

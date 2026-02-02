@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { isDev } from "@/lib/auth"
+import { isDev } from "@/lib/auth-server"
 
 export async function GET() {
   const devOrAdmin = await isDev()

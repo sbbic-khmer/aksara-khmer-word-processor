@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
-import { isAdmin } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { isAdmin } from "@/lib/auth-server"
 import { DEFAULT_STORAGE_LIMIT } from "@/lib/storage"
 
 // GET all users with their ad status and optionally storage info (admin only)
@@ -16,39 +16,74 @@ export async function GET(request: NextRequest) {
   try {
     if (includeStorage) {
       // Include storage usage calculation
-      const result = await sql`
-        SELECT
-          u.id,
-          u.email,
-          u.name,
-          u.role,
-          u.show_ads,
-          COALESCE(u.storage_limit_bytes, ${DEFAULT_STORAGE_LIMIT})::bigint as storage_limit_bytes,
-          COALESCE(
-            (SELECT SUM(
-              OCTET_LENGTH(COALESCE(content, '')) +
-              OCTET_LENGTH(COALESCE(editor_state::text, ''))
-            ) FROM documents WHERE user_id = u.id), 0
-          )::bigint as storage_used,
-          u.created_at
-        FROM users u
-        ORDER BY u.email
-      `
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          isAdmin: true,
+          showAds: true,
+          storageLimitBytes: true,
+          createdAt: true,
+          documents: {
+            select: {
+              content: true,
+              editorState: true,
+            },
+          },
+        },
+        orderBy: { email: "asc" },
+      })
+
+      // Calculate storage used for each user
+      const result = users.map((user) => {
+        const storageUsed = user.documents.reduce((acc, doc) => {
+          const contentSize = Buffer.byteLength(doc.content || "", "utf8")
+          const editorStateSize = Buffer.byteLength(
+            JSON.stringify(doc.editorState) || "",
+            "utf8"
+          )
+          return acc + contentSize + editorStateSize
+        }, 0)
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          isAdmin: user.isAdmin,
+          show_ads: user.showAds,
+          storage_limit_bytes: user.storageLimitBytes ?? DEFAULT_STORAGE_LIMIT,
+          storage_used: storageUsed,
+          created_at: user.createdAt,
+        }
+      })
+
       return NextResponse.json({ users: result })
     }
 
     // Standard query without storage
-    const result = await sql`
-      SELECT
-        id,
-        email,
-        name,
-        role,
-        show_ads,
-        created_at
-      FROM users
-      ORDER BY created_at DESC
-    `
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isAdmin: true,
+        showAds: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    })
+
+    // Map to expected format
+    const result = users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      isAdmin: user.isAdmin,
+      show_ads: user.showAds,
+      created_at: user.createdAt,
+    }))
+
     return NextResponse.json(result)
   } catch (error) {
     console.error("Error fetching users:", error)
