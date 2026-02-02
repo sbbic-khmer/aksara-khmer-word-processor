@@ -82,9 +82,11 @@ export async function verifyPbkdf2Password(
     }
 
     // Derive key from password
+    // IMPORTANT: The old system used the salt as a plain string, not hex-decoded
+    // This matches the original: crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512")
     const derivedKey = await pbkdf2Async(
       password,
-      Buffer.from(salt, "hex"),
+      salt, // Use salt as string directly, not Buffer.from(salt, "hex")
       iterations,
       keyLength,
       digest
