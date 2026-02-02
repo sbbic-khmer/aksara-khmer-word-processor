@@ -1026,8 +1026,13 @@ function EditorWrapper({
   const [splitDialogData, setSplitDialogData] = useState<{ word: string; cursorPosition: number } | null>(null)
   const initialLoadRef = useRef(false)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const maxIntervalTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const savedStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Auto-save timing constants
+  const AUTO_SAVE_DEBOUNCE_MS = 60 * 1000 // 60 seconds after last change
+  const AUTO_SAVE_MAX_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes max between saves
   const lastDocLoadedRef = useRef(false)
   const documentStateRef = useRef(documentState)
   const skipNextContentChangeRef = useRef(false)
@@ -1179,9 +1184,46 @@ function EditorWrapper({
   useEffect(() => {
     return () => {
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current)
+      if (maxIntervalTimeoutRef.current) clearTimeout(maxIntervalTimeoutRef.current)
       if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
     }
   }, [])
+
+  // Save on visibility change (user switches tabs) and beforeunload (user closes page)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden" && documentStateRef.current.hasUnsavedChanges) {
+        // Clear pending timers and save immediately
+        if (autoSaveTimeoutRef.current) {
+          clearTimeout(autoSaveTimeoutRef.current)
+          autoSaveTimeoutRef.current = null
+        }
+        if (maxIntervalTimeoutRef.current) {
+          clearTimeout(maxIntervalTimeoutRef.current)
+          maxIntervalTimeoutRef.current = null
+        }
+        triggerAutoSave()
+      }
+    }
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (documentStateRef.current.hasUnsavedChanges) {
+        // Try to save (may not complete before page closes)
+        triggerAutoSave()
+        // Show browser's "unsaved changes" warning
+        e.preventDefault()
+        e.returnValue = ""
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    window.addEventListener("beforeunload", handleBeforeUnload)
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+    }
+  }, [triggerAutoSave])
 
   useEffect(() => {
     if (documentState.id) {
@@ -1553,13 +1595,32 @@ function EditorWrapper({
       return { ...prev, hasUnsavedChanges: true, saveStatus: "idle" }
     })
 
+    // Debounce timer: resets on each change, fires 60s after last change
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current)
     }
-
     autoSaveTimeoutRef.current = setTimeout(() => {
       triggerAutoSave()
-    }, 5000)
+      // Clear max interval timer since we just saved
+      if (maxIntervalTimeoutRef.current) {
+        clearTimeout(maxIntervalTimeoutRef.current)
+        maxIntervalTimeoutRef.current = null
+      }
+    }, AUTO_SAVE_DEBOUNCE_MS)
+
+    // Max interval timer: ensures save at least every 5 minutes during continuous editing
+    // Only set if not already running
+    if (!maxIntervalTimeoutRef.current) {
+      maxIntervalTimeoutRef.current = setTimeout(() => {
+        maxIntervalTimeoutRef.current = null
+        triggerAutoSave()
+        // Clear debounce timer since we just saved
+        if (autoSaveTimeoutRef.current) {
+          clearTimeout(autoSaveTimeoutRef.current)
+          autoSaveTimeoutRef.current = null
+        }
+      }, AUTO_SAVE_MAX_INTERVAL_MS)
+    }
   }, [setDocumentState, triggerAutoSave])
 
   const handleDeleteDocument = useCallback(
