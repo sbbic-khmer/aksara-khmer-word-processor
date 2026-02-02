@@ -2,6 +2,7 @@
 // Uses typo-js for dictionary-based spell checking and suggestions
 
 let typo = null;
+let debugMode = false;
 
 // Cache for suggestions (helps with repeated lookups)
 const suggestionCache = new Map();
@@ -11,6 +12,7 @@ const CACHE_MAX_SIZE = 500;
 try {
     importScripts('/lib/typo.js');
 } catch (e) {
+    // Always log critical errors
     console.error('[SpellCheck] Failed to load typo-js:', e);
 }
 
@@ -40,7 +42,9 @@ function getSuggestions(word, limit = 5) {
  */
 async function initDictionary() {
     try {
-        console.log('[SpellCheck] Loading dictionary files...');
+        if (debugMode) {
+            console.log('[SpellCheck] Loading dictionary files...');
+        }
 
         const [affResponse, dicResponse] = await Promise.all([
             fetch('/dictionaries/km_KH.aff'),
@@ -56,16 +60,21 @@ async function initDictionary() {
             dicResponse.text()
         ]);
 
-        console.log('[SpellCheck] Initializing typo.js...');
+        if (debugMode) {
+            console.log('[SpellCheck] Initializing typo.js...');
+        }
         typo = new Typo('km_KH', aff, dic);
 
         // Count words for logging
         const lines = dic.split('\n');
         const wordCount = lines.length - 1; // First line is count
 
-        console.log('[SpellCheck] Dictionary loaded with', wordCount, 'words');
+        if (debugMode) {
+            console.log('[SpellCheck] Dictionary loaded with', wordCount, 'words');
+        }
         self.postMessage({ type: 'ready', wordCount });
     } catch (error) {
+        // Always log critical errors
         console.error('[SpellCheck] Init error:', error);
         self.postMessage({ type: 'error', error: error.message || String(error) });
     }
@@ -73,10 +82,19 @@ async function initDictionary() {
 
 // Handle messages from main thread
 self.onmessage = function(e) {
-    const { type, word, requestId } = e.data;
+    const { type, word, requestId, debug } = e.data;
 
     if (type === 'init') {
+        // Set debug mode from init message
+        if (debug !== undefined) {
+            debugMode = debug;
+        }
         initDictionary();
+        return;
+    }
+
+    if (type === 'setDebug') {
+        debugMode = debug === true;
         return;
     }
 
@@ -106,7 +124,10 @@ self.onmessage = function(e) {
                 cached
             });
         } catch (error) {
-            console.error('[SpellCheck] Suggest error:', error);
+            // Always log errors
+            if (debugMode) {
+                console.error('[SpellCheck] Suggest error:', error);
+            }
             self.postMessage({
                 type: 'suggestions',
                 requestId,
@@ -154,5 +175,6 @@ self.onmessage = function(e) {
     }
 };
 
-// Log that worker script loaded
-console.log('[SpellCheck] Worker script loaded');
+// Worker script loaded - only log in debug mode
+// Note: debugMode will be false at this point, so this won't log initially
+// Debug mode is set via the 'init' message from the main thread

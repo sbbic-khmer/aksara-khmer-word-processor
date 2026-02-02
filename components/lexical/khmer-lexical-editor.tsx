@@ -1087,12 +1087,18 @@ function EditorWrapper({
   }, [breaker, editor, ignoredDictionaryWords])
 
   useEffect(() => {
-    console.log("[v0] EditorWrapper mounted - starting 10s global timeout")
+    if (isDebugEnabled()) {
+      console.log("[v0] EditorWrapper mounted - starting 10s global timeout")
+    }
     // Set a 10 second timeout to stop loading spinner if something goes wrong
     loadingTimeoutRef.current = setTimeout(() => {
-      console.log("[v0] Global timeout triggered - isLoadingDocument:", isLoadingDocument)
+      if (isDebugEnabled()) {
+        console.log("[v0] Global timeout triggered - isLoadingDocument:", isLoadingDocument)
+      }
       if (isLoadingDocument) {
-        console.log("[v0] Document loading timeout - falling back to new document")
+        if (isDebugEnabled()) {
+          console.log("[v0] Document loading timeout - falling back to new document")
+        }
         setIsLoadingDocument(false)
       }
     }, 10000)
@@ -1278,7 +1284,9 @@ function EditorWrapper({
     const currentState = documentStateRef.current
 
     if (!currentState.id && currentState.hasUnsavedChanges) {
-      console.log("[v0] triggerAutoSave: creating new document")
+      if (isDebugEnabled()) {
+        console.log("[v0] triggerAutoSave: creating new document")
+      }
       setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
 
       const editorState = JSON.stringify(editor.getEditorState().toJSON())
@@ -1295,7 +1303,9 @@ function EditorWrapper({
 
         if (response.ok) {
           const doc = await response.json()
-          console.log("[v0] triggerAutoSave: new document created:", doc.id)
+          if (isDebugEnabled()) {
+            console.log("[v0] triggerAutoSave: new document created:", doc.id)
+          }
           setDocumentState({
             id: doc.id,
             title: doc.title,
@@ -1309,10 +1319,13 @@ function EditorWrapper({
             setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
           }, 2000)
         } else {
-          console.log("[v0] triggerAutoSave: failed to create document")
+          if (isDebugEnabled()) {
+            console.log("[v0] triggerAutoSave: failed to create document")
+          }
           setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
         }
       } catch (error) {
+        // Always log errors
         console.error("[v0] Error creating document:", error)
         setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
       }
@@ -1320,14 +1333,18 @@ function EditorWrapper({
     }
 
     if (!currentState.id || !currentState.hasUnsavedChanges) {
-      console.log("[v0] triggerAutoSave skipped:", {
-        id: currentState.id,
-        hasUnsavedChanges: currentState.hasUnsavedChanges,
-      })
+      if (isDebugEnabled()) {
+        console.log("[v0] triggerAutoSave skipped:", {
+          id: currentState.id,
+          hasUnsavedChanges: currentState.hasUnsavedChanges,
+        })
+      }
       return
     }
 
-    console.log("[v0] triggerAutoSave starting for:", currentState.id)
+    if (isDebugEnabled()) {
+      console.log("[v0] triggerAutoSave starting for:", currentState.id)
+    }
     setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
 
     const result = await performSave(currentState.id, currentState.title)

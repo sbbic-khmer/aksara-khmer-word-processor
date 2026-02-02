@@ -14,6 +14,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Settings2, Mic, AlertCircle, RefreshCw, Globe, Zap } from "lucide-react"
 import { Slider } from "@/components/ui/slider"
+import { isDebugEnabled } from "@/lib/debug"
 
 export type SttProvider = "elevenlabs" | "browser"
 
@@ -59,22 +60,32 @@ export function MicSelector({
   const hasInitialized = useRef(false)
 
   const loadDevices = async (requestPermission = false) => {
-    console.log("[v0] loadDevices called, requestPermission:", requestPermission)
+    if (isDebugEnabled()) {
+      console.log("[v0] loadDevices called, requestPermission:", requestPermission)
+    }
     setIsLoading(true)
     setError(null)
 
     try {
       if (requestPermission) {
-        console.log("[v0] Requesting mic permission...")
+        if (isDebugEnabled()) {
+          console.log("[v0] Requesting mic permission...")
+        }
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
         stream.getTracks().forEach((track) => track.stop())
-        console.log("[v0] Permission granted, stream stopped")
+        if (isDebugEnabled()) {
+          console.log("[v0] Permission granted, stream stopped")
+        }
         setHasPermission(true)
       }
 
-      console.log("[v0] Enumerating devices...")
+      if (isDebugEnabled()) {
+        console.log("[v0] Enumerating devices...")
+      }
       const allDevices = await navigator.mediaDevices.enumerateDevices()
-      console.log("[v0] All devices:", allDevices)
+      if (isDebugEnabled()) {
+        console.log("[v0] All devices:", allDevices)
+      }
 
       const audioInputs = allDevices
         .filter((device) => device.kind === "audioinput")
@@ -83,15 +94,20 @@ export function MicSelector({
           label: device.label || `Microphone ${index + 1}`,
         }))
 
-      console.log("[v0] Audio inputs found:", audioInputs)
+      if (isDebugEnabled()) {
+        console.log("[v0] Audio inputs found:", audioInputs)
+      }
       setDevices(audioInputs)
 
       if (!selectedDeviceId && !isLoadingPreferences && audioInputs.length > 0) {
         const defaultDevice = audioInputs.find((d) => d.deviceId === "default") || audioInputs[0]
-        console.log("[v0] Auto-selecting device:", defaultDevice)
+        if (isDebugEnabled()) {
+          console.log("[v0] Auto-selecting device:", defaultDevice)
+        }
         onDeviceChange(defaultDevice.deviceId)
       }
     } catch (err) {
+      // Always log errors
       console.error("[v0] Failed to load audio devices:", err)
       if (err instanceof DOMException && err.name === "NotAllowedError") {
         setHasPermission(false)
@@ -109,20 +125,28 @@ export function MicSelector({
     hasInitialized.current = true
 
     const init = async () => {
-      console.log("[v0] MicSelector initializing...")
+      if (isDebugEnabled()) {
+        console.log("[v0] MicSelector initializing...")
+      }
 
       try {
         const allDevices = await navigator.mediaDevices.enumerateDevices()
         const audioInputs = allDevices.filter((device) => device.kind === "audioinput")
 
-        console.log("[v0] Initial enumerate result:", audioInputs)
+        if (isDebugEnabled()) {
+          console.log("[v0] Initial enumerate result:", audioInputs)
+        }
 
         if (audioInputs.length > 0 && audioInputs[0].label) {
-          console.log("[v0] Permission already granted, loading devices")
+          if (isDebugEnabled()) {
+            console.log("[v0] Permission already granted, loading devices")
+          }
           setHasPermission(true)
           await loadDevices(false)
         } else {
-          console.log("[v0] No labels, need permission")
+          if (isDebugEnabled()) {
+            console.log("[v0] No labels, need permission")
+          }
           setHasPermission(false)
           setDevices(
             audioInputs.map((device, index) => ({
@@ -132,6 +156,7 @@ export function MicSelector({
           )
         }
       } catch (err) {
+        // Always log errors
         console.error("[v0] Initial enumerate failed:", err)
         setError("Failed to access microphones")
       }
@@ -142,7 +167,9 @@ export function MicSelector({
 
   useEffect(() => {
     const handleDeviceChange = () => {
-      console.log("[v0] Device change detected")
+      if (isDebugEnabled()) {
+        console.log("[v0] Device change detected")
+      }
       if (hasPermission) {
         loadDevices(false)
       }
@@ -155,7 +182,9 @@ export function MicSelector({
   }, [hasPermission])
 
   const handleRequestPermission = async () => {
-    console.log("[v0] User clicked request permission")
+    if (isDebugEnabled()) {
+      console.log("[v0] User clicked request permission")
+    }
     await loadDevices(true)
   }
 
@@ -239,7 +268,9 @@ export function MicSelector({
             <DropdownMenuRadioGroup
               value={selectedDeviceId || ""}
               onValueChange={(value) => {
-                console.log("[v0] Device selected:", value)
+                if (isDebugEnabled()) {
+                  console.log("[v0] Device selected:", value)
+                }
                 onDeviceChange(value || null)
               }}
             >

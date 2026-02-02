@@ -20,7 +20,7 @@ import Typo from 'typo-js';
 import { useSpellCheck } from '../contexts/spell-check-context';
 import { $isKhmerBreakNode } from '../nodes/khmer-break-node';
 import { useSpellCheckCustomWords } from '@/hooks/use-spell-check-custom-words';
-import { measurePerformance, isPerfDebugEnabled } from '@/lib/debug';
+import { measurePerformance, isPerfDebugEnabled, isDebugEnabled } from '@/lib/debug';
 
 /**
  * Cross-browser caret range from point helper
@@ -253,7 +253,9 @@ export function KhmerSpellCheckPlugin() {
                 const typoInstance = new Typo('km_KH', aff, dic);
                 setTypo(typoInstance);
                 setIsLoading(false);
-                console.log('[SpellCheck] Dictionary loaded successfully');
+                if (isDebugEnabled()) {
+                    console.log('[SpellCheck] Dictionary loaded successfully');
+                }
             } catch (err) {
                 if (mounted) {
                     setIsLoading(false);
@@ -299,6 +301,7 @@ export function KhmerSpellCheckPlugin() {
             };
             
             worker.onerror = (err: ErrorEvent) => {
+                // Always log worker errors as they indicate real problems
                 console.error('[SpellCheck] Worker error:', {
                     message: err.message,
                     filename: err.filename,
@@ -307,9 +310,9 @@ export function KhmerSpellCheckPlugin() {
                     error: err.error
                 });
             };
-            
-            // Initialize the worker's dictionary
-            worker.postMessage({ type: 'init' });
+
+            // Initialize the worker's dictionary with debug flag
+            worker.postMessage({ type: 'init', debug: debugMode });
             workerRef.current = worker;
             
             return () => {
@@ -317,9 +320,17 @@ export function KhmerSpellCheckPlugin() {
                 workerRef.current = null;
             };
         } catch (err) {
+            // Always log critical errors
             console.error('[SpellCheck] Failed to create worker:', err);
         }
     }, [debugMode, setSuggestions, setSuggestionsLoaded]);
+
+    // Update worker's debug mode when it changes
+    useEffect(() => {
+        if (workerRef.current && workerReady) {
+            workerRef.current.postMessage({ type: 'setDebug', debug: debugMode });
+        }
+    }, [debugMode, workerReady]);
 
     // Register the suggestion request handler for the context menu to use
     useEffect(() => {
@@ -502,7 +513,9 @@ export function KhmerSpellCheckPlugin() {
     // Trigger scan when custom words change (added or ignored)
     useEffect(() => {
         if (!typo) return;
-        console.log('[SpellCheck] Custom words changed, rescanning document');
+        if (isDebugEnabled()) {
+            console.log('[SpellCheck] Custom words changed, rescanning document');
+        }
         scanAndMarkMisspellings();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [addedWordsSet, ignoredWordsSet, typo]);
@@ -695,25 +708,37 @@ export function KhmerSpellCheckPlugin() {
                     });
                 } else {
                     // Fallback: run synchronously (may freeze for complex words)
-                    console.log('[v0] SpellCheck: Worker not ready, using sync fallback for:', cleanWord);
+                    if (debugMode) {
+                        console.log('[v0] SpellCheck: Worker not ready, using sync fallback for:', cleanWord);
+                    }
                     setTimeout(() => {
                         try {
-                            console.log('[v0] SpellCheck: Starting sync suggest for:', cleanWord);
+                            if (debugMode) {
+                                console.log('[v0] SpellCheck: Starting sync suggest for:', cleanWord);
+                            }
                             const suggestStart = performance.now();
                             const suggs = typo.suggest(cleanWord) || [];
                             const elapsed = performance.now() - suggestStart;
-                            
-                            console.log('[v0] SpellCheck: Sync typo.suggest() took', elapsed.toFixed(2), 'ms, found', suggs.length, 'suggestions');
-                            
+
+                            if (debugMode) {
+                                console.log('[v0] SpellCheck: Sync typo.suggest() took', elapsed.toFixed(2), 'ms, found', suggs.length, 'suggestions');
+                            }
+
                             if (lastWordRef.current === cleanWord) {
-                                console.log('[v0] SpellCheck: Setting suggestions:', suggs.slice(0, 5));
+                                if (debugMode) {
+                                    console.log('[v0] SpellCheck: Setting suggestions:', suggs.slice(0, 5));
+                                }
                                 setSuggestions(suggs.slice(0, 5));
                                 setSuggestionsLoaded(true);
                             } else {
-                                console.log('[v0] SpellCheck: Word changed, not setting suggestions. lastWordRef:', lastWordRef.current, 'cleanWord:', cleanWord);
+                                if (debugMode) {
+                                    console.log('[v0] SpellCheck: Word changed, not setting suggestions. lastWordRef:', lastWordRef.current, 'cleanWord:', cleanWord);
+                                }
                             }
                         } catch (err) {
-                            console.log('[v0] SpellCheck: typo.suggest() error:', err);
+                            if (debugMode) {
+                                console.log('[v0] SpellCheck: typo.suggest() error:', err);
+                            }
                         }
                     }, 0);
                 }
