@@ -115,6 +115,7 @@
   },
   "auth": {
     "brandTagline": "Smart Khmer Writing",
+    "backToHome": "Back to home",
     "login": {
       "title": "Welcome Back",
       "subtitle": "Sign in to access smart Khmer writing",

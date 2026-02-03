@@ -137,13 +137,27 @@
   /* Khmer locale - apply Khmer fonts throughout the UI */
   body.locale-km {
     font-family: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
+    /* Khmer script needs more line-height due to stacked vowels and subscripts */
+    line-height: 1.8;
   }
 
-  /* Khmer locale - headings use display font */
+  /* Khmer locale - headings use display font with extra line-height */
   body.locale-km h1,
   body.locale-km h2,
   body.locale-km h3 {
     font-family: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
+    line-height: 1.4;
+  }
+
+  /* Khmer locale - larger headings need even more spacing */
+  body.locale-km h1 {
+    line-height: 1.3;
+    margin-bottom: 0.75em;
+  }
+
+  body.locale-km h2 {
+    line-height: 1.35;
+    margin-bottom: 0.5em;
   }
 
   /* Khmer locale - buttons and UI elements */
@@ -179,6 +193,18 @@
   body.locale-km .text-muted-foreground,
   body.locale-km .description {
     font-family: var(--font-noto-khmer), var(--font-geist-sans), system-ui, sans-serif;
+    line-height: 1.9;
+  }
+
+  /* Khmer locale - paragraphs need extra spacing */
+  body.locale-km p {
+    margin-bottom: 1em;
+  }
+
+  /* Khmer locale - badges and small text */
+  body.locale-km .text-sm,
+  body.locale-km .text-xs {
+    line-height: 1.7;
   }
 
   /* Khmer locale - form inputs */
@@ -192,6 +218,30 @@
   body.locale-km [role="tooltip"],
   body.locale-km [data-radix-popper-content-wrapper] {
     font-family: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Khmer locale - landing page large text */
+  body.locale-km .text-3xl,
+  body.locale-km .text-4xl,
+  body.locale-km .text-5xl,
+  body.locale-km .text-6xl {
+    line-height: 1.4;
+  }
+
+  /* Khmer locale - extra large hero text */
+  body.locale-km .text-7xl,
+  body.locale-km .text-8xl {
+    line-height: 1.3;
+  }
+
+  /* Khmer locale - card content spacing */
+  body.locale-km article p {
+    line-height: 1.85;
+  }
+
+  /* Khmer locale - flex items with text need gap adjustment */
+  body.locale-km .flex.items-center {
+    gap: 0.625rem; /* slightly more gap for Khmer */
   }
 }
 
@@ -290,4 +340,138 @@
 
 .dark .grammar-nonstandard {
   text-decoration-color: oklch(0.65 0.2 250);
+}
+
+/* Scroll-triggered animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(calc(-1 * var(--float-amplitude, 10px)));
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(var(--pulse-scale, 1.1));
+  }
+}
+
+@keyframes hero-glow {
+  0%, 100% {
+    opacity: 0.4;
+    filter: blur(60px);
+  }
+  50% {
+    opacity: 0.7;
+    filter: blur(80px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+/* Gradient text animation */
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient-text {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Shimmer text animation - 2026 kinetic typography trend */
+@keyframes shimmer-text {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer-text {
+  animation: shimmer-text 3s ease-in-out infinite;
+}
+
+/* Spotlight glow effect - dramatic hero backgrounds */
+@keyframes spotlight {
+  0%, 100% {
+    opacity: 0.4;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+}
+
+.animate-spotlight {
+  animation: spotlight 8s ease-in-out infinite;
+}
+
+/* Subtle pulse for decorative elements */
+.animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+/* Shimmer effect for loading or highlights */
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* Hero glow orb animation */
+.animate-hero-glow {
+  animation: hero-glow 6s ease-in-out infinite;
+}
+
+/* Radial gradient for glow orbs */
+.bg-gradient-radial {
+  background: radial-gradient(circle at center, var(--tw-gradient-from, currentColor), var(--tw-gradient-to, transparent));
+}
+
+/* Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-gradient-text,
+  .animate-pulse-glow,
+  .animate-shimmer,
+  .animate-hero-glow {
+    animation: none;
+  }
 }
