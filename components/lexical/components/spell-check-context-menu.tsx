@@ -1,18 +1,26 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSpellCheck } from '../contexts/spell-check-context';
 import { cn } from '@/lib/utils';
 import { BookOpen, Loader2, Plus, EyeOff } from 'lucide-react';
 
 // Clean a word by removing invisible characters and punctuation (same as spell-check-plugin)
+// Must match the cleanKhmerWord function in khmer-spell-check-plugin.tsx
 function cleanKhmerWord(text: string): string {
   return text
+    // Remove zero-width characters
     .replace(/[\u200B\u200C\u200D\u2060]/g, '')
+    // Remove Khmer punctuation (។ ៕ ៖ ៗ ៘ ៙ ៚)
     .replace(/[\u17D4-\u17DA]/g, '')
-    .replace(/[.,!?;:'"()\[\]{}]/g, '')
-    .replace(/[«»‹›""'']/g, '')
-    .replace(/[–—…]/g, '')
+    // Remove common punctuation (explicit Unicode for quotes)
+    .replace(/[.,!?;:\u0027\u0022()\[\]{}]/g, '')
+    // Remove all quote variants: guillemets, curly quotes, angle quotes, primes, backticks
+    .replace(/[\u00AB\u00BB\u2018-\u201F\u2039\u203A\u2032\u2033\u0060\u00B4]/g, '')
+    // Remove en-dash, em-dash, ellipsis
+    .replace(/[\u2013\u2014\u2026]/g, '')
+    // Trim whitespace
     .trim();
 }
 
@@ -26,6 +34,7 @@ interface MenuPosition {
 }
 
 export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) {
+  const t = useTranslations('editor.contextMenu.spellCheck');
   const { suggestions: contextSuggestions, replaceWord, isLoading, error, addWordToDictionary, ignoreWord, setSelectedWord, requestSuggestions, suggestionsLoaded } = useSpellCheck();
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<MenuPosition>({ x: 0, y: 0 });
@@ -327,7 +336,7 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
           {isLoading && (
             <div className="flex items-center gap-2 px-2.5 py-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin text-red-500" />
-              <span>កំពុងផ្ទុកវចនានុក្រម...</span>
+              <span>{t('loadingDictionary')}</span>
             </div>
           )}
 
@@ -342,7 +351,7 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
               {/* Header showing the misspelled word */}
               <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-muted-foreground border-b border-red-100 dark:border-red-900/50 mb-1.5 bg-red-50/50 dark:bg-red-950/20 -mx-1.5 -mt-1.5 rounded-t-lg">
                 <BookOpen className="h-3.5 w-3.5 text-red-500" />
-                <span>ពាក្យមិនត្រឹមត្រូវ៖</span>
+                <span>{t('misspelledWord')}</span>
                 <span className="font-semibold text-red-600 dark:text-red-400">{clickedWord}</span>
               </div>
 
@@ -350,14 +359,14 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
               {isLoadingLocal && (
                 <div className="flex items-center gap-2 px-2.5 py-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin text-red-500" />
-                  <span>កំពុងស្វែងរកពាក្យ...</span>
+                  <span>{t('searchingSuggestions')}</span>
                 </div>
               )}
 
               {/* No suggestions found */}
               {noSuggestionsFound && (
                 <div className="px-2.5 py-2 text-sm text-muted-foreground italic">
-                  រកមិនឃើញពាក្យស្រដៀង
+                  {t('noSuggestions')}
                 </div>
               )}
 
@@ -391,10 +400,10 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
                     "focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1",
                     "transition-colors duration-150"
                   )}
-                  title="Add word to personal dictionary"
+                  title={t('addToDictionary')}
                 >
                   <Plus className="h-3 w-3" />
-                  បន្ថែមទៅវចនានុក្រម
+                  {t('addToDictionary')}
                 </button>
                 <button
                   onClick={handleIgnoreWord}
@@ -404,10 +413,10 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
                     "focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1",
                     "transition-colors duration-150"
                   )}
-                  title="Ignore this word in spell checking"
+                  title={t('ignore')}
                 >
                   <EyeOff className="h-3 w-3" />
-                  មិនអើពើ
+                  {t('ignore')}
                 </button>
               </div>
             </>

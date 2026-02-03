@@ -79,7 +79,15 @@
 }
 
 @theme inline {
-  /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
+  /* Font families with proper fallback stacks */
+  /* Khmer UI font (modern, clean) with English fallback */
+  --font-khmer-ui: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
+  /* Khmer body/editor font with English fallback */
+  --font-khmer-body: var(--font-noto-khmer), var(--font-geist-sans), system-ui, sans-serif;
+  /* Khmer display font for branding */
+  --font-khmer-display: var(--font-moul), var(--font-battambang), serif;
+  /* Default sans with Khmer fallback */
+  --font-sans: var(--font-geist-sans), var(--font-kantumruy), system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -124,6 +132,66 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Khmer locale - apply Khmer fonts throughout the UI */
+  body.locale-km {
+    font-family: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Khmer locale - headings use display font */
+  body.locale-km h1,
+  body.locale-km h2,
+  body.locale-km h3 {
+    font-family: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Khmer locale - buttons and UI elements */
+  body.locale-km button,
+  body.locale-km [role="button"],
+  body.locale-km label,
+  body.locale-km input::placeholder,
+  body.locale-km textarea::placeholder {
+    font-family: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Khmer locale - navigation and menus */
+  body.locale-km nav,
+  body.locale-km [role="menu"],
+  body.locale-km [role="menuitem"] {
+    font-family: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* English locale - ensure English fonts */
+  body.locale-en {
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Khmer locale - editor content area uses Noto Sans Khmer for better readability */
+  body.locale-km .editor-content,
+  body.locale-km [contenteditable="true"],
+  body.locale-km .prose {
+    font-family: var(--font-noto-khmer), var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Khmer locale - card descriptions and body text */
+  body.locale-km p,
+  body.locale-km .text-muted-foreground,
+  body.locale-km .description {
+    font-family: var(--font-noto-khmer), var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Khmer locale - form inputs */
+  body.locale-km input,
+  body.locale-km textarea,
+  body.locale-km select {
+    font-family: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
+  }
+
+  /* Khmer locale - tooltips and popovers */
+  body.locale-km [role="tooltip"],
+  body.locale-km [data-radix-popper-content-wrapper] {
+    font-family: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;
   }
 }
 

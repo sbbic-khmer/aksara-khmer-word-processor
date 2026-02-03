@@ -83,19 +83,26 @@ function cleanKhmerWord(text: string): string {
         .replace(/[\u200B\u200C\u200D\u2060]/g, '')
         // Remove Khmer punctuation (។ ៕ ៖ ៗ ៘ ៙ ៚)
         .replace(/[\u17D4-\u17DA]/g, '')
-        // Remove common punctuation
-        .replace(/[.,!?;:'"()\[\]{}]/g, '')
-        // Remove guillemets and other quote marks («»‹›""'')
-        .replace(/[«»‹›""'']/g, '')
+        // Remove common punctuation (explicit Unicode for quotes to ensure proper matching)
+        .replace(/[.,!?;:\u0027\u0022()\[\]{}]/g, '')
+        // Remove all quote variants: guillemets, curly quotes, angle quotes, primes, backticks
+        // U+00AB-00BB: « »
+        // U+2018-201F: ' ' ‚ ‛ " " „ ‟
+        // U+2039-203A: ‹ ›
+        // U+2032-2033: ′ ″ (prime marks)
+        // U+0060: ` (backtick)
+        // U+00B4: ´ (acute accent sometimes used as quote)
+        .replace(/[\u00AB\u00BB\u2018-\u201F\u2039\u203A\u2032\u2033\u0060\u00B4]/g, '')
         // Remove en-dash, em-dash, ellipsis
-        .replace(/[–—…]/g, '')
+        .replace(/[\u2013\u2014\u2026]/g, '')
         // Trim whitespace
         .trim();
 }
 
 // Pattern for punctuation that can be attached to words (used in extractPunctuation)
 // This includes ៗ (U+17D7) so it's preserved when replacing a word with a suggestion
-const PUNCTUATION_PATTERN = /[\u200B\u200C\u200D\u2060\u17D4-\u17DA.,!?;:'"()\[\]{}«»‹›""''–—…]/;
+// Must match the same characters as cleanKhmerWord strips
+const PUNCTUATION_PATTERN = /[\u200B\u200C\u200D\u2060\u17D4-\u17DA.,!?;:\u0027\u0022()\[\]{}\u00AB\u00BB\u2018-\u201F\u2039\u203A\u2032\u2033\u0060\u00B4\u2013\u2014\u2026]/;
 
 /**
  * Clear the spell check cache in the worker.

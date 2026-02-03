@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useTranslations } from 'next-intl'
 import { useAuth } from "./auth-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { TurnstileWidget, isTurnstileConfigured } from "./turnstile-widget"
+import { useRouter } from "@/i18n/navigation"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 interface LoginScreenProps {
   initialMode?: "login" | "register"
@@ -19,6 +21,7 @@ interface LoginScreenProps {
 export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
   const router = useRouter()
   const { login, register } = useAuth()
+  const t = useTranslations('auth')
   const [isRegister, setIsRegister] = useState(initialMode === "register")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -40,7 +43,7 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
 
     // Check for turnstile token only if Turnstile is configured and required
     if (turnstileRequired && !turnstileToken) {
-      setError("Please complete the security verification")
+      setError(t('errors.securityVerification'))
       return
     }
 
@@ -58,7 +61,7 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
       return
     }
 
-    setError(result.error || (isRegister ? "Registration failed" : "Login failed"))
+    setError(result.error || (isRegister ? t('errors.registrationFailed') : t('errors.loginFailed')))
     // Reset turnstile on error (token is single-use)
     if (turnstileRequired) {
       resetTurnstile()
@@ -67,7 +70,11 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
+      {/* Language switcher in top-right corner */}
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           {/* Logo */}
@@ -99,13 +106,13 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
                 </span>
               </h1>
               <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-[0.15em] mt-0.5">
-                Smart Khmer Writing
+                {t('brandTagline')}
               </span>
             </div>
           </div>
-          <CardTitle className="text-xl">{isRegister ? "Create Account" : "Welcome Back"}</CardTitle>
+          <CardTitle className="text-xl">{isRegister ? t('register.title') : t('login.title')}</CardTitle>
           <CardDescription>
-            {isRegister ? "Sign up to start using Aksara" : "Sign in to access smart Khmer writing"}
+            {isRegister ? t('register.subtitle') : t('login.subtitle')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -119,39 +126,39 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
 
             {isRegister && (
               <div className="space-y-2">
-                <Label htmlFor="name">Name (optional)</Label>
+                <Label htmlFor="name">{t('form.name')}</Label>
                 <Input
                   id="name"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your name"
+                  placeholder={t('form.namePlaceholder')}
                   disabled={isLoading}
                 />
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('form.email')}</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter email"
+                placeholder={t('form.emailPlaceholder')}
                 required
                 disabled={isLoading}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('form.password')}</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
+                placeholder={t('form.passwordPlaceholder')}
                 required
                 disabled={isLoading}
                 minLength={6}
@@ -175,19 +182,19 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isRegister ? "Creating account..." : "Signing in..."}
+                  {isRegister ? t('register.loading') : t('login.loading')}
                 </>
               ) : isRegister ? (
-                "Create Account"
+                t('register.button')
               ) : (
-                "Sign In"
+                t('login.button')
               )}
             </Button>
 
             <div className="text-center text-sm text-muted-foreground">
               {isRegister ? (
                 <>
-                  Already have an account?{" "}
+                  {t('switchMode.hasAccount')}{" "}
                   <button
                     type="button"
                     onClick={() => {
@@ -197,12 +204,12 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
                     }}
                     className="text-primary hover:underline"
                   >
-                    Sign in
+                    {t('switchMode.signIn')}
                   </button>
                 </>
               ) : (
                 <>
-                  Don&apos;t have an account?{" "}
+                  {t('switchMode.noAccount')}{" "}
                   <button
                     type="button"
                     onClick={() => {
@@ -212,7 +219,7 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
                     }}
                     className="text-primary hover:underline"
                   >
-                    Create one
+                    {t('switchMode.createOne')}
                   </button>
                 </>
               )}

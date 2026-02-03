@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from 'next-intl'
 import { Button } from "@/components/ui/button"
 import { FilePlus, FolderOpen, Save, SaveAll, Copy, Download, Bug, BugOff, ChevronDown, Check } from "lucide-react"
 import {
@@ -69,10 +70,12 @@ function DebugToggleItem({
   enabled,
   onToggle,
   label,
+  onLabel,
 }: {
   enabled: boolean
   onToggle: () => void
   label: string
+  onLabel: string
 }) {
   return (
     <DropdownMenuItem onClick={onToggle} className="gap-2">
@@ -84,7 +87,7 @@ function DebugToggleItem({
       <span className="flex-1">{label}</span>
       {enabled && (
         <span className="text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-1.5 py-0.5 rounded">
-          ON
+          {onLabel}
         </span>
       )}
     </DropdownMenuItem>
@@ -109,6 +112,7 @@ export function FileMenu({
   hasUnsavedChanges,
   currentDocTitle,
 }: FileMenuProps) {
+  const t = useTranslations('editor.fileMenu')
   const anyDebugEnabled = debugMode || wordBreakerDebugMode || cursorDebugMode || spellCheckDebugMode
 
   return (
@@ -123,16 +127,16 @@ export function FileMenu({
             "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
           )}
         >
-          File
+          {t('file')}
           <ChevronDown className="h-3 w-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         <MenuItemWithShortcut onClick={onNew} icon={FilePlus} shortcut="⌘N">
-          New
+          {t('new')}
         </MenuItemWithShortcut>
         <MenuItemWithShortcut onClick={onOpen} icon={FolderOpen} shortcut="⌘O">
-          Open...
+          {t('open')}
         </MenuItemWithShortcut>
 
         <DropdownMenuSeparator />
@@ -145,19 +149,19 @@ export function FileMenu({
             <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
           )}
         >
-          Save
+          {t('save')}
         </MenuItemWithShortcut>
         <MenuItemWithShortcut onClick={onSaveAs} icon={SaveAll} shortcut="⌘⇧S">
-          Save As...
+          {t('saveAs')}
         </MenuItemWithShortcut>
 
         <DropdownMenuSeparator />
 
         <MenuItemWithShortcut onClick={onCopyWithBreaks} icon={Copy}>
-          Copy with breaks
+          {t('copyWithBreaks')}
         </MenuItemWithShortcut>
         <MenuItemWithShortcut onClick={onExportOdt} icon={Download}>
-          Export as ODT
+          {t('exportOdt')}
         </MenuItemWithShortcut>
 
         <DropdownMenuSeparator />
@@ -169,37 +173,41 @@ export function FileMenu({
             ) : (
               <Bug className="h-4 w-4 text-muted-foreground" />
             )}
-            <span className="flex-1">Debug Options</span>
+            <span className="flex-1">{t('debugOptions')}</span>
             {anyDebugEnabled && (
               <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded mr-1">
-                Active
+                {t('active')}
               </span>
             )}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-52">
             <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-              Toggle debug modes
+              {t('toggleDebugModes')}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DebugToggleItem
               enabled={debugMode}
               onToggle={onToggleDebug}
-              label="General Debug"
+              label={t('generalDebug')}
+              onLabel={t('on')}
             />
             <DebugToggleItem
               enabled={wordBreakerDebugMode}
               onToggle={onToggleWordBreakerDebug}
-              label="Word Breaker"
+              label={t('wordBreaker')}
+              onLabel={t('on')}
             />
             <DebugToggleItem
               enabled={cursorDebugMode}
               onToggle={onToggleCursorDebug}
-              label="Cursor Debug"
+              label={t('cursorDebug')}
+              onLabel={t('on')}
             />
             <DebugToggleItem
               enabled={spellCheckDebugMode}
               onToggle={onToggleSpellCheckDebug}
-              label="Spell Check"
+              label={t('spellCheck')}
+              onLabel={t('on')}
             />
           </DropdownMenuSubContent>
         </DropdownMenuSub>

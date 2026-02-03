@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from 'next-intl'
 import { Button } from "@/components/ui/button"
 import {
   Bold,
@@ -27,20 +28,10 @@ import {
   BookCheck,
   Settings,
 } from "lucide-react"
-import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-
-const FONT_SIZES = [
-  { value: "1", label: "Tiny" },
-  { value: "2", label: "Small" },
-  { value: "3", label: "Normal" },
-  { value: "4", label: "Medium" },
-  { value: "5", label: "Large" },
-  { value: "6", label: "X-Large" },
-  { value: "7", label: "XX-Large" },
-]
+import { Link } from "@/i18n/navigation"
 
 interface ActiveFormats {
   bold: boolean
@@ -151,15 +142,27 @@ export function FormattingToolbar({
   grammarCheckEnabled,
   onToggleGrammarCheck,
 }: FormattingToolbarProps) {
+  const t = useTranslations('editor.toolbar')
+
+  const FONT_SIZES = [
+    { value: "1", label: t('fontSize.tiny') },
+    { value: "2", label: t('fontSize.small') },
+    { value: "3", label: t('fontSize.normal') },
+    { value: "4", label: t('fontSize.medium') },
+    { value: "5", label: t('fontSize.large') },
+    { value: "6", label: t('fontSize.xLarge') },
+    { value: "7", label: t('fontSize.xxLarge') },
+  ]
+
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex items-center flex-wrap gap-1">
         {/* History */}
         <ToolbarGroup label="History">
-          <ToolbarButton onClick={onUndo} tooltip="Undo" shortcut="⌘Z">
+          <ToolbarButton onClick={onUndo} tooltip={t('undo')} shortcut="⌘Z">
             <Undo2 className="h-4 w-4" />
           </ToolbarButton>
-          <ToolbarButton onClick={onRedo} tooltip="Redo" shortcut="⌘⇧Z">
+          <ToolbarButton onClick={onRedo} tooltip={t('redo')} shortcut="⌘⇧Z">
             <Redo2 className="h-4 w-4" />
           </ToolbarButton>
         </ToolbarGroup>
@@ -187,7 +190,7 @@ export function FormattingToolbar({
           <ToolbarButton
             onClick={() => onFormat("bold")}
             isActive={activeFormats.bold}
-            tooltip="Bold"
+            tooltip={t('bold')}
             shortcut="⌘B"
           >
             <Bold className="h-4 w-4" />
@@ -195,7 +198,7 @@ export function FormattingToolbar({
           <ToolbarButton
             onClick={() => onFormat("italic")}
             isActive={activeFormats.italic}
-            tooltip="Italic"
+            tooltip={t('italic')}
             shortcut="⌘I"
           >
             <Italic className="h-4 w-4" />
@@ -203,7 +206,7 @@ export function FormattingToolbar({
           <ToolbarButton
             onClick={() => onFormat("underline")}
             isActive={activeFormats.underline}
-            tooltip="Underline"
+            tooltip={t('underline')}
             shortcut="⌘U"
           >
             <Underline className="h-4 w-4" />
@@ -211,14 +214,14 @@ export function FormattingToolbar({
           <ToolbarButton
             onClick={() => onFormat("strikethrough")}
             isActive={activeFormats.strikethrough}
-            tooltip="Strikethrough"
+            tooltip={t('strikethrough')}
           >
             <Strikethrough className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => onFormat("highlight")}
             isActive={activeFormats.highlight}
-            tooltip="Highlight"
+            tooltip={t('highlight')}
             variant="highlight"
           >
             <Highlighter className="h-4 w-4" />
@@ -232,28 +235,28 @@ export function FormattingToolbar({
           <ToolbarButton
             onClick={() => onFormat("heading", "h1")}
             isActive={activeFormats.heading === "H1"}
-            tooltip="Heading 1"
+            tooltip={t('heading1')}
           >
             <Heading1 className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => onFormat("heading", "h2")}
             isActive={activeFormats.heading === "H2"}
-            tooltip="Heading 2"
+            tooltip={t('heading2')}
           >
             <Heading2 className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => onFormat("heading", "h3")}
             isActive={activeFormats.heading === "H3"}
-            tooltip="Heading 3"
+            tooltip={t('heading3')}
           >
             <Heading3 className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => onFormat("heading", "p")}
             isActive={!activeFormats.heading}
-            tooltip="Normal text"
+            tooltip={t('normalText')}
           >
             <Type className="h-4 w-4" />
           </ToolbarButton>
@@ -266,14 +269,14 @@ export function FormattingToolbar({
           <ToolbarButton
             onClick={() => onFormat("bulletList")}
             isActive={activeFormats.list === "unordered"}
-            tooltip="Bullet list"
+            tooltip={t('bulletList')}
           >
             <List className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => onFormat("numberedList")}
             isActive={activeFormats.list === "ordered"}
-            tooltip="Numbered list"
+            tooltip={t('numberedList')}
           >
             <ListOrdered className="h-4 w-4" />
           </ToolbarButton>
@@ -286,28 +289,28 @@ export function FormattingToolbar({
           <ToolbarButton
             onClick={() => onFormat("align", "left")}
             isActive={activeFormats.alignment === "left"}
-            tooltip="Align left"
+            tooltip={t('alignLeft')}
           >
             <AlignLeft className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => onFormat("align", "center")}
             isActive={activeFormats.alignment === "center"}
-            tooltip="Align center"
+            tooltip={t('alignCenter')}
           >
             <AlignCenter className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => onFormat("align", "right")}
             isActive={activeFormats.alignment === "right"}
-            tooltip="Align right"
+            tooltip={t('alignRight')}
           >
             <AlignRight className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={() => onFormat("align", "full")}
             isActive={activeFormats.alignment === "justify"}
-            tooltip="Justify"
+            tooltip={t('justify')}
           >
             <AlignJustify className="h-4 w-4" />
           </ToolbarButton>
@@ -317,10 +320,10 @@ export function FormattingToolbar({
 
         {/* Word Break Tools */}
         <ToolbarGroup label="Word breaking">
-          <ToolbarButton onClick={onJoinWord} tooltip="Join selected words">
+          <ToolbarButton onClick={onJoinWord} tooltip={t('joinWords')}>
             <Unlink2 className="h-4 w-4" />
           </ToolbarButton>
-          <ToolbarButton onClick={onSplitWord} tooltip="Split word at cursor">
+          <ToolbarButton onClick={onSplitWord} tooltip={t('splitWord')}>
             <Link2 className="h-4 w-4" />
           </ToolbarButton>
         </ToolbarGroup>
@@ -332,14 +335,14 @@ export function FormattingToolbar({
           <ToolbarButton
             onClick={onToggleBreaks}
             isActive={showBreaks}
-            tooltip={showBreaks ? "Hide word breaks" : "Show word breaks"}
+            tooltip={showBreaks ? t('hideWordBreaks') : t('showWordBreaks')}
           >
             <WrapText className="h-4 w-4" />
           </ToolbarButton>
           <ToolbarButton
             onClick={onToggleSpellCheck}
             isActive={spellCheckEnabled}
-            tooltip={spellCheckEnabled ? "បិទត្រួតពិនិត្យអក្ខរាវិរុទ្ធ" : "បើកត្រួតពិនិត្យអក្ខរាវិរុទ្ធ"}
+            tooltip={spellCheckEnabled ? t('disableSpellCheck') : t('enableSpellCheck')}
             variant="spell"
           >
             {spellCheckEnabled ? <SpellCheck className="h-4 w-4" /> : <SpellCheck2 className="h-4 w-4" />}
@@ -347,7 +350,7 @@ export function FormattingToolbar({
           <ToolbarButton
             onClick={onToggleGrammarCheck}
             isActive={grammarCheckEnabled}
-            tooltip={grammarCheckEnabled ? "បិទត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ" : "បើកត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ"}
+            tooltip={grammarCheckEnabled ? t('disableGrammarCheck') : t('enableGrammarCheck')}
             variant="grammar"
           >
             <BookCheck className="h-4 w-4" />
@@ -369,7 +372,7 @@ export function FormattingToolbar({
               </Button>
             </Link>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Settings</TooltipContent>
+          <TooltipContent side="bottom">{t('settings')}</TooltipContent>
         </Tooltip>
       </div>
     </TooltipProvider>

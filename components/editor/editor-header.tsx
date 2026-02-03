@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Sun, Moon, Loader2, Cloud, CloudOff, CloudUpload, FileText, Check, AlertCircle } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { UserMenu } from "@/components/user-menu"
+import { LanguageSwitcher } from "@/components/language-switcher"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
@@ -269,6 +270,7 @@ export function EditorHeader({
                 </Tooltip>
               )}
             </TooltipProvider>
+            <LanguageSwitcher />
             <UserMenu />
           </div>
         </div>

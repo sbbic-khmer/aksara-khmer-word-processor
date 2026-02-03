@@ -2,15 +2,6 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef, type RefObject } from "react"
 import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -213,18 +204,20 @@ export function PaginationControls({
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
-      <div className="flex items-center gap-4 text-sm text-gray-500">
-        <span>
-          Showing {startItem}-{endItem} of {totalItems}
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-5 mt-2 border-t border-slate-200/80 dark:border-slate-700/50">
+      {/* Left side: showing count + per page selector */}
+      <div className="flex items-center gap-4">
+        <span className="text-sm text-slate-500 dark:text-slate-400">
+          <span className="font-medium text-slate-700 dark:text-slate-300">{startItem}-{endItem}</span>
+          {" "}of{" "}
+          <span className="font-medium text-slate-700 dark:text-slate-300">{totalItems}</span>
         </span>
         <div className="flex items-center gap-2">
-          <span>Per page:</span>
           <Select
             value={pageSize.toString()}
             onValueChange={(value) => onPageSizeChange(parseInt(value))}
           >
-            <SelectTrigger className="w-[70px] h-8">
+            <SelectTrigger className="w-[72px] h-8 text-sm bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -235,54 +228,90 @@ export function PaginationControls({
               ))}
             </SelectContent>
           </Select>
+          <span className="text-xs text-slate-400 dark:text-slate-500 hidden sm:inline">per page</span>
         </div>
       </div>
 
-      <Pagination>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-            />
-          </PaginationItem>
+      {/* Right side: page navigation */}
+      <div className="flex items-center gap-1">
+        {/* Previous button */}
+        <button
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className={`
+            flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+            ${currentPage === 1
+              ? "text-slate-300 dark:text-slate-600 cursor-not-allowed"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+            }
+          `}
+          aria-label="Go to previous page"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="hidden sm:inline">Prev</span>
+        </button>
 
-          {/* Hide page numbers on mobile, show on desktop */}
-          <div className="hidden sm:flex items-center gap-1">
-            {getPageNumbers().map((page, index) =>
-              page === "ellipsis" ? (
-                <PaginationItem key={`ellipsis-${index}`}>
-                  <PaginationEllipsis />
-                </PaginationItem>
-              ) : (
-                <PaginationItem key={page}>
-                  <PaginationLink
-                    onClick={() => handlePageChange(page)}
-                    isActive={currentPage === page}
-                    className="cursor-pointer"
-                  >
-                    {page}
-                  </PaginationLink>
-                </PaginationItem>
-              )
-            )}
-          </div>
+        {/* Page numbers - hidden on mobile */}
+        <div className="hidden sm:flex items-center gap-1">
+          {getPageNumbers().map((page, index) =>
+            page === "ellipsis" ? (
+              <span
+                key={`ellipsis-${index}`}
+                className="w-9 h-9 flex items-center justify-center text-slate-400 dark:text-slate-500"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <circle cx="6" cy="12" r="1.5" />
+                  <circle cx="12" cy="12" r="1.5" />
+                  <circle cx="18" cy="12" r="1.5" />
+                </svg>
+              </span>
+            ) : (
+              <button
+                key={page}
+                onClick={() => handlePageChange(page)}
+                className={`
+                  w-9 h-9 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer
+                  ${currentPage === page
+                    ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/25"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }
+                `}
+                aria-current={currentPage === page ? "page" : undefined}
+              >
+                {page}
+              </button>
+            )
+          )}
+        </div>
 
-          {/* Mobile: just show current page */}
-          <div className="flex sm:hidden items-center px-2 text-sm text-gray-500">
-            {currentPage} / {totalPages}
-          </div>
+        {/* Mobile: page indicator */}
+        <div className="flex sm:hidden items-center px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{currentPage}</span>
+          <span className="text-sm text-slate-400 dark:text-slate-500 mx-1">/</span>
+          <span className="text-sm text-slate-500 dark:text-slate-400">{totalPages}</span>
+        </div>
 
-          <PaginationItem>
-            <PaginationNext
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
+        {/* Next button */}
+        <button
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className={`
+            flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+            ${currentPage === totalPages
+              ? "text-slate-300 dark:text-slate-600 cursor-not-allowed"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+            }
+          `}
+          aria-label="Go to next page"
+        >
+          <span className="hidden sm:inline">Next</span>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }

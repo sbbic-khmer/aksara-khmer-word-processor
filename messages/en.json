@@ -1,0 +1,301 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "confirm": "Confirm",
+    "close": "Close",
+    "search": "Search",
+    "noResults": "No results found",
+    "actions": "Actions",
+    "word": "Word",
+    "added": "Added",
+    "notes": "Notes",
+    "saveChanges": "Save Changes",
+    "addWord": "Add Word",
+    "searchWords": "Search words...",
+    "of": "of",
+    "total": "total",
+    "found": "Found",
+    "words": "words",
+    "wordsTotal": "{count} words total"
+  },
+  "meta": {
+    "title": "Aksara Pro - Khmer Word Processor with Smart Word Breaking & Spell Check",
+    "description": "The only Khmer text editor with intelligent word segmentation powered by beam search. 77,000+ word dictionary, voice-to-text, grammar standardization, and LibreOffice ODT export.",
+    "tagline": "Khmer Word Processor with Intelligent Word Segmentation"
+  },
+  "landing": {
+    "nav": {
+      "signIn": "Sign In",
+      "getStarted": "Get Started"
+    },
+    "hero": {
+      "badge": "Khmer Text That Wraps Correctly",
+      "headline": "The Khmer Word Processor That Understands Your Language",
+      "subheadline": "Write with confidence using intelligent word segmentation, instant spell checking, and voice input. Export perfect documents to LibreOffice with proper Khmer line breaks.",
+      "ctaStart": "Start Writing Now",
+      "ctaSignIn": "Sign In",
+      "trustNoInstall": "No Installation",
+      "trustBrowser": "Works in Browser",
+      "trustCloud": "Cloud Auto-Save"
+    },
+    "features": {
+      "badge": "Features",
+      "headline": "Built for Khmer, From the Ground Up",
+      "subheadline": "Not a translation layer. A word processor engineered for Khmer's unique orthographic rules.",
+      "wordBreaking": {
+        "title": "Beam Search Word Segmentation",
+        "description": "Our algorithm analyzes 50,000+ words to find optimal break points. Respects COENG rules, protects compound words, and never breaks incorrectly."
+      },
+      "spellCheck": {
+        "title": "77,000+ Word Spell Checker",
+        "description": "SymSpell algorithm delivers suggestions in under 200ms. Handles Khmer punctuation correctly and learns your vocabulary over time."
+      },
+      "voiceInput": {
+        "title": "Voice Input with Smart Transforms",
+        "description": "Dictate naturally in Khmer. Automatic conversion of number words to numerals and voice commands to punctuation marks."
+      },
+      "grammarCheck": {
+        "title": "Grammar Standardization",
+        "description": "Detects non-standard spellings and suggests official forms. Keeps your writing consistent with accepted orthography."
+      },
+      "odtExport": {
+        "title": "Perfect LibreOffice Export",
+        "description": "ODT files with Khmer Mondulkiri font configuration that actually works. Preserves word breaks for proper text rendering."
+      },
+      "personalDictionary": {
+        "title": "Personal Dictionary",
+        "description": "Teach Aksara your vocabulary. Force words to join or split, add custom spellings, and sync across all your devices."
+      },
+      "cloudAutoSave": {
+        "title": "Cloud Auto-Save",
+        "description": "Never lose your work"
+      },
+      "darkMode": {
+        "title": "Dark Mode",
+        "description": "Easy on your eyes"
+      },
+      "richFormatting": {
+        "title": "Rich Formatting",
+        "description": "Headings, lists, styles"
+      }
+    },
+    "howItWorks": {
+      "badge": "How It Works",
+      "headline": "Start Writing in Seconds",
+      "subheadline": "No installation. No plugins. Just open your browser and write.",
+      "step1": {
+        "title": "Type or Speak",
+        "description": "Write Khmer text directly or dictate using voice input with automatic punctuation."
+      },
+      "step2": {
+        "title": "Auto Word Segmentation",
+        "description": "Aksara inserts invisible word boundaries so text wraps correctly in any application."
+      },
+      "step3": {
+        "title": "Export & Share",
+        "description": "Download as ODT for LibreOffice or copy text with word breaks preserved."
+      }
+    },
+    "cta": {
+      "badge": "Ready to write better Khmer?",
+      "headline": "Stop Fighting Your Word Processor",
+      "subheadline": "Aksara Pro handles word breaks, spell checking, and formatting so you can focus on what matters: your writing.",
+      "button": "Open the Editor",
+      "trustNoInstall": "No Installation",
+      "trustCloudSync": "Cloud Sync",
+      "trustLibreOffice": "LibreOffice Compatible"
+    }
+  },
+  "auth": {
+    "brandTagline": "Smart Khmer Writing",
+    "login": {
+      "title": "Welcome Back",
+      "subtitle": "Sign in to access smart Khmer writing",
+      "button": "Sign In",
+      "loading": "Signing in..."
+    },
+    "register": {
+      "title": "Create Account",
+      "subtitle": "Sign up to start using Aksara",
+      "button": "Create Account",
+      "loading": "Creating account..."
+    },
+    "form": {
+      "name": "Name (optional)",
+      "namePlaceholder": "Enter your name",
+      "email": "Email",
+      "emailPlaceholder": "Enter email",
+      "password": "Password",
+      "passwordPlaceholder": "Enter password"
+    },
+    "errors": {
+      "securityVerification": "Please complete the security verification",
+      "loginFailed": "Login failed",
+      "registrationFailed": "Registration failed"
+    },
+    "switchMode": {
+      "hasAccount": "Already have an account?",
+      "noAccount": "Don't have an account?",
+      "signIn": "Sign in",
+      "createOne": "Create one"
+    },
+    "signupsClosed": {
+      "title": "Signups Temporarily Closed",
+      "description": "We're not accepting new registrations at this time. Please check back later or contact us for access.",
+      "signInExisting": "Sign in to existing account",
+      "backToHome": "Back to home"
+    }
+  },
+  "editor": {
+    "fileMenu": {
+      "file": "File",
+      "new": "New",
+      "open": "Open...",
+      "save": "Save",
+      "saveAs": "Save As...",
+      "copyWithBreaks": "Copy with breaks",
+      "exportOdt": "Export as ODT",
+      "debugOptions": "Debug Options",
+      "toggleDebugModes": "Toggle debug modes",
+      "generalDebug": "General Debug",
+      "wordBreaker": "Word Breaker",
+      "cursorDebug": "Cursor Debug",
+      "spellCheck": "Spell Check",
+      "active": "Active",
+      "on": "ON"
+    },
+    "toolbar": {
+      "undo": "Undo",
+      "redo": "Redo",
+      "bold": "Bold",
+      "italic": "Italic",
+      "underline": "Underline",
+      "strikethrough": "Strikethrough",
+      "highlight": "Highlight",
+      "heading1": "Heading 1",
+      "heading2": "Heading 2",
+      "heading3": "Heading 3",
+      "normalText": "Normal text",
+      "bulletList": "Bullet list",
+      "numberedList": "Numbered list",
+      "alignLeft": "Align left",
+      "alignCenter": "Align center",
+      "alignRight": "Align right",
+      "justify": "Justify",
+      "joinWords": "Join selected words",
+      "splitWord": "Split word at cursor",
+      "showWordBreaks": "Show word breaks",
+      "hideWordBreaks": "Hide word breaks",
+      "enableSpellCheck": "Enable spell check",
+      "disableSpellCheck": "Disable spell check",
+      "enableGrammarCheck": "Enable grammar standardization check",
+      "disableGrammarCheck": "Disable grammar standardization check",
+      "settings": "Settings",
+      "fontSize": {
+        "tiny": "Tiny",
+        "small": "Small",
+        "normal": "Normal",
+        "medium": "Medium",
+        "large": "Large",
+        "xLarge": "X-Large",
+        "xxLarge": "XX-Large"
+      }
+    },
+    "contextMenu": {
+      "spellCheck": {
+        "loadingDictionary": "Loading dictionary...",
+        "misspelledWord": "Misspelled word:",
+        "searchingSuggestions": "Searching for suggestions...",
+        "noSuggestions": "No similar words found",
+        "addToDictionary": "Add to dictionary",
+        "ignore": "Ignore"
+      },
+      "grammarCheck": {
+        "nonStandardSpelling": "Non-standard spelling:",
+        "ignore": "Ignore"
+      }
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your personal preferences",
+    "backToEditor": "Back to Editor",
+    "tabs": {
+      "dictionary": "My Word Breaking Dictionary",
+      "spellCheck": "My Spell Check Dictionary",
+      "replacements": "My Voice-to-Text Replacements"
+    },
+    "storage": {
+      "title": "Storage Used",
+      "almostOut": "You're almost out of storage! Delete some documents to free up space.",
+      "runningLow": "You're running low on storage. Consider deleting unused documents."
+    },
+    "dictionary": {
+      "title": "My Dictionary",
+      "description": "Custom words that will be recognized by the Khmer word breaker",
+      "info": "Your personal dictionary contains words that the word breaker will keep together. Words are automatically added when you use \"Join selected words\" in the editor. You can also add words manually here.",
+      "addTitle": "Add New Word",
+      "wordLabel": "Word",
+      "wordPlaceholder": "Enter a Khmer word",
+      "emptyState": "No dictionary words yet. Use \"Join selected words\" in the editor or add words manually here.",
+      "noMatch": "No words found matching \"{query}\"",
+      "loadError": "Failed to load your dictionary"
+    },
+    "ignoredWords": {
+      "title": "Ignored Dictionary Words",
+      "description": "Compound words that should be split into their component parts",
+      "info": "Ignored words are excluded from word breaking. When a compound word is ignored, the word breaker will split it into its component parts. For example, ignoring \"មានន័យថា\" will cause it to split as \"មាន ន័យ ថា\". Words are automatically added when you use \"Split word\" in the editor, or you can add them manually here.",
+      "addTitle": "Add Ignored Word",
+      "wordPlaceholder": "Enter a compound word to ignore (e.g., មានន័យថា)",
+      "wordHint": "This word will be split into its component parts when you type it in the editor.",
+      "emptyState": "No ignored words yet. Use \"Split word\" in the editor or add words manually here.",
+      "noMatch": "No words found matching \"{query}\""
+    },
+    "spellCheckWords": {
+      "title": "Spell Check Custom Words",
+      "description": "Words you've added to your personal spell check dictionary or chosen to ignore",
+      "info": "Manage your personal spell check dictionary. Added words are treated as correct spellings. Ignored words are skipped during spell checking. Words are automatically added when you right-click a misspelled word in the editor and choose \"Add to dictionary\" or \"Ignore\".",
+      "addedTab": "Added Words ({count})",
+      "ignoredTab": "Ignored Words ({count})",
+      "addedDescription": "These words are treated as correct by the spell checker",
+      "ignoredDescription": "These words are skipped during spell checking",
+      "addToDict": "Add Word to Dictionary",
+      "ignoreWord": "Ignore Word",
+      "wordTreatedCorrect": "This word will be treated as correctly spelled",
+      "wordSkipped": "Spell checking will be skipped for this word",
+      "searchAdded": "Search added words...",
+      "searchIgnored": "Search ignored words...",
+      "addedEmpty": "No added words yet. Right-click a misspelled word in the editor and choose \"Add to dictionary\", or add words manually here.",
+      "ignoredEmpty": "No ignored words yet. Right-click a misspelled word in the editor and choose \"Ignore\", or add words manually here.",
+      "loadError": "Failed to load your spell check custom words"
+    },
+    "replacements": {
+      "title": "My Word Replacements",
+      "description": "Add custom word replacements that will be applied when you use voice-to-text",
+      "info": "Your personal replacements override the master replacements when there are duplicates. This allows you to customize word corrections for your own writing style.",
+      "addButton": "Add Replacement",
+      "editTitle": "Edit Replacement",
+      "addTitle": "Add New Replacement",
+      "incorrectWord": "Incorrect Word",
+      "incorrectPlaceholder": "Enter word to replace",
+      "correctWord": "Correct Word",
+      "correctPlaceholder": "Enter replacement word",
+      "notesLabel": "Notes (optional)",
+      "notesPlaceholder": "Add any notes about this replacement",
+      "tableIncorrect": "Incorrect",
+      "tableCorrect": "Correct",
+      "tableNotes": "Notes",
+      "searchPlaceholder": "Search words or notes...",
+      "emptyState": "No personal replacements yet. Add one to customize word corrections for your writing.",
+      "noMatch": "No replacements found matching \"{query}\"",
+      "loadError": "Failed to load your replacements"
+    }
+  }
+}

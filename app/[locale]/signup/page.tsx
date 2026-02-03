@@ -1,18 +1,22 @@
 "use client"
 
-import Link from "next/link"
+import { useTranslations } from 'next-intl'
 import { Button } from "@/components/ui/button"
 import { AlertCircle } from "lucide-react"
 import { LoginScreen } from "@/components/login-screen"
+import { Link } from "@/i18n/navigation"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
 const SIGNUPS_ENABLED = process.env.NEXT_PUBLIC_SIGNUPS_ENABLED === "true"
 
 export default function SignupPage() {
+  const t = useTranslations('auth')
+
   if (!SIGNUPS_ENABLED) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-50/50 to-background dark:from-blue-950/20 flex flex-col">
         {/* Header */}
-        <header className="p-4 sm:p-6">
+        <header className="p-4 sm:p-6 flex justify-between items-start">
           <Link href="/" className="inline-flex items-center gap-3">
             {/* Logo icon */}
             <div className="relative w-10 h-10">
@@ -39,10 +43,11 @@ export default function SignupPage() {
                 </span>
               </span>
               <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-[0.15em] mt-0.5">
-                Smart Khmer Writing
+                {t('brandTagline')}
               </span>
             </div>
           </Link>
+          <LanguageSwitcher />
         </header>
 
         {/* Main content */}
@@ -52,17 +57,16 @@ export default function SignupPage() {
               <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-4">
                 <AlertCircle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
               </div>
-              <h1 className="text-2xl font-bold text-foreground mb-2">Signups Temporarily Closed</h1>
+              <h1 className="text-2xl font-bold text-foreground mb-2">{t('signupsClosed.title')}</h1>
               <p className="text-muted-foreground mb-6">
-                We&apos;re not accepting new registrations at this time. Please check back later or contact us for
-                access.
+                {t('signupsClosed.description')}
               </p>
               <div className="flex flex-col gap-3">
                 <Button asChild variant="outline" className="w-full bg-transparent">
-                  <Link href="/login">Sign in to existing account</Link>
+                  <Link href="/login">{t('signupsClosed.signInExisting')}</Link>
                 </Button>
                 <Button asChild variant="ghost" className="w-full">
-                  <Link href="/">Back to home</Link>
+                  <Link href="/">{t('signupsClosed.backToHome')}</Link>
                 </Button>
               </div>
             </div>

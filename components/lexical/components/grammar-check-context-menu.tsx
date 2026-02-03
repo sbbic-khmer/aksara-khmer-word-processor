@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { useGrammarCheck } from '../contexts/grammar-check-context';
 import { cn } from '@/lib/utils';
 import { BookCheck, EyeOff } from 'lucide-react';
@@ -15,12 +16,13 @@ interface MenuPosition {
 }
 
 export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuProps) {
-    const { 
-        selectedWord, 
-        standardizedSpelling, 
+    const t = useTranslations('editor.contextMenu.grammarCheck');
+    const {
+        selectedWord,
+        standardizedSpelling,
         alternativeSpellings,
-        replaceWord, 
-        isLoading, 
+        replaceWord,
+        isLoading,
         error,
         grammarCheckEnabled,
     } = useGrammarCheck();
@@ -187,7 +189,7 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
                     {/* Header showing the non-standard word */}
                     <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-muted-foreground border-b border-sky-100 dark:border-sky-900/50 mb-1.5 bg-sky-50/50 dark:bg-sky-950/20 -mx-1.5 -mt-1.5 rounded-t-lg">
                         <BookCheck className="h-3.5 w-3.5 text-sky-500" />
-                        <span>អក្ខរាវិរុទ្ធមិនស្តង់ដារ៖</span>
+                        <span>{t('nonStandardSpelling')}</span>
                         <span className="font-semibold text-sky-600 dark:text-sky-400">{selectedWord}</span>
                     </div>
 
@@ -220,7 +222,7 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
                             )}
                         >
                             <EyeOff className="h-3 w-3" />
-                            មិនអើពើ
+                            {t('ignore')}
                         </button>
                     </div>
                 </div>

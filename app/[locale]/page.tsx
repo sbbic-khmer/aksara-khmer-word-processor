@@ -1,40 +1,59 @@
 import type { Metadata } from "next"
-import Link from "next/link"
-import { Mic, FileText, Type, Download, Moon, Keyboard, ArrowRight, Check, SpellCheck, BookCheck, Sparkles, Zap, Shield, BookOpen, Cloud } from "lucide-react"
+import { getTranslations, setRequestLocale } from 'next-intl/server'
+import { Mic, FileText, Type, Download, Moon, ArrowRight, Check, SpellCheck, BookCheck, Sparkles, Zap, BookOpen, Cloud } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AuthRedirect } from "@/components/auth-redirect"
+import { Link } from "@/i18n/navigation"
+import { routing } from "@/i18n/routing"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
-// Enhanced metadata for SEO
-export const metadata: Metadata = {
-  title: "Aksara Pro - Khmer Word Processor with Smart Word Breaking & Spell Check",
-  description: "The only Khmer text editor with intelligent word segmentation powered by beam search. 77,000+ word dictionary, voice-to-text, grammar standardization, and LibreOffice ODT export.",
-  keywords: [
-    "Khmer word processor",
-    "Khmer typing",
-    "Khmer spell checker",
-    "Khmer voice to text",
-    "Cambodian word processor",
-    "Khmer text editor",
-    "Khmer grammar checker",
-    "LibreOffice Khmer",
-    "Khmer word segmentation",
-    "Khmer document editor",
-    "Khmer line breaking",
-  ],
-  openGraph: {
-    title: "Aksara Pro - Khmer Word Processor with Smart Word Breaking",
-    description: "Intelligent Khmer text editor with automatic word segmentation, 77,000+ word spell checker, voice input, and ODT export for LibreOffice.",
-    type: "website",
-    url: "https://aksara.app",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Aksara Pro - Khmer Word Processor with Smart Word Breaking",
-    description: "Intelligent Khmer text editor with automatic word segmentation, 77,000+ word spell checker, voice input, and ODT export for LibreOffice.",
-  },
-  alternates: {
-    canonical: "https://aksara.app",
-  },
+type Props = {
+  params: Promise<{ locale: string }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'meta' })
+
+  return {
+    title: t('title'),
+    description: t('description'),
+    keywords: [
+      "Khmer word processor",
+      "Khmer typing",
+      "Khmer spell checker",
+      "Khmer voice to text",
+      "Cambodian word processor",
+      "Khmer text editor",
+      "Khmer grammar checker",
+      "LibreOffice Khmer",
+      "Khmer word segmentation",
+      "Khmer document editor",
+      "Khmer line breaking",
+    ],
+    openGraph: {
+      title: t('title'),
+      description: t('description'),
+      type: "website",
+      url: "https://aksara.app",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: t('title'),
+      description: t('description'),
+    },
+    alternates: {
+      canonical: locale === 'en' ? 'https://aksara.app' : `https://aksara.app/${locale}`,
+      languages: {
+        'en': 'https://aksara.app',
+        'km': 'https://aksara.app/km',
+      },
+    },
+  }
+}
+
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }))
 }
 
 // JSON-LD structured data for rich search results
@@ -63,7 +82,13 @@ const jsonLd = {
   url: "https://aksara.app",
 }
 
-export default function LandingPage() {
+export default async function LandingPage({ params }: Props) {
+  const { locale } = await params
+  setRequestLocale(locale)
+
+  const t = await getTranslations('landing')
+  const tMeta = await getTranslations('meta')
+
   return (
     <AuthRedirect>
       <div className="min-h-screen bg-gradient-to-b from-blue-50/50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -107,14 +132,15 @@ export default function LandingPage() {
               </div>
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
+              <LanguageSwitcher />
               <Link href="/login">
                 <Button variant="ghost" size="sm" className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer">
-                  Sign In
+                  {t('nav.signIn')}
                 </Button>
               </Link>
               <Link href="/signup">
                 <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/25 cursor-pointer">
-                  Get Started
+                  {t('nav.getStarted')}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
@@ -135,7 +161,7 @@ export default function LandingPage() {
                 {/* Badge */}
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm font-medium mb-8 border border-blue-200/50 dark:border-blue-700/50 shadow-sm">
                   <Sparkles className="w-4 h-4" aria-hidden="true" />
-                  Khmer Text That Wraps Correctly
+                  {t('hero.badge')}
                 </div>
 
                 {/* Main headline */}
@@ -153,26 +179,26 @@ export default function LandingPage() {
                     </span>
                   </span>
                   <span className="block text-3xl sm:text-5xl text-slate-900 dark:text-white tracking-tight font-bold">
-                    The Khmer Word Processor That Understands Your Language
+                    {t('hero.headline')}
                   </span>
                 </h1>
 
                 {/* Subheadline */}
                 <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-                  Write with confidence using intelligent word segmentation, instant spell checking, and voice input. Export perfect documents to LibreOffice with proper Khmer line breaks.
+                  {t('hero.subheadline')}
                 </p>
 
                 {/* CTA buttons */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                   <Link href="/signup">
                     <Button size="lg" className="gap-2 text-base px-8 py-6 bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-600/25 transition-all duration-200 hover:shadow-blue-600/40 hover:-translate-y-0.5 cursor-pointer">
-                      Start Writing Now
+                      {t('hero.ctaStart')}
                       <ArrowRight className="h-5 w-5" />
                     </Button>
                   </Link>
                   <Link href="/login">
                     <Button size="lg" variant="outline" className="gap-2 text-base px-8 py-6 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 cursor-pointer">
-                      Sign In
+                      {t('hero.ctaSignIn')}
                     </Button>
                   </Link>
                 </div>
@@ -183,19 +209,19 @@ export default function LandingPage() {
                     <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
                       <Check className="h-3 w-3 text-green-600 dark:text-green-400" aria-hidden="true" />
                     </div>
-                    <span>No Installation</span>
+                    <span>{t('hero.trustNoInstall')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
                       <Check className="h-3 w-3 text-green-600 dark:text-green-400" aria-hidden="true" />
                     </div>
-                    <span>Works in Browser</span>
+                    <span>{t('hero.trustBrowser')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
                       <Check className="h-3 w-3 text-green-600 dark:text-green-400" aria-hidden="true" />
                     </div>
-                    <span>Cloud Auto-Save</span>
+                    <span>{t('hero.trustCloud')}</span>
                   </div>
                 </div>
               </div>
@@ -207,13 +233,13 @@ export default function LandingPage() {
             <div className="max-w-6xl mx-auto px-4 sm:px-6">
               <div className="text-center mb-16">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium mb-4">
-                  Features
+                  {t('features.badge')}
                 </div>
                 <h2 id="features-heading" className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-4">
-                  Built for Khmer, From the Ground Up
+                  {t('features.headline')}
                 </h2>
                 <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-                  Not a translation layer. A word processor engineered for Khmer&apos;s unique orthographic rules.
+                  {t('features.subheadline')}
                 </p>
               </div>
 
@@ -224,9 +250,9 @@ export default function LandingPage() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-5 shadow-lg shadow-blue-500/20" aria-hidden="true">
                     <Type className="h-6 w-6 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Beam Search Word Segmentation</h3>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{t('features.wordBreaking.title')}</h3>
                   <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-                    Our algorithm analyzes 50,000+ words to find optimal break points. Respects COENG rules, protects compound words, and never breaks incorrectly.
+                    {t('features.wordBreaking.description')}
                   </p>
                 </article>
 
@@ -235,9 +261,9 @@ export default function LandingPage() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center mb-5 shadow-lg shadow-violet-500/20" aria-hidden="true">
                     <SpellCheck className="h-6 w-6 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">77,000+ Word Spell Checker</h3>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{t('features.spellCheck.title')}</h3>
                   <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-                    SymSpell algorithm delivers suggestions in under 200ms. Handles Khmer punctuation correctly and learns your vocabulary over time.
+                    {t('features.spellCheck.description')}
                   </p>
                 </article>
 
@@ -246,9 +272,9 @@ export default function LandingPage() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center mb-5 shadow-lg shadow-rose-500/20" aria-hidden="true">
                     <Mic className="h-6 w-6 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Voice Input with Smart Transforms</h3>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{t('features.voiceInput.title')}</h3>
                   <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-                    Dictate naturally in Khmer. Automatic conversion of number words to numerals and voice commands to punctuation marks.
+                    {t('features.voiceInput.description')}
                   </p>
                 </article>
 
@@ -257,9 +283,9 @@ export default function LandingPage() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center mb-5 shadow-lg shadow-indigo-500/20" aria-hidden="true">
                     <BookCheck className="h-6 w-6 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Grammar Standardization</h3>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{t('features.grammarCheck.title')}</h3>
                   <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-                    Detects non-standard spellings and suggests official forms. Keeps your writing consistent with accepted orthography.
+                    {t('features.grammarCheck.description')}
                   </p>
                 </article>
 
@@ -268,9 +294,9 @@ export default function LandingPage() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/20" aria-hidden="true">
                     <Download className="h-6 w-6 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Perfect LibreOffice Export</h3>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{t('features.odtExport.title')}</h3>
                   <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-                    ODT files with Khmer Mondulkiri font configuration that actually works. Preserves word breaks for proper text rendering.
+                    {t('features.odtExport.description')}
                   </p>
                 </article>
 
@@ -279,9 +305,9 @@ export default function LandingPage() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-500 flex items-center justify-center mb-5 shadow-lg shadow-amber-500/20" aria-hidden="true">
                     <BookOpen className="h-6 w-6 text-white" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Personal Dictionary</h3>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{t('features.personalDictionary.title')}</h3>
                   <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
-                    Teach Aksara your vocabulary. Force words to join or split, add custom spellings, and sync across all your devices.
+                    {t('features.personalDictionary.description')}
                   </p>
                 </article>
               </div>
@@ -293,8 +319,8 @@ export default function LandingPage() {
                     <Cloud className="h-5 w-5 text-slate-600 dark:text-slate-300" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Cloud Auto-Save</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Never lose your work</p>
+                    <h3 className="font-semibold text-slate-900 dark:text-white text-sm">{t('features.cloudAutoSave.title')}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('features.cloudAutoSave.description')}</p>
                   </div>
                 </article>
 
@@ -303,8 +329,8 @@ export default function LandingPage() {
                     <Moon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Dark Mode</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Easy on your eyes</p>
+                    <h3 className="font-semibold text-slate-900 dark:text-white text-sm">{t('features.darkMode.title')}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('features.darkMode.description')}</p>
                   </div>
                 </article>
 
@@ -313,8 +339,8 @@ export default function LandingPage() {
                     <FileText className="h-5 w-5 text-slate-600 dark:text-slate-300" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Rich Formatting</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Headings, lists, styles</p>
+                    <h3 className="font-semibold text-slate-900 dark:text-white text-sm">{t('features.richFormatting.title')}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('features.richFormatting.description')}</p>
                   </div>
                 </article>
               </div>
@@ -326,13 +352,13 @@ export default function LandingPage() {
             <div className="max-w-6xl mx-auto px-4 sm:px-6">
               <div className="text-center mb-16">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium mb-4">
-                  How It Works
+                  {t('howItWorks.badge')}
                 </div>
                 <h2 id="how-it-works-heading" className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-4">
-                  Start Writing in Seconds
+                  {t('howItWorks.headline')}
                 </h2>
                 <p className="text-lg text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-                  No installation. No plugins. Just open your browser and write.
+                  {t('howItWorks.subheadline')}
                 </p>
               </div>
 
@@ -341,9 +367,9 @@ export default function LandingPage() {
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-shadow duration-200">
                     <span className="text-2xl font-bold text-white">1</span>
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">Type or Speak</h3>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">{t('howItWorks.step1.title')}</h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    Write Khmer text directly or dictate using voice input with automatic punctuation.
+                    {t('howItWorks.step1.description')}
                   </p>
                   {/* Connector line */}
                   <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-px bg-gradient-to-r from-blue-300 to-transparent dark:from-blue-700" aria-hidden="true" />
@@ -353,9 +379,9 @@ export default function LandingPage() {
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-shadow duration-200">
                     <span className="text-2xl font-bold text-white">2</span>
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">Auto Word Segmentation</h3>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">{t('howItWorks.step2.title')}</h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    Aksara inserts invisible word boundaries so text wraps correctly in any application.
+                    {t('howItWorks.step2.description')}
                   </p>
                   <div className="hidden md:block absolute top-8 left-[60%] w-[80%] h-px bg-gradient-to-r from-blue-300 to-transparent dark:from-blue-700" aria-hidden="true" />
                 </div>
@@ -364,9 +390,9 @@ export default function LandingPage() {
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-shadow duration-200">
                     <span className="text-2xl font-bold text-white">3</span>
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">Export & Share</h3>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">{t('howItWorks.step3.title')}</h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    Download as ODT for LibreOffice or copy text with word breaks preserved.
+                    {t('howItWorks.step3.description')}
                   </p>
                 </div>
               </div>
@@ -385,18 +411,18 @@ export default function LandingPage() {
             <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center relative">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 text-white/90 text-sm font-medium mb-8 border border-white/20 backdrop-blur-sm">
                 <Zap className="w-4 h-4" aria-hidden="true" />
-                Ready to write better Khmer?
+                {t('cta.badge')}
               </div>
 
               <h2 id="cta-heading" className="text-3xl sm:text-5xl font-bold text-white mb-6">
-                Stop Fighting Your Word Processor
+                {t('cta.headline')}
               </h2>
               <p className="text-lg sm:text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
-                Aksara Pro handles word breaks, spell checking, and formatting so you can focus on what matters: your writing.
+                {t('cta.subheadline')}
               </p>
               <Link href="/editor">
                 <Button size="lg" className="gap-2 text-base px-10 py-7 bg-white text-blue-700 hover:bg-blue-50 shadow-xl shadow-black/10 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer">
-                  Open the Editor
+                  {t('cta.button')}
                   <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
@@ -407,19 +433,19 @@ export default function LandingPage() {
                   <div className="w-6 h-6 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
                     <Check className="h-4 w-4 text-white" aria-hidden="true" />
                   </div>
-                  <span>No Installation</span>
+                  <span>{t('cta.trustNoInstall')}</span>
                 </div>
                 <div className="flex items-center gap-2 text-blue-100">
                   <div className="w-6 h-6 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
                     <Check className="h-4 w-4 text-white" aria-hidden="true" />
                   </div>
-                  <span>Cloud Sync</span>
+                  <span>{t('cta.trustCloudSync')}</span>
                 </div>
                 <div className="flex items-center gap-2 text-blue-100">
                   <div className="w-6 h-6 rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center">
                     <Check className="h-4 w-4 text-white" aria-hidden="true" />
                   </div>
-                  <span>LibreOffice Compatible</span>
+                  <span>{t('cta.trustLibreOffice')}</span>
                 </div>
               </div>
             </div>
@@ -456,7 +482,7 @@ export default function LandingPage() {
                 </div>
               </Link>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Khmer Word Processor with Intelligent Word Segmentation
+                {tMeta('tagline')}
               </p>
             </div>
           </div>

@@ -26,6 +26,7 @@ export async function GET() {
       theme: preferences.theme,
       stt_provider: preferences.sttProvider,
       last_opened_document_id: preferences.lastOpenedDocumentId,
+      locale: preferences.locale,
     })
   } catch (error) {
     console.error("Error fetching preferences:", error)
@@ -53,7 +54,17 @@ export async function PUT(request: NextRequest) {
       theme,
       stt_provider,
       last_opened_document_id,
+      locale,
     } = body
+
+    // Validate locale
+    const validLocales = ['en', 'km']
+    if (locale !== undefined && !validLocales.includes(locale)) {
+      return NextResponse.json(
+        { error: "locale must be 'en' or 'km'" },
+        { status: 400 }
+      )
+    }
 
     // Validate numeric ranges
     if (vad_silence_threshold !== undefined) {
@@ -92,6 +103,7 @@ export async function PUT(request: NextRequest) {
         ...(last_opened_document_id !== undefined && {
           lastOpenedDocumentId: last_opened_document_id,
         }),
+        ...(locale !== undefined && { locale }),
       },
       create: {
         userId: user.id,
@@ -102,6 +114,7 @@ export async function PUT(request: NextRequest) {
         theme: theme ?? "light",
         sttProvider: stt_provider ?? "browser",
         lastOpenedDocumentId: last_opened_document_id ?? null,
+        locale: locale ?? "en",
       },
     })
 
@@ -114,6 +127,7 @@ export async function PUT(request: NextRequest) {
       theme: preferences.theme,
       stt_provider: preferences.sttProvider,
       last_opened_document_id: preferences.lastOpenedDocumentId,
+      locale: preferences.locale,
     })
   } catch (error) {
     console.error("Error updating preferences:", error)

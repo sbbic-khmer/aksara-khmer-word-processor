@@ -133,6 +133,9 @@ model UserPreference {
   theme                String  @default("light")
   lastOpenedDocumentId String?
 
+  // Localization
+  locale               String  @default("en") // "en" | "km"
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

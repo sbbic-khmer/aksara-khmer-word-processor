@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import createIntlMiddleware from 'next-intl/middleware'
+import { routing } from './i18n/routing'
 
-export function middleware(request: NextRequest) {
-  const response = NextResponse.next()
+// Create the next-intl middleware
+const intlMiddleware = createIntlMiddleware(routing)
 
+// Security headers configuration
+function addSecurityHeaders(response: NextResponse) {
   // Content Security Policy
-  // Configured to allow necessary third-party services
   const csp = [
     "default-src 'self'",
     // Scripts: self + inline (for Next.js hydration) + eval (for some libs) + third parties
@@ -28,7 +31,6 @@ export function middleware(request: NextRequest) {
     "worker-src 'self' blob:",
   ].join("; ")
 
-  // Set security headers
   response.headers.set("Content-Security-Policy", csp)
   response.headers.set("X-Frame-Options", "DENY")
   response.headers.set("X-Content-Type-Options", "nosniff")
@@ -46,6 +48,22 @@ export function middleware(request: NextRequest) {
   return response
 }
 
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Skip i18n middleware for API routes and admin (English only)
+  if (pathname.startsWith('/api') || pathname.startsWith('/admin')) {
+    const response = NextResponse.next()
+    return addSecurityHeaders(response)
+  }
+
+  // Run next-intl middleware for locale handling
+  const response = intlMiddleware(request)
+
+  // Add security headers to the response
+  return addSecurityHeaders(response)
+}
+
 // Apply middleware to all routes except static files
 export const config = {
   matcher: [
@@ -55,7 +73,10 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public files (images, etc.)
+     * - workers (web workers)
+     * - dictionaries (dictionary files)
+     * - lib (library files)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$|.*\\.ico$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|workers|dictionaries|lib|.*\\.png$|.*\\.jpg$|.*\\.svg$|.*\\.ico$|.*\\.txt$|.*\\.js$).*)",
   ],
 }
