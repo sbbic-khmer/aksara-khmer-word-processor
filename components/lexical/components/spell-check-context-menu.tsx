@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useSpellCheck } from '../contexts/spell-check-context';
 import { cn } from '@/lib/utils';
-import { BookOpen, Loader2 } from 'lucide-react';
+import { BookOpen, Loader2, Plus, EyeOff } from 'lucide-react';
 
 // Clean a word by removing invisible characters and punctuation (same as spell-check-plugin)
 function cleanKhmerWord(text: string): string {
@@ -314,8 +314,8 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
         <div
           ref={menuRef}
           className={cn(
-            "fixed z-50 min-w-[180px] overflow-hidden rounded-md border bg-popover p-1 shadow-lg",
-            "animate-in fade-in-0 zoom-in-95",
+            "fixed z-50 min-w-[200px] overflow-hidden rounded-lg border border-red-200 dark:border-red-800/50 bg-popover/95 backdrop-blur-sm p-1.5 shadow-xl shadow-red-500/10",
+            "animate-in fade-in-0 zoom-in-95 duration-150",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
           )}
           style={{
@@ -325,14 +325,14 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
           }}
         >
           {isLoading && (
-            <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex items-center gap-2 px-2.5 py-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-red-500" />
               <span>កំពុងផ្ទុកវចនានុក្រម...</span>
             </div>
           )}
 
           {error && (
-            <div className="px-2 py-1.5 text-sm text-destructive">
+            <div className="px-2.5 py-2 text-sm text-destructive bg-red-50 dark:bg-red-950/30 rounded-md">
               {error}
             </div>
           )}
@@ -340,23 +340,23 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
           {hasMisspelledWord && (
             <>
               {/* Header showing the misspelled word */}
-              <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground border-b border-border mb-1">
-                <BookOpen className="h-3 w-3" />
+              <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-muted-foreground border-b border-red-100 dark:border-red-900/50 mb-1.5 bg-red-50/50 dark:bg-red-950/20 -mx-1.5 -mt-1.5 rounded-t-lg">
+                <BookOpen className="h-3.5 w-3.5 text-red-500" />
                 <span>ពាក្យមិនត្រឹមត្រូវ៖</span>
-                <span className="font-medium text-destructive">{clickedWord}</span>
+                <span className="font-semibold text-red-600 dark:text-red-400">{clickedWord}</span>
               </div>
 
               {/* Loading suggestions indicator */}
               {isLoadingLocal && (
-                <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                <div className="flex items-center gap-2 px-2.5 py-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin text-red-500" />
                   <span>កំពុងស្វែងរកពាក្យ...</span>
                 </div>
               )}
 
               {/* No suggestions found */}
               {noSuggestionsFound && (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground italic">
+                <div className="px-2.5 py-2 text-sm text-muted-foreground italic">
                   រកមិនឃើញពាក្យស្រដៀង
                 </div>
               )}
@@ -367,10 +367,11 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
                   key={index}
                   onClick={() => handleSuggestionClick(suggestion)}
                   className={cn(
-                    "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none",
-                    "hover:bg-accent hover:text-accent-foreground",
-                    "focus:bg-accent focus:text-accent-foreground",
-                    "transition-colors"
+                    "relative flex w-full cursor-pointer select-none items-center rounded-md px-2.5 py-2 text-sm outline-none",
+                    "hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-700 dark:hover:text-red-300",
+                    "focus:bg-red-50 dark:focus:bg-red-950/40 focus:text-red-700 dark:focus:text-red-300",
+                    "focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1",
+                    "transition-colors duration-150"
                   )}
                   style={{
                     fontFamily: '"Noto Sans Khmer", sans-serif',
@@ -381,34 +382,38 @@ export function SpellCheckContextMenu({ children }: SpellCheckContextMenuProps) 
               ))}
 
               {/* Dictionary management options */}
-              <div className="border-t border-border mt-1 pt-1 space-y-0.5">
+              <div className="border-t border-border mt-1.5 pt-1.5 space-y-0.5">
                 <button
                   onClick={handleAddToDictionary}
                   className={cn(
-                    "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none",
+                    "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-xs outline-none",
                     "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                    "transition-colors"
+                    "focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1",
+                    "transition-colors duration-150"
                   )}
                   title="Add word to personal dictionary"
                 >
+                  <Plus className="h-3 w-3" />
                   បន្ថែមទៅវចនានុក្រម
                 </button>
                 <button
                   onClick={handleIgnoreWord}
                   className={cn(
-                    "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none",
+                    "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-xs outline-none",
                     "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                    "transition-colors"
+                    "focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-1",
+                    "transition-colors duration-150"
                   )}
                   title="Ignore this word in spell checking"
                 >
+                  <EyeOff className="h-3 w-3" />
                   មិនអើពើ
                 </button>
               </div>
             </>
           )}
 
-          
+
         </div>
       )}
     </div>

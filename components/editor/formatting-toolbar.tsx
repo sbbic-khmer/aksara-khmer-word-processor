@@ -70,6 +70,72 @@ interface FormattingToolbarProps {
   onToggleGrammarCheck: () => void
 }
 
+// Toolbar button with consistent styling
+function ToolbarButton({
+  onClick,
+  isActive,
+  tooltip,
+  shortcut,
+  children,
+  variant = "default",
+}: {
+  onClick: () => void
+  isActive?: boolean
+  tooltip: string
+  shortcut?: string
+  children: React.ReactNode
+  variant?: "default" | "highlight" | "spell" | "grammar"
+}) {
+  const activeStyles = {
+    default: "bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300 shadow-sm",
+    highlight: "bg-yellow-100 dark:bg-yellow-900/60 text-yellow-600 dark:text-yellow-300 shadow-sm",
+    spell: "bg-red-100 dark:bg-red-900/60 text-red-600 dark:text-red-300 shadow-sm",
+    grammar: "bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-300 shadow-sm",
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClick}
+          className={cn(
+            "h-8 w-8 p-0 transition-all duration-150",
+            "hover:bg-slate-100 dark:hover:bg-slate-800",
+            "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+            isActive && activeStyles[variant]
+          )}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="flex items-center gap-2">
+        <span>{tooltip}</span>
+        {shortcut && (
+          <kbd className="px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
+            {shortcut}
+          </kbd>
+        )}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+// Visual separator between button groups
+function ToolbarSeparator() {
+  return <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1.5" />
+}
+
+// Button group wrapper for visual grouping
+function ToolbarGroup({ children, label }: { children: React.ReactNode; label?: string }) {
+  return (
+    <div className="flex items-center gap-0.5" role="group" aria-label={label}>
+      {children}
+    </div>
+  )
+}
+
 export function FormattingToolbar({
   activeFormats,
   onFormat,
@@ -86,387 +152,226 @@ export function FormattingToolbar({
   onToggleGrammarCheck,
 }: FormattingToolbarProps) {
   return (
-    <TooltipProvider>
-      <>
-        {/* Undo/Redo */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={onUndo} className="h-8 w-8 p-0">
-              <Undo2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Undo (Ctrl+Z)</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={onRedo} className="h-8 w-8 p-0">
-              <Redo2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Redo (Ctrl+Y)</TooltipContent>
-        </Tooltip>
+    <TooltipProvider delayDuration={300}>
+      <div className="flex items-center flex-wrap gap-1">
+        {/* History */}
+        <ToolbarGroup label="History">
+          <ToolbarButton onClick={onUndo} tooltip="Undo" shortcut="⌘Z">
+            <Undo2 className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton onClick={onRedo} tooltip="Redo" shortcut="⌘⇧Z">
+            <Redo2 className="h-4 w-4" />
+          </ToolbarButton>
+        </ToolbarGroup>
 
-        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+        <ToolbarSeparator />
 
         {/* Font Size */}
         <Select value={activeFormats.fontSize} onValueChange={(value) => onFormat("fontSize", value)}>
-          <SelectTrigger className="w-24 h-8 text-xs">
+          <SelectTrigger className="w-[90px] h-8 text-xs border-slate-200 dark:border-slate-700 focus:ring-blue-500">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {FONT_SIZES.map((size) => (
-              <SelectItem key={size.value} value={size.value}>
+              <SelectItem key={size.value} value={size.value} className="text-xs">
                 {size.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+        <ToolbarSeparator />
 
-        {/* Text formatting */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("bold")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.bold && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <Bold className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Bold (Ctrl+B)</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("italic")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.italic && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <Italic className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Italic (Ctrl+I)</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("underline")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.underline && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <Underline className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Underline (Ctrl+U)</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("strikethrough")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.strikethrough && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <Strikethrough className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Strikethrough</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("highlight")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.highlight && "bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300",
-              )}
-            >
-              <Highlighter className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Highlight</TooltipContent>
-        </Tooltip>
+        {/* Text Formatting */}
+        <ToolbarGroup label="Text formatting">
+          <ToolbarButton
+            onClick={() => onFormat("bold")}
+            isActive={activeFormats.bold}
+            tooltip="Bold"
+            shortcut="⌘B"
+          >
+            <Bold className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("italic")}
+            isActive={activeFormats.italic}
+            tooltip="Italic"
+            shortcut="⌘I"
+          >
+            <Italic className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("underline")}
+            isActive={activeFormats.underline}
+            tooltip="Underline"
+            shortcut="⌘U"
+          >
+            <Underline className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("strikethrough")}
+            isActive={activeFormats.strikethrough}
+            tooltip="Strikethrough"
+          >
+            <Strikethrough className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("highlight")}
+            isActive={activeFormats.highlight}
+            tooltip="Highlight"
+            variant="highlight"
+          >
+            <Highlighter className="h-4 w-4" />
+          </ToolbarButton>
+        </ToolbarGroup>
 
-        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+        <ToolbarSeparator />
 
         {/* Headings */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("heading", "h1")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.heading === "H1" && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <Heading1 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Heading 1</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("heading", "h2")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.heading === "H2" && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <Heading2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Heading 2</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("heading", "h3")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.heading === "H3" && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <Heading3 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Heading 3</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("heading", "p")}
-              className={cn(
-                "h-8 w-8 p-0",
-                !activeFormats.heading && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <Type className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Normal text</TooltipContent>
-        </Tooltip>
+        <ToolbarGroup label="Headings">
+          <ToolbarButton
+            onClick={() => onFormat("heading", "h1")}
+            isActive={activeFormats.heading === "H1"}
+            tooltip="Heading 1"
+          >
+            <Heading1 className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("heading", "h2")}
+            isActive={activeFormats.heading === "H2"}
+            tooltip="Heading 2"
+          >
+            <Heading2 className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("heading", "h3")}
+            isActive={activeFormats.heading === "H3"}
+            tooltip="Heading 3"
+          >
+            <Heading3 className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("heading", "p")}
+            isActive={!activeFormats.heading}
+            tooltip="Normal text"
+          >
+            <Type className="h-4 w-4" />
+          </ToolbarButton>
+        </ToolbarGroup>
 
-        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+        <ToolbarSeparator />
 
         {/* Lists */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("bulletList")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.list === "unordered" && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Bullet list</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("numberedList")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.list === "ordered" && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <ListOrdered className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Numbered list</TooltipContent>
-        </Tooltip>
+        <ToolbarGroup label="Lists">
+          <ToolbarButton
+            onClick={() => onFormat("bulletList")}
+            isActive={activeFormats.list === "unordered"}
+            tooltip="Bullet list"
+          >
+            <List className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("numberedList")}
+            isActive={activeFormats.list === "ordered"}
+            tooltip="Numbered list"
+          >
+            <ListOrdered className="h-4 w-4" />
+          </ToolbarButton>
+        </ToolbarGroup>
 
-        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+        <ToolbarSeparator />
 
         {/* Alignment */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("align", "left")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.alignment === "left" && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <AlignLeft className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Align left</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("align", "center")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.alignment === "center" && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <AlignCenter className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Align center</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("align", "right")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.alignment === "right" && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <AlignRight className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Align right</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onFormat("align", "full")}
-              className={cn(
-                "h-8 w-8 p-0",
-                activeFormats.alignment === "justify" &&
-                  "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <AlignJustify className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Justify</TooltipContent>
-        </Tooltip>
+        <ToolbarGroup label="Alignment">
+          <ToolbarButton
+            onClick={() => onFormat("align", "left")}
+            isActive={activeFormats.alignment === "left"}
+            tooltip="Align left"
+          >
+            <AlignLeft className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("align", "center")}
+            isActive={activeFormats.alignment === "center"}
+            tooltip="Align center"
+          >
+            <AlignCenter className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("align", "right")}
+            isActive={activeFormats.alignment === "right"}
+            tooltip="Align right"
+          >
+            <AlignRight className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => onFormat("align", "full")}
+            isActive={activeFormats.alignment === "justify"}
+            tooltip="Justify"
+          >
+            <AlignJustify className="h-4 w-4" />
+          </ToolbarButton>
+        </ToolbarGroup>
 
-        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+        <ToolbarSeparator />
 
         {/* Word Break Tools */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={onJoinWord} className="h-8 w-8 p-0">
-              <Unlink2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Join selected words</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={onSplitWord} className="h-8 w-8 p-0">
-              <Link2 className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Split word at cursor</TooltipContent>
-        </Tooltip>
+        <ToolbarGroup label="Word breaking">
+          <ToolbarButton onClick={onJoinWord} tooltip="Join selected words">
+            <Unlink2 className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton onClick={onSplitWord} tooltip="Split word at cursor">
+            <Link2 className="h-4 w-4" />
+          </ToolbarButton>
+        </ToolbarGroup>
 
-        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+        <ToolbarSeparator />
 
-        {/* Auto Word Break Toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggleBreaks}
-              className={cn(
-                "h-8 w-8 p-0",
-                showBreaks && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <WrapText className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{showBreaks ? "Disable auto word break" : "Enable auto word break"}</TooltipContent>
-        </Tooltip>
+        {/* Toggles */}
+        <ToolbarGroup label="Editor options">
+          <ToolbarButton
+            onClick={onToggleBreaks}
+            isActive={showBreaks}
+            tooltip={showBreaks ? "Hide word breaks" : "Show word breaks"}
+          >
+            <WrapText className="h-4 w-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={onToggleSpellCheck}
+            isActive={spellCheckEnabled}
+            tooltip={spellCheckEnabled ? "បិទត្រួតពិនិត្យអក្ខរាវិរុទ្ធ" : "បើកត្រួតពិនិត្យអក្ខរាវិរុទ្ធ"}
+            variant="spell"
+          >
+            {spellCheckEnabled ? <SpellCheck className="h-4 w-4" /> : <SpellCheck2 className="h-4 w-4" />}
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={onToggleGrammarCheck}
+            isActive={grammarCheckEnabled}
+            tooltip={grammarCheckEnabled ? "បិទត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ" : "បើកត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ"}
+            variant="grammar"
+          >
+            <BookCheck className="h-4 w-4" />
+          </ToolbarButton>
+        </ToolbarGroup>
 
-        {/* Spell Check Toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggleSpellCheck}
-              className={cn(
-                "h-8 w-8 p-0",
-                spellCheckEnabled && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              {spellCheckEnabled ? <SpellCheck className="h-4 w-4" /> : <SpellCheck2 className="h-4 w-4" />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{spellCheckEnabled ? "បិទត្រួតពិនិត្យអក្ខរាវិរុទ្ធ" : "បើកត្រួតពិនិត្យអក្ខរាវិរុទ្ធ"}</TooltipContent>
-        </Tooltip>
-
-        {/* Grammar Check Toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggleGrammarCheck}
-              className={cn(
-                "h-8 w-8 p-0",
-                grammarCheckEnabled && "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300",
-              )}
-            >
-              <BookCheck className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{grammarCheckEnabled ? "បិទត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ" : "បើកត្រួតពិនិត្យអក្ខរាវិរុទ្ធស្តង់ដារ"}</TooltipContent>
-        </Tooltip>
+        <ToolbarSeparator />
 
         {/* Settings */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Link href="/settings">
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
                 <Settings className="h-4 w-4" />
               </Button>
             </Link>
           </TooltipTrigger>
-          <TooltipContent>Settings</TooltipContent>
+          <TooltipContent side="bottom">Settings</TooltipContent>
         </Tooltip>
-      </>
+      </div>
     </TooltipProvider>
   )
 }

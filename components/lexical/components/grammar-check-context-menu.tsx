@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useGrammarCheck } from '../contexts/grammar-check-context';
 import { cn } from '@/lib/utils';
-import { BookCheck } from 'lucide-react';
+import { BookCheck, EyeOff } from 'lucide-react';
 
 interface GrammarCheckContextMenuProps {
     children: React.ReactNode;
@@ -174,8 +174,8 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
                 <div
                     ref={menuRef}
                     className={cn(
-                        "fixed z-50 min-w-[180px] overflow-hidden rounded-md border bg-popover p-1 shadow-lg",
-                        "animate-in fade-in-0 zoom-in-95",
+                        "fixed z-50 min-w-[200px] overflow-hidden rounded-lg border border-sky-200 dark:border-sky-800/50 bg-popover/95 backdrop-blur-sm p-1.5 shadow-xl shadow-sky-500/10",
+                        "animate-in fade-in-0 zoom-in-95 duration-150",
                         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
                     )}
                     style={{
@@ -185,20 +185,21 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
                     }}
                 >
                     {/* Header showing the non-standard word */}
-                    <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground border-b border-border mb-1">
-                        <BookCheck className="h-3 w-3 text-blue-500" />
+                    <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-muted-foreground border-b border-sky-100 dark:border-sky-900/50 mb-1.5 bg-sky-50/50 dark:bg-sky-950/20 -mx-1.5 -mt-1.5 rounded-t-lg">
+                        <BookCheck className="h-3.5 w-3.5 text-sky-500" />
                         <span>អក្ខរាវិរុទ្ធមិនស្តង់ដារ៖</span>
-                        <span className="font-medium text-blue-600 dark:text-blue-400">{selectedWord}</span>
+                        <span className="font-semibold text-sky-600 dark:text-sky-400">{selectedWord}</span>
                     </div>
 
                     {/* Suggestion button */}
                     <button
                         onClick={handleSuggestionClick}
                         className={cn(
-                            "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none",
-                            "hover:bg-accent hover:text-accent-foreground",
-                            "focus:bg-accent focus:text-accent-foreground",
-                            "transition-colors"
+                            "relative flex w-full cursor-pointer select-none items-center rounded-md px-2.5 py-2 text-sm outline-none",
+                            "hover:bg-sky-50 dark:hover:bg-sky-950/40 hover:text-sky-700 dark:hover:text-sky-300",
+                            "focus:bg-sky-50 dark:focus:bg-sky-950/40 focus:text-sky-700 dark:focus:text-sky-300",
+                            "focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1",
+                            "transition-colors duration-150"
                         )}
                         style={{
                             fontFamily: '"Noto Sans Khmer", sans-serif',
@@ -208,15 +209,17 @@ export function GrammarCheckContextMenu({ children }: GrammarCheckContextMenuPro
                     </button>
 
                     {/* Ignore button */}
-                    <div className="border-t border-border mt-1 pt-1">
+                    <div className="border-t border-border mt-1.5 pt-1.5">
                         <button
                             onClick={() => setIsOpen(false)}
                             className={cn(
-                                "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none",
+                                "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-xs outline-none",
                                 "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                                "transition-colors"
+                                "focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-1",
+                                "transition-colors duration-150"
                             )}
                         >
+                            <EyeOff className="h-3 w-3" />
                             មិនអើពើ
                         </button>
                     </div>
