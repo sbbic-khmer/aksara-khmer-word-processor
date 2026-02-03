@@ -111,6 +111,10 @@
       "trustNoInstall": "No Installation",
       "trustCloudSync": "Cloud Sync",
       "trustLibreOffice": "LibreOffice Compatible"
+    },
+    "footer": {
+      "links": "Links",
+      "rights": "All rights reserved."
     }
   },
   "auth": {

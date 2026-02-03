@@ -637,39 +637,64 @@ export default async function LandingPage({ params }: Props) {
           </section>
         </main>
 
-        {/* Footer with subtle entrance */}
-        <footer className="border-t border-slate-200/50 dark:border-slate-800/50 py-10 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950">
+        {/* Footer */}
+        <footer className="border-t border-slate-200/50 dark:border-slate-800/50 py-12 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <ScrollAnimate variant="fade-up" duration={500}>
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                <Link href="/" className="flex items-center gap-3 group transition-transform duration-200 hover:scale-105" aria-label="Aksara Pro">
-                  {/* Logo icon */}
-                  <div className="relative w-10 h-10 shrink-0">
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20" />
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-white text-xl font-bold leading-none translate-y-[-1px] translate-x-[0.5px]">អ</span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+                {/* Logo & Description */}
+                <div className="md:col-span-2">
+                  <Link href="/" className="flex items-center gap-3 group transition-transform duration-200 hover:scale-105 w-fit" aria-label="Aksara Pro">
+                    {/* Logo icon */}
+                    <div className="relative w-10 h-10 shrink-0">
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20" />
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-white text-xl font-bold leading-none translate-y-[-1px] translate-x-[0.5px]">អ</span>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Logo text */}
-                  <div className="flex items-baseline">
-                    <span
-                      className="text-xl text-slate-900 dark:text-white leading-none"
-                      style={{ fontFamily: "var(--font-moul), serif" }}
+                    {/* Logo text */}
+                    <div className="flex items-baseline">
+                      <span
+                        className="text-xl text-slate-900 dark:text-white leading-none"
+                        style={{ fontFamily: "var(--font-moul), serif" }}
+                      >
+                        អក្សរា
+                      </span>
+                      <span
+                        className="ml-[4px] text-xl text-slate-500 dark:text-slate-400 leading-none font-medium"
+                        style={{ fontFamily: "var(--font-geist-sans), sans" }}
+                      >
+                        Pro
+                      </span>
+                    </div>
+                  </Link>
+                  <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 max-w-md">
+                    {tMeta('tagline')}
+                  </p>
+                </div>
+
+                {/* Links */}
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">
+                    {t('footer.links')}
+                  </h3>
+                  <nav className="flex flex-col gap-3">
+                    <a
+                      href="/blog"
+                      className="text-sm text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                     >
-                      អក្សរា
-                    </span>
-                    <span
-                      className="ml-[4px] text-xl text-slate-500 dark:text-slate-400 leading-none font-medium"
-                      style={{ fontFamily: "var(--font-geist-sans), sans" }}
-                    >
-                      Pro
-                    </span>
-                  </div>
-                </Link>
-                <p className="text-sm text-slate-500 dark:text-slate-400 text-center sm:text-right">
-                  {tMeta('tagline')}
+                      Blog
+                    </a>
+                  </nav>
+                </div>
+              </div>
+
+              {/* Bottom Bar */}
+              <div className="mt-10 pt-6 border-t border-slate-200/50 dark:border-slate-700/50">
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
+                  © {new Date().getFullYear()} Aksara Pro. {t('footer.rights')}
                 </p>
               </div>
             </ScrollAnimate>

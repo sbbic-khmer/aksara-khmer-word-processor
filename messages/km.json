@@ -111,6 +111,10 @@
       "trustNoInstall": "មិនចាំបាច់ដំឡើង",
       "trustCloudSync": "ធ្វើសមកាលកម្មលើពពក",
       "trustLibreOffice": "អាចប្រើជាមួយ LibreOffice"
+    },
+    "footer": {
+      "links": "តំណភ្ជាប់",
+      "rights": "រក្សាសិទ្ធិគ្រប់យ៉ាង។"
     }
   },
   "auth": {
