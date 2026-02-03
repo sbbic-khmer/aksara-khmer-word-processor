@@ -114,8 +114,8 @@ function ToolbarButton({
 }
 
 // Visual separator between button groups
-function ToolbarSeparator() {
-  return <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1.5" />
+function ToolbarSeparator({ className }: { className?: string }) {
+  return <div className={cn("w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1.5", className)} />
 }
 
 // Button group wrapper for visual grouping
@@ -156,224 +156,228 @@ export function FormattingToolbar({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center flex-wrap gap-1">
-        {/* History */}
-        <ToolbarGroup label="History">
-          <ToolbarButton onClick={onUndo} tooltip={t('undo')} shortcut="⌘Z">
-            <Undo2 className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton onClick={onRedo} tooltip={t('redo')} shortcut="⌘⇧Z">
-            <Redo2 className="h-4 w-4" />
-          </ToolbarButton>
-        </ToolbarGroup>
+      <div className="flex items-center flex-wrap gap-y-2 gap-x-1">
+        {/* Row 1: History + Font Size + Text Formatting + Headings */}
+        <div className="flex items-center gap-1">
+          {/* History */}
+          <ToolbarGroup label="History">
+            <ToolbarButton onClick={onUndo} tooltip={t('undo')} shortcut="⌘Z">
+              <Undo2 className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={onRedo} tooltip={t('redo')} shortcut="⌘⇧Z">
+              <Redo2 className="h-4 w-4" />
+            </ToolbarButton>
+          </ToolbarGroup>
 
-        <ToolbarSeparator />
+          <ToolbarSeparator />
 
-        {/* Font Size */}
-        <Select value={activeFormats.fontSize} onValueChange={(value) => onFormat("fontSize", value)}>
-          <SelectTrigger className="w-[90px] h-8 text-xs border-slate-200 dark:border-slate-700 focus:ring-blue-500">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FONT_SIZES.map((size) => (
-              <SelectItem key={size.value} value={size.value} className="text-xs">
-                {size.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {/* Font Size */}
+          <Select value={activeFormats.fontSize} onValueChange={(value) => onFormat("fontSize", value)}>
+            <SelectTrigger className="w-[90px] h-8 text-xs border-slate-200 dark:border-slate-700 focus:ring-blue-500">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_SIZES.map((size) => (
+                <SelectItem key={size.value} value={size.value} className="text-xs">
+                  {size.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <ToolbarSeparator />
+          <ToolbarSeparator />
 
-        {/* Text Formatting */}
-        <ToolbarGroup label="Text formatting">
-          <ToolbarButton
-            onClick={() => onFormat("bold")}
-            isActive={activeFormats.bold}
-            tooltip={t('bold')}
-            shortcut="⌘B"
-          >
-            <Bold className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("italic")}
-            isActive={activeFormats.italic}
-            tooltip={t('italic')}
-            shortcut="⌘I"
-          >
-            <Italic className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("underline")}
-            isActive={activeFormats.underline}
-            tooltip={t('underline')}
-            shortcut="⌘U"
-          >
-            <Underline className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("strikethrough")}
-            isActive={activeFormats.strikethrough}
-            tooltip={t('strikethrough')}
-          >
-            <Strikethrough className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("highlight")}
-            isActive={activeFormats.highlight}
-            tooltip={t('highlight')}
-            variant="highlight"
-          >
-            <Highlighter className="h-4 w-4" />
-          </ToolbarButton>
-        </ToolbarGroup>
+          {/* Text Formatting */}
+          <ToolbarGroup label="Text formatting">
+            <ToolbarButton
+              onClick={() => onFormat("bold")}
+              isActive={activeFormats.bold}
+              tooltip={t('bold')}
+              shortcut="⌘B"
+            >
+              <Bold className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("italic")}
+              isActive={activeFormats.italic}
+              tooltip={t('italic')}
+              shortcut="⌘I"
+            >
+              <Italic className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("underline")}
+              isActive={activeFormats.underline}
+              tooltip={t('underline')}
+              shortcut="⌘U"
+            >
+              <Underline className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("strikethrough")}
+              isActive={activeFormats.strikethrough}
+              tooltip={t('strikethrough')}
+            >
+              <Strikethrough className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("highlight")}
+              isActive={activeFormats.highlight}
+              tooltip={t('highlight')}
+              variant="highlight"
+            >
+              <Highlighter className="h-4 w-4" />
+            </ToolbarButton>
+          </ToolbarGroup>
 
-        <ToolbarSeparator />
+          <ToolbarSeparator />
 
-        {/* Headings */}
-        <ToolbarGroup label="Headings">
-          <ToolbarButton
-            onClick={() => onFormat("heading", "h1")}
-            isActive={activeFormats.heading === "H1"}
-            tooltip={t('heading1')}
-          >
-            <Heading1 className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("heading", "h2")}
-            isActive={activeFormats.heading === "H2"}
-            tooltip={t('heading2')}
-          >
-            <Heading2 className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("heading", "h3")}
-            isActive={activeFormats.heading === "H3"}
-            tooltip={t('heading3')}
-          >
-            <Heading3 className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("heading", "p")}
-            isActive={!activeFormats.heading}
-            tooltip={t('normalText')}
-          >
-            <Type className="h-4 w-4" />
-          </ToolbarButton>
-        </ToolbarGroup>
+          {/* Headings */}
+          <ToolbarGroup label="Headings">
+            <ToolbarButton
+              onClick={() => onFormat("heading", "h1")}
+              isActive={activeFormats.heading === "H1"}
+              tooltip={t('heading1')}
+            >
+              <Heading1 className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("heading", "h2")}
+              isActive={activeFormats.heading === "H2"}
+              tooltip={t('heading2')}
+            >
+              <Heading2 className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("heading", "h3")}
+              isActive={activeFormats.heading === "H3"}
+              tooltip={t('heading3')}
+            >
+              <Heading3 className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("heading", "p")}
+              isActive={!activeFormats.heading}
+              tooltip={t('normalText')}
+            >
+              <Type className="h-4 w-4" />
+            </ToolbarButton>
+          </ToolbarGroup>
 
-        <ToolbarSeparator />
+          <ToolbarSeparator />
 
-        {/* Lists */}
-        <ToolbarGroup label="Lists">
-          <ToolbarButton
-            onClick={() => onFormat("bulletList")}
-            isActive={activeFormats.list === "unordered"}
-            tooltip={t('bulletList')}
-          >
-            <List className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("numberedList")}
-            isActive={activeFormats.list === "ordered"}
-            tooltip={t('numberedList')}
-          >
-            <ListOrdered className="h-4 w-4" />
-          </ToolbarButton>
-        </ToolbarGroup>
+          {/* Lists */}
+          <ToolbarGroup label="Lists">
+            <ToolbarButton
+              onClick={() => onFormat("bulletList")}
+              isActive={activeFormats.list === "unordered"}
+              tooltip={t('bulletList')}
+            >
+              <List className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("numberedList")}
+              isActive={activeFormats.list === "ordered"}
+              tooltip={t('numberedList')}
+            >
+              <ListOrdered className="h-4 w-4" />
+            </ToolbarButton>
+          </ToolbarGroup>
+        </div>
 
-        <ToolbarSeparator />
+        {/* Row 2: Alignment + Word Tools + Toggles + Settings */}
+        <div className="flex items-center gap-1">
+          {/* Alignment */}
+          <ToolbarGroup label="Alignment">
+            <ToolbarButton
+              onClick={() => onFormat("align", "left")}
+              isActive={activeFormats.alignment === "left"}
+              tooltip={t('alignLeft')}
+            >
+              <AlignLeft className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("align", "center")}
+              isActive={activeFormats.alignment === "center"}
+              tooltip={t('alignCenter')}
+            >
+              <AlignCenter className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("align", "right")}
+              isActive={activeFormats.alignment === "right"}
+              tooltip={t('alignRight')}
+            >
+              <AlignRight className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => onFormat("align", "full")}
+              isActive={activeFormats.alignment === "justify"}
+              tooltip={t('justify')}
+            >
+              <AlignJustify className="h-4 w-4" />
+            </ToolbarButton>
+          </ToolbarGroup>
 
-        {/* Alignment */}
-        <ToolbarGroup label="Alignment">
-          <ToolbarButton
-            onClick={() => onFormat("align", "left")}
-            isActive={activeFormats.alignment === "left"}
-            tooltip={t('alignLeft')}
-          >
-            <AlignLeft className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("align", "center")}
-            isActive={activeFormats.alignment === "center"}
-            tooltip={t('alignCenter')}
-          >
-            <AlignCenter className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("align", "right")}
-            isActive={activeFormats.alignment === "right"}
-            tooltip={t('alignRight')}
-          >
-            <AlignRight className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => onFormat("align", "full")}
-            isActive={activeFormats.alignment === "justify"}
-            tooltip={t('justify')}
-          >
-            <AlignJustify className="h-4 w-4" />
-          </ToolbarButton>
-        </ToolbarGroup>
+          <ToolbarSeparator />
 
-        <ToolbarSeparator />
+          {/* Word Break Tools */}
+          <ToolbarGroup label="Word breaking">
+            <ToolbarButton onClick={onJoinWord} tooltip={t('joinWords')}>
+              <Unlink2 className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={onSplitWord} tooltip={t('splitWord')}>
+              <Link2 className="h-4 w-4" />
+            </ToolbarButton>
+          </ToolbarGroup>
 
-        {/* Word Break Tools */}
-        <ToolbarGroup label="Word breaking">
-          <ToolbarButton onClick={onJoinWord} tooltip={t('joinWords')}>
-            <Unlink2 className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton onClick={onSplitWord} tooltip={t('splitWord')}>
-            <Link2 className="h-4 w-4" />
-          </ToolbarButton>
-        </ToolbarGroup>
+          <ToolbarSeparator />
 
-        <ToolbarSeparator />
+          {/* Toggles */}
+          <ToolbarGroup label="Editor options">
+            <ToolbarButton
+              onClick={onToggleBreaks}
+              isActive={showBreaks}
+              tooltip={showBreaks ? t('hideWordBreaks') : t('showWordBreaks')}
+            >
+              <WrapText className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={onToggleSpellCheck}
+              isActive={spellCheckEnabled}
+              tooltip={spellCheckEnabled ? t('disableSpellCheck') : t('enableSpellCheck')}
+              variant="spell"
+            >
+              {spellCheckEnabled ? <SpellCheck className="h-4 w-4" /> : <SpellCheck2 className="h-4 w-4" />}
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={onToggleGrammarCheck}
+              isActive={grammarCheckEnabled}
+              tooltip={grammarCheckEnabled ? t('disableGrammarCheck') : t('enableGrammarCheck')}
+              variant="grammar"
+            >
+              <BookCheck className="h-4 w-4" />
+            </ToolbarButton>
+          </ToolbarGroup>
 
-        {/* Toggles */}
-        <ToolbarGroup label="Editor options">
-          <ToolbarButton
-            onClick={onToggleBreaks}
-            isActive={showBreaks}
-            tooltip={showBreaks ? t('hideWordBreaks') : t('showWordBreaks')}
-          >
-            <WrapText className="h-4 w-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={onToggleSpellCheck}
-            isActive={spellCheckEnabled}
-            tooltip={spellCheckEnabled ? t('disableSpellCheck') : t('enableSpellCheck')}
-            variant="spell"
-          >
-            {spellCheckEnabled ? <SpellCheck className="h-4 w-4" /> : <SpellCheck2 className="h-4 w-4" />}
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={onToggleGrammarCheck}
-            isActive={grammarCheckEnabled}
-            tooltip={grammarCheckEnabled ? t('disableGrammarCheck') : t('enableGrammarCheck')}
-            variant="grammar"
-          >
-            <BookCheck className="h-4 w-4" />
-          </ToolbarButton>
-        </ToolbarGroup>
+          <ToolbarSeparator />
 
-        <ToolbarSeparator />
-
-        {/* Settings */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Link href="/settings">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{t('settings')}</TooltipContent>
-        </Tooltip>
+          {/* Settings */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/settings">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t('settings')}</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
     </TooltipProvider>
   )

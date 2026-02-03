@@ -1113,6 +1113,50 @@ function EditorWrapper({
   }, []) // Only run once on mount
 
   useEffect(() => {
+    // Check sessionStorage first for instant restore (survives language switches)
+    const sessionDocId = typeof window !== 'undefined' ? sessionStorage.getItem('aksara-current-doc-id') : null
+    const sessionEditorState = typeof window !== 'undefined' ? sessionStorage.getItem('aksara-editor-state') : null
+    const sessionDocState = typeof window !== 'undefined' ? sessionStorage.getItem('aksara-doc-state') : null
+    const targetDocId = extractValidUUID(sessionDocId) || extractValidUUID(lastOpenedDocumentId)
+
+    // If we already loaded and the target doc matches current doc, skip
+    if (lastDocLoadedRef.current && documentState.id === targetDocId) {
+      return
+    }
+
+    // If there's a cached editor state in sessionStorage, restore it immediately (language switch)
+    if (sessionEditorState && sessionDocState && sessionDocId) {
+      try {
+        const docState = JSON.parse(sessionDocState)
+        if (docState.id === sessionDocId) {
+          skipNextContentChangeRef.current = true
+          const state = editor.parseEditorState(sessionEditorState)
+          editor.setEditorState(state)
+          setTimeout(() => {
+            editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+          }, 50)
+          setDocumentState({
+            id: docState.id,
+            title: docState.title,
+            hasUnsavedChanges: false,
+            saveStatus: "idle",
+            lastSavedAt: docState.lastSavedAt,
+          })
+          lastDocLoadedRef.current = true
+          setIsLoadingDocument(false)
+          return
+        }
+      } catch {
+        // Invalid cached state, fall through to normal loading
+      }
+    }
+
+    // If we already loaded but there's a different doc in sessionStorage (language switch), load it
+    if (lastDocLoadedRef.current && sessionDocId && documentState.id !== targetDocId) {
+      // Reset to allow loading the new document
+      lastDocLoadedRef.current = false
+    }
+
     if (lastDocLoadedRef.current) {
       return
     }
@@ -1130,9 +1174,7 @@ function EditorWrapper({
 
     lastDocLoadedRef.current = true
 
-    // Check sessionStorage first (survives language switches better than async preferences)
-    const sessionDocId = typeof window !== 'undefined' ? sessionStorage.getItem('aksara-current-doc-id') : null
-    const validDocId = extractValidUUID(sessionDocId) || extractValidUUID(lastOpenedDocumentId)
+    const validDocId = targetDocId
 
     if (validDocId) {
       const controller = new AbortController()
@@ -1189,7 +1231,7 @@ function EditorWrapper({
       }
       setIsLoadingDocument(false)
     }
-  }, [editor, setDocumentState, lastOpenedDocumentId, updateLastOpenedDocumentId, isLoadingPreferences])
+  }, [editor, setDocumentState, lastOpenedDocumentId, updateLastOpenedDocumentId, isLoadingPreferences, documentState.id])
 
   useEffect(() => {
     return () => {
@@ -1202,12 +1244,22 @@ function EditorWrapper({
   useEffect(() => {
     if (documentState.id) {
       updateLastOpenedDocumentId(documentState.id)
-      // Also save to sessionStorage for immediate access during language switches
+      // Save document ID for language switches
       sessionStorage.setItem('aksara-current-doc-id', documentState.id)
+      // Also save the full document state and editor content for instant restore
+      const editorState = editor.getEditorState()
+      sessionStorage.setItem('aksara-editor-state', JSON.stringify(editorState.toJSON()))
+      sessionStorage.setItem('aksara-doc-state', JSON.stringify({
+        id: documentState.id,
+        title: documentState.title,
+        lastSavedAt: documentState.lastSavedAt,
+      }))
     } else {
       sessionStorage.removeItem('aksara-current-doc-id')
+      sessionStorage.removeItem('aksara-editor-state')
+      sessionStorage.removeItem('aksara-doc-state')
     }
-  }, [documentState.id, updateLastOpenedDocumentId])
+  }, [documentState.id, documentState.title, documentState.lastSavedAt, updateLastOpenedDocumentId, editor])
 
   const handleNew = useCallback(() => {
     if (documentState.hasUnsavedChanges) {

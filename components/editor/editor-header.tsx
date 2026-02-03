@@ -11,7 +11,7 @@ import { UserMenu } from "@/components/user-menu"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { useTranslations } from "next-intl"
+import { useTranslations, useLocale } from "next-intl"
 
 interface EditorHeaderProps {
   theme: string | undefined
@@ -36,6 +36,8 @@ export function EditorHeader({
 }: EditorHeaderProps) {
   const t = useTranslations("editor")
   const tc = useTranslations("common")
+  const locale = useLocale()
+  const isKhmer = locale === "km"
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [isMobileDialogOpen, setIsMobileDialogOpen] = useState(false)
   const [editedTitle, setEditedTitle] = useState(documentTitle || t("header.untitled"))
@@ -196,8 +198,8 @@ export function EditorHeader({
         <div className="flex items-center justify-between px-2 sm:px-4 py-2">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-3">
-              {/* Logo icon */}
-              <div className="relative w-10 h-10 sm:w-11 sm:h-11">
+              {/* Logo icon - fixed size to prevent squishing */}
+              <div className="relative w-10 h-10 sm:w-11 sm:h-11 flex-shrink-0">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg shadow-blue-500/25" />
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
                 <div className="absolute inset-[1px] rounded-[14px] border border-white/20" />
@@ -228,20 +230,27 @@ export function EditorHeader({
               <div className="hidden sm:flex flex-col gap-0">
                 <div className="flex items-baseline gap-1.5">
                   <h1
-  className="flex items-baseline gap-1 text-[22px] sm:text-[26px] leading-none tracking-tight text-gray-900 dark:text-white"
-  style={{ fontFamily: "var(--font-moul), serif" }}
->
-  អក្សរា
-  <span
-    className="text-[22px] sm:text-[26px]  text-foreground"
-    style={{ fontFamily: "var(--font-geist-sans), sans" }}
-  >
-    Pro
-  </span>
-</h1>
+                    className="flex items-baseline gap-1 text-[22px] lg:text-[26px] leading-none tracking-tight text-gray-900 dark:text-white"
+                    style={{ fontFamily: "var(--font-moul), serif" }}
+                  >
+                    អក្សរា
+                    <span
+                      className="text-[22px] lg:text-[26px] text-foreground"
+                      style={{ fontFamily: "var(--font-geist-sans), sans" }}
+                    >
+                      Pro
+                    </span>
+                  </h1>
                 </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] sm:text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-[0.15em]">
+                {/* Hide tagline on tablets, show on large screens */}
+                <div className="hidden lg:flex items-center gap-1.5 mt-0.5">
+                  <span
+                    className={cn(
+                      "text-[11px] font-medium text-gray-500 dark:text-gray-400",
+                      !isKhmer && "uppercase tracking-[0.15em]"
+                    )}
+                    style={isKhmer ? { fontFamily: "var(--font-battambang), sans-serif" } : undefined}
+                  >
                     {t("header.tagline")}
                   </span>
                 </div>
