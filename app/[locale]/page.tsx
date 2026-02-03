@@ -222,7 +222,7 @@ export default async function LandingPage({ params }: Props) {
                           អក្សរា
                         </ShimmerText>
                         <span
-                          className="ml-3 text-slate-900 dark:text-white font-bold relative"
+                          className="ml-3 mb-2 text-slate-900 dark:text-white font-bold relative"
                           style={{ fontFamily: "var(--font-geist-sans), sans" }}
                         >
                           Pro
