@@ -1130,7 +1130,9 @@ function EditorWrapper({
 
     lastDocLoadedRef.current = true
 
-    const validDocId = extractValidUUID(lastOpenedDocumentId)
+    // Check sessionStorage first (survives language switches better than async preferences)
+    const sessionDocId = typeof window !== 'undefined' ? sessionStorage.getItem('aksara-current-doc-id') : null
+    const validDocId = extractValidUUID(sessionDocId) || extractValidUUID(lastOpenedDocumentId)
 
     if (validDocId) {
       const controller = new AbortController()
@@ -1200,6 +1202,10 @@ function EditorWrapper({
   useEffect(() => {
     if (documentState.id) {
       updateLastOpenedDocumentId(documentState.id)
+      // Also save to sessionStorage for immediate access during language switches
+      sessionStorage.setItem('aksara-current-doc-id', documentState.id)
+    } else {
+      sessionStorage.removeItem('aksara-current-doc-id')
     }
   }, [documentState.id, updateLastOpenedDocumentId])
 
