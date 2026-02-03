@@ -46,7 +46,7 @@ export function TurnstileWidget({
   }
 
   return (
-    <div className={className}>
+    <div className={`min-h-[65px] flex items-center justify-center ${className}`}>
       <Turnstile
         ref={turnstileRef}
         siteKey={TURNSTILE_SITE_KEY}

@@ -111,34 +111,24 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
       </header>
 
       {/* Hero Section with Cover Image */}
-      <section className="relative pt-24 sm:pt-28">
-        {/* Parallax background */}
-        <ParallaxLayer depth={0.15} maxOffset={30} className="absolute inset-0 pointer-events-none">
+      <section className="relative pt-20 sm:pt-24">
+        {/* Parallax background - reduced intensity */}
+        <ParallaxLayer depth={0.1} maxOffset={20} className="absolute inset-0 pointer-events-none">
           <GlowOrb
             color="blue"
-            size="lg"
-            intensity="subtle"
-            floatAmplitude={15}
-            floatDuration={12}
-            className="top-[-50px] left-[10%]"
-          />
-        </ParallaxLayer>
-        <ParallaxLayer depth={0.2} maxOffset={40} className="absolute inset-0 pointer-events-none">
-          <GlowOrb
-            color="indigo"
             size="md"
             intensity="subtle"
-            floatAmplitude={20}
-            floatDuration={15}
-            className="top-40 right-[5%]"
+            floatAmplitude={10}
+            floatDuration={12}
+            className="top-[-30px] left-[10%]"
           />
         </ParallaxLayer>
 
         {/* Cover Image */}
         {post.image && (
-          <ScrollAnimate variant="zoom-blur" delay={0} duration={800}>
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 mb-8">
-              <div className="relative aspect-[21/9] rounded-3xl overflow-hidden shadow-2xl shadow-slate-900/20 dark:shadow-slate-900/40">
+          <ScrollAnimate variant="zoom-blur" delay={0} duration={400}>
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 mb-6">
+              <div className="relative aspect-[2/1] sm:aspect-[21/9] rounded-2xl overflow-hidden shadow-xl shadow-slate-900/15 dark:shadow-slate-900/30">
                 <Image
                   src={post.image}
                   alt={post.title}
@@ -146,7 +136,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   className="object-cover"
                   priority
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/5 to-transparent" />
               </div>
             </div>
           </ScrollAnimate>
@@ -154,13 +144,13 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
       </section>
 
       {/* Main Content */}
-      <main className="pb-24 px-4">
+      <main className="pb-20 px-4">
         <article className="max-w-3xl mx-auto">
           {/* Back Link */}
-          <ScrollAnimate variant="fade-left" delay={100} duration={500}>
+          <ScrollAnimate variant="fade-left" delay={0} duration={300}>
             <Link
               href="/blog"
-              className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-8 group"
+              className="inline-flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-6 group"
             >
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
               Back to all posts
@@ -168,39 +158,39 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </ScrollAnimate>
 
           {/* Post Header */}
-          <header className="mb-12">
-            <ScrollAnimate variant="hero-title" delay={200} duration={900}>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 dark:text-white mb-6 leading-[1.15] tracking-tight">
+          <header className="mb-8">
+            <ScrollAnimate variant="hero-title" delay={50} duration={400}>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 dark:text-white mb-4 leading-[1.2] tracking-tight">
                 {post.title}
               </h1>
             </ScrollAnimate>
 
-            <ScrollAnimate variant="zoom-blur" delay={400} duration={700}>
-              <p className="text-xl text-slate-600 dark:text-slate-400 mb-8 leading-relaxed">
+            <ScrollAnimate variant="zoom-blur" delay={100} duration={350}>
+              <p className="text-lg text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                 {post.description}
               </p>
             </ScrollAnimate>
 
             {/* Meta Bar */}
-            <ScrollAnimate variant="fade-up" delay={500} duration={600}>
-              <div className="flex flex-wrap items-center justify-between gap-4 py-6 border-y border-slate-200/80 dark:border-slate-700/50">
-                <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-sm text-slate-500 dark:text-slate-400">
+            <ScrollAnimate variant="fade-up" delay={150} duration={300}>
+              <div className="flex flex-wrap items-center justify-between gap-3 py-4 border-y border-slate-200/80 dark:border-slate-700/50">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-sm text-slate-500 dark:text-slate-400">
                   <span className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 flex items-center justify-center">
-                      <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 flex items-center justify-center">
+                      <Calendar className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                     </div>
                     {formattedDate}
                   </span>
                   <span className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 flex items-center justify-center">
-                      <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 flex items-center justify-center">
+                      <Clock className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                     </div>
                     {post.readingTime}
                   </span>
                   {post.author && (
                     <span className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 flex items-center justify-center">
-                        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 flex items-center justify-center">
+                        <User className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                       </div>
                       {post.author}
                     </span>
@@ -213,8 +203,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             </ScrollAnimate>
           </header>
 
-          {/* Post Content */}
-          <ScrollAnimate variant="fade-up" delay={600} duration={700}>
+          {/* Post Content - visible immediately to encourage scrolling */}
+          <ScrollAnimate variant="fade-up" delay={200} duration={350}>
             <PostContent content={post.content} />
           </ScrollAnimate>
 

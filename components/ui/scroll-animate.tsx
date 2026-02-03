@@ -32,14 +32,19 @@ interface ScrollAnimateProps {
  * Respects prefers-reduced-motion for accessibility.
  * Uses Intersection Observer for performance.
  * Uses transform and opacity for smooth, GPU-accelerated animations.
+ *
+ * 2026 best practices:
+ * - Faster durations (200-400ms for micro-interactions)
+ * - Early triggers (rootMargin: 50px to start before fully visible)
+ * - Lower delays for snappy feel
  */
 export function ScrollAnimate({
   children,
   className,
   variant = 'fade-up',
   delay = 0,
-  duration = 500,
-  threshold = 0.1,
+  duration = 400, // Reduced from 500ms for snappier feel
+  threshold = 0.05, // Lower threshold - trigger earlier
   once = true,
   as: Component = 'div',
 }: ScrollAnimateProps) {
@@ -78,7 +83,12 @@ export function ScrollAnimate({
           setIsVisible(false)
         }
       },
-      { threshold, rootMargin: '0px 0px -50px 0px' }
+      {
+        threshold,
+        // Positive rootMargin = trigger BEFORE element enters viewport
+        // This prevents blank areas as user scrolls
+        rootMargin: '50px 0px 0px 0px'
+      }
     )
 
     observer.observe(element)
@@ -94,48 +104,50 @@ export function ScrollAnimate({
     const baseHidden = { opacity: 0 }
     const baseVisible = { opacity: 1 }
 
+    // 2026 best practice: Subtler transforms (16-24px) feel more refined
+    // than larger movements (30-40px) which can feel sluggish
     switch (variant) {
       case 'fade-up':
         return isVisible
           ? { ...baseVisible, transform: 'translateY(0)' }
-          : { ...baseHidden, transform: 'translateY(30px)' }
+          : { ...baseHidden, transform: 'translateY(20px)' }
       case 'fade-down':
         return isVisible
           ? { ...baseVisible, transform: 'translateY(0)' }
-          : { ...baseHidden, transform: 'translateY(-30px)' }
+          : { ...baseHidden, transform: 'translateY(-20px)' }
       case 'fade-left':
         return isVisible
           ? { ...baseVisible, transform: 'translateX(0)' }
-          : { ...baseHidden, transform: 'translateX(30px)' }
+          : { ...baseHidden, transform: 'translateX(20px)' }
       case 'fade-right':
         return isVisible
           ? { ...baseVisible, transform: 'translateX(0)' }
-          : { ...baseHidden, transform: 'translateX(-30px)' }
+          : { ...baseHidden, transform: 'translateX(-20px)' }
       case 'fade':
         return isVisible ? baseVisible : baseHidden
       case 'scale':
         return isVisible
           ? { ...baseVisible, transform: 'scale(1)' }
-          : { ...baseHidden, transform: 'scale(0.95)' }
+          : { ...baseHidden, transform: 'scale(0.97)' }
       case 'blur':
         return isVisible
           ? { ...baseVisible, filter: 'blur(0px)' }
-          : { ...baseHidden, filter: 'blur(8px)' }
+          : { ...baseHidden, filter: 'blur(6px)' }
       case 'hero-title':
-        // Dramatic hero entrance: scale up from 0.8, blur clear, fade in
+        // Refined hero entrance: subtle scale + blur
         return isVisible
           ? { ...baseVisible, transform: 'scale(1) translateY(0)', filter: 'blur(0px)' }
-          : { ...baseHidden, transform: 'scale(0.8) translateY(40px)', filter: 'blur(12px)' }
+          : { ...baseHidden, transform: 'scale(0.95) translateY(24px)', filter: 'blur(8px)' }
       case 'hero-badge':
-        // Bounce down effect for badges
+        // Subtle drop effect for badges
         return isVisible
           ? { ...baseVisible, transform: 'translateY(0) scale(1)' }
-          : { ...baseHidden, transform: 'translateY(-30px) scale(0.9)' }
+          : { ...baseHidden, transform: 'translateY(-16px) scale(0.95)' }
       case 'zoom-blur':
-        // Zoom in with blur clear - great for secondary elements
+        // Subtle zoom with blur clear
         return isVisible
           ? { ...baseVisible, transform: 'scale(1)', filter: 'blur(0px)' }
-          : { ...baseHidden, transform: 'scale(0.9)', filter: 'blur(6px)' }
+          : { ...baseHidden, transform: 'scale(0.97)', filter: 'blur(4px)' }
       default:
         return isVisible ? baseVisible : baseHidden
     }

@@ -77,6 +77,6 @@ export const config = {
      * - dictionaries (dictionary files)
      * - lib (library files)
      */
-    "/((?!_next/static|_next/image|favicon.ico|workers|dictionaries|lib|.*\\.png$|.*\\.jpg$|.*\\.svg$|.*\\.ico$|.*\\.txt$|.*\\.js$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|workers|dictionaries|lib|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.webp$|.*\\.gif$|.*\\.svg$|.*\\.ico$|.*\\.txt$|.*\\.js$).*)",
   ],
 }

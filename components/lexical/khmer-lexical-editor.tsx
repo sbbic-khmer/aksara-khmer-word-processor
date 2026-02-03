@@ -1241,8 +1241,12 @@ function EditorWrapper({
     }
   }, [])
 
+  // Track if we've completed initial document load to avoid clearing sessionStorage prematurely
+  const hasCompletedInitialLoadRef = useRef(false)
+
   useEffect(() => {
     if (documentState.id) {
+      hasCompletedInitialLoadRef.current = true
       updateLastOpenedDocumentId(documentState.id)
       // Save document ID for language switches
       sessionStorage.setItem('aksara-current-doc-id', documentState.id)
@@ -1254,7 +1258,9 @@ function EditorWrapper({
         title: documentState.title,
         lastSavedAt: documentState.lastSavedAt,
       }))
-    } else {
+    } else if (hasCompletedInitialLoadRef.current) {
+      // Only clear sessionStorage after initial load is complete
+      // This prevents clearing during component mount before restore can happen
       sessionStorage.removeItem('aksara-current-doc-id')
       sessionStorage.removeItem('aksara-editor-state')
       sessionStorage.removeItem('aksara-doc-state')

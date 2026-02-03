@@ -397,6 +397,22 @@
   }
 }
 
+/* Slow pulse animation for floating badges */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-4px);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
 /* Gradient text animation */
 @keyframes gradient-shift {
   0%, 100% {

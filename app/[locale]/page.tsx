@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Image from "next/image"
 import { getTranslations, setRequestLocale } from 'next-intl/server'
 import { Mic, FileText, Type, Download, Moon, ArrowRight, Check, SpellCheck, BookCheck, Sparkles, Zap, BookOpen, Cloud } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -152,7 +153,7 @@ export default async function LandingPage({ params }: Props) {
 
         <main>
           {/* Hero Section - 2026 trends: 3D depth, kinetic typography, meaningful motion */}
-          <section className="relative overflow-hidden pt-32 sm:pt-40 min-h-[90vh] flex items-center" aria-labelledby="hero-heading">
+          <section className="relative overflow-hidden pt-20 sm:pt-28 lg:pt-36 min-h-[75vh] sm:min-h-[85vh] flex items-start sm:items-center" aria-labelledby="hero-heading">
             {/* Layered parallax background for 3D depth effect */}
             <ParallaxLayer depth={0.2} maxOffset={40} className="absolute inset-0 pointer-events-none">
               <GlowOrb
@@ -200,11 +201,11 @@ export default async function LandingPage({ params }: Props) {
             {/* Central spotlight glow */}
             <div className="absolute top-1/2 left-1/2 w-[1000px] h-[600px] bg-gradient-radial from-blue-400/25 via-blue-400/10 to-transparent dark:from-blue-500/20 dark:via-blue-500/5 blur-3xl animate-spotlight" aria-hidden="true" />
 
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24 relative w-full">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 relative w-full">
               <div className="text-center max-w-4xl mx-auto">
                 {/* Badge with bounce entrance */}
-                <ScrollAnimate variant="hero-badge" delay={0} duration={800}>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50/90 dark:bg-blue-900/50 backdrop-blur-md text-blue-700 dark:text-blue-300 text-sm font-medium mb-8 border border-blue-200/60 dark:border-blue-700/50 shadow-lg shadow-blue-500/15">
+                <ScrollAnimate variant="hero-badge" delay={0} duration={400}>
+                  <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-blue-50/90 dark:bg-blue-900/50 backdrop-blur-md text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-medium mb-4 sm:mb-8 border border-blue-200/60 dark:border-blue-700/50 shadow-lg shadow-blue-500/15">
                     <Sparkles className="w-4 h-4 animate-pulse" aria-hidden="true" />
                     {t('hero.badge')}
                   </div>
@@ -212,18 +213,18 @@ export default async function LandingPage({ params }: Props) {
 
                 {/* Main headline with dramatic 3D reveal */}
                 <ParallaxLayer depth={0.05} maxOffset={15}>
-                  <ScrollAnimate variant="hero-title" delay={100} duration={1200}>
-                    <h1 id="hero-heading" className="mb-8">
+                  <ScrollAnimate variant="hero-title" delay={50} duration={500}>
+                    <h1 id="hero-heading" className="mb-4 sm:mb-8">
                       {/* Brand name with shimmer effect */}
                       <span
-                        className="flex justify-center items-center text-6xl sm:text-8xl mb-8 leading-normal"
+                        className="flex justify-center items-center text-5xl sm:text-7xl lg:text-8xl mb-4 sm:mb-8 leading-normal"
                         style={{ fontFamily: "var(--font-moul), serif" }}
                       >
                         <ShimmerText className="from-blue-600 via-indigo-500 to-blue-600 dark:from-blue-400 dark:via-indigo-300 dark:to-blue-400 drop-shadow-lg">
                           អក្សរា
                         </ShimmerText>
                         <span
-                          className="ml-3 mb-2 text-slate-900 dark:text-white font-bold relative"
+                          className="ml-2 sm:ml-3 mb-1 sm:mb-2 text-slate-900 dark:text-white font-bold relative"
                           style={{ fontFamily: "var(--font-geist-sans), sans" }}
                         >
                           Pro
@@ -233,10 +234,10 @@ export default async function LandingPage({ params }: Props) {
                       {/* Tagline with word-by-word kinetic reveal */}
                       <TextReveal
                         text={t('hero.headline')}
-                        className="block text-3xl sm:text-5xl text-slate-900 dark:text-white tracking-tight font-bold"
-                        wordDelay={100}
-                        initialDelay={400}
-                        duration={700}
+                        className="block text-2xl sm:text-4xl lg:text-5xl text-slate-900 dark:text-white tracking-tight font-bold"
+                        wordDelay={60}
+                        initialDelay={150}
+                        duration={400}
                         as="span"
                       />
                     </h1>
@@ -244,14 +245,14 @@ export default async function LandingPage({ params }: Props) {
                 </ParallaxLayer>
 
                 {/* Subheadline with blur reveal */}
-                <ScrollAnimate variant="zoom-blur" delay={800} duration={800}>
-                  <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-12 leading-relaxed">
+                <ScrollAnimate variant="zoom-blur" delay={200} duration={400}>
+                  <p className="text-base sm:text-lg lg:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-8 sm:mb-12 leading-relaxed">
                     {t('hero.subheadline')}
                   </p>
                 </ScrollAnimate>
 
                 {/* CTA buttons with magnetic hover effect */}
-                <ScrollAnimate variant="scale" delay={1000} duration={700}>
+                <ScrollAnimate variant="scale" delay={300} duration={350}>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                     <MagneticButton strength={0.2}>
                       <Link href="/signup">
@@ -272,7 +273,7 @@ export default async function LandingPage({ params }: Props) {
                 </ScrollAnimate>
 
                 {/* Trust indicators with staggered fade */}
-                <ScrollAnimate variant="fade-up" delay={1200} duration={600}>
+                <ScrollAnimate variant="fade-up" delay={400} duration={350}>
                   <div className="flex flex-wrap items-center justify-center gap-8 mt-12 text-sm text-slate-500 dark:text-slate-400">
                     <div className="flex items-center gap-2 transition-all duration-200 hover:scale-105 hover:text-slate-700 dark:hover:text-slate-300">
                       <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 flex items-center justify-center shadow-md shadow-green-500/10">
@@ -294,12 +295,73 @@ export default async function LandingPage({ params }: Props) {
                     </div>
                   </div>
                 </ScrollAnimate>
+
+                {/* Editor Screenshot - 2026 Elevated Product Showcase */}
+                <ScrollAnimate variant="scale" delay={250} duration={400}>
+                  <div className="mt-10 sm:mt-14 lg:mt-20 relative max-w-5xl mx-auto">
+                    {/* Ambient glow layers - creates depth */}
+                    <div className="absolute -inset-4 sm:-inset-8 bg-gradient-to-r from-blue-500/30 via-indigo-500/30 to-violet-500/30 rounded-[32px] sm:rounded-[48px] blur-3xl opacity-60 dark:opacity-40" aria-hidden="true" />
+                    <div className="absolute -inset-2 sm:-inset-4 bg-gradient-to-br from-blue-400/20 via-transparent to-purple-400/20 rounded-[28px] sm:rounded-[40px] blur-2xl" aria-hidden="true" />
+
+                    {/* Outer frame with gradient border */}
+                    <div className="relative rounded-2xl sm:rounded-3xl p-[1.5px] bg-gradient-to-br from-white/60 via-blue-200/40 to-violet-200/60 dark:from-slate-600/60 dark:via-blue-500/40 dark:to-violet-500/60 shadow-2xl shadow-blue-900/20 dark:shadow-blue-500/10">
+                      {/* Main window container */}
+                      <div className="relative bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[15px] sm:rounded-[23px] overflow-hidden">
+                        {/* macOS-style window header */}
+                        <div className="flex items-center px-4 py-3 bg-gradient-to-b from-slate-50 to-slate-100/80 dark:from-slate-800 dark:to-slate-850/80 border-b border-slate-200/60 dark:border-slate-700/60">
+                          {/* Traffic lights */}
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-[#FF5F57] shadow-sm shadow-red-500/30" />
+                            <div className="w-3 h-3 rounded-full bg-[#FFBD2E] shadow-sm shadow-yellow-500/30" />
+                            <div className="w-3 h-3 rounded-full bg-[#28CA41] shadow-sm shadow-green-500/30" />
+                          </div>
+
+                          {/* Centered tab/title area */}
+                          <div className="flex-1 flex justify-center">
+                            <div className="flex items-center gap-2 px-4 py-1 bg-white dark:bg-slate-800 rounded-md border border-slate-200/80 dark:border-slate-700/80 shadow-inner">
+                              <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center">
+                                <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">aksara.app/editor</span>
+                            </div>
+                          </div>
+
+                          {/* Right side balance */}
+                          <div className="w-[52px]" />
+                        </div>
+
+                        {/* Screenshot with subtle inner shadow */}
+                        <div className="relative">
+                          <Image
+                            src={locale === 'km' ? '/aksaraproeditor-khmer.webp' : '/aksaraproeditor-english.webp'}
+                            alt={locale === 'km' ? 'Aksara Pro កម្មវិធីកែអក្សរខ្មែរ' : 'Aksara Pro Khmer word processor interface'}
+                            width={1920}
+                            height={1080}
+                            className="w-full h-auto"
+                            priority
+                            quality={90}
+                          />
+                          {/* Inner edge shadow for depth */}
+                          <div className="absolute inset-0 rounded-b-[15px] sm:rounded-b-[23px] shadow-[inset_0_0_20px_rgba(0,0,0,0.03)] dark:shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Reflection/shadow below */}
+                    <div className="absolute -bottom-8 left-[10%] right-[10%] h-16 bg-gradient-to-b from-slate-900/15 via-slate-900/5 to-transparent dark:from-blue-500/10 dark:to-transparent blur-xl rounded-full" aria-hidden="true" />
+                  </div>
+                </ScrollAnimate>
               </div>
             </div>
+
+            {/* Smooth gradient transition to next section */}
+            <div className="absolute bottom-0 left-0 right-0 h-32 sm:h-48 bg-gradient-to-b from-transparent via-slate-50/50 to-slate-50 dark:via-slate-900/50 dark:to-slate-900 pointer-events-none" aria-hidden="true" />
           </section>
 
           {/* Features Bento Grid - with parallax and kinetic typography */}
-          <section className="py-24 sm:py-32 relative overflow-hidden" aria-labelledby="features-heading">
+          <section className="py-16 sm:py-24 lg:py-32 relative overflow-hidden bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950" aria-labelledby="features-heading">
             {/* Subtle background decoration */}
             <div className="absolute inset-0 pointer-events-none">
               <ParallaxLayer depth={0.1} maxOffset={20}>
@@ -311,9 +373,9 @@ export default async function LandingPage({ params }: Props) {
             </div>
 
             <div className="max-w-6xl mx-auto px-4 sm:px-6 relative">
-              <ScrollAnimate variant="hero-title" duration={900}>
+              <ScrollAnimate variant="hero-title" duration={450}>
                 <div className="text-center mb-20">
-                  <ScrollAnimate variant="hero-badge" delay={0} duration={700}>
+                  <ScrollAnimate variant="hero-badge" delay={0} duration={350}>
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100/80 dark:bg-blue-900/40 backdrop-blur-sm text-blue-700 dark:text-blue-300 text-sm font-medium mb-6 border border-blue-200/50 dark:border-blue-700/50 shadow-md">
                       {t('features.badge')}
                     </div>
@@ -321,12 +383,12 @@ export default async function LandingPage({ params }: Props) {
                   <TextReveal
                     text={t('features.headline')}
                     className="text-3xl sm:text-5xl font-bold text-slate-900 dark:text-white mb-5"
-                    wordDelay={60}
-                    initialDelay={100}
-                    duration={600}
+                    wordDelay={40}
+                    initialDelay={50}
+                    duration={350}
                     as="h2"
                   />
-                  <ScrollAnimate variant="zoom-blur" delay={400} duration={700}>
+                  <ScrollAnimate variant="zoom-blur" delay={150} duration={350}>
                     <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
                       {t('features.subheadline')}
                     </p>
@@ -337,7 +399,7 @@ export default async function LandingPage({ params }: Props) {
               {/* Bento Grid with staggered 3D reveals */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
                 {/* Feature 1 - Smart Word Breaking */}
-                <ScrollAnimate variant="zoom-blur" delay={0} duration={600}>
+                <ScrollAnimate variant="zoom-blur" delay={0} duration={350}>
                   <MagneticButton strength={0.08} className="block h-full">
                     <article className="group h-full bg-gradient-to-br from-blue-50/90 to-cyan-50/90 dark:from-blue-950/50 dark:to-cyan-950/50 backdrop-blur-sm rounded-2xl p-7 border border-blue-100/80 dark:border-blue-900/40 hover:border-blue-300 dark:hover:border-blue-700 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/15 cursor-pointer">
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mb-6 shadow-xl shadow-blue-500/25 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300" aria-hidden="true">
@@ -352,7 +414,7 @@ export default async function LandingPage({ params }: Props) {
                 </ScrollAnimate>
 
                 {/* Feature 2 - Spell Check */}
-                <ScrollAnimate variant="zoom-blur" delay={80} duration={600}>
+                <ScrollAnimate variant="zoom-blur" delay={50} duration={350}>
                   <MagneticButton strength={0.08} className="block h-full">
                     <article className="group h-full bg-gradient-to-br from-violet-50/90 to-purple-50/90 dark:from-violet-950/50 dark:to-purple-950/50 backdrop-blur-sm rounded-2xl p-7 border border-violet-100/80 dark:border-violet-900/40 hover:border-violet-300 dark:hover:border-violet-700 transition-all duration-300 hover:shadow-2xl hover:shadow-violet-500/15 cursor-pointer">
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center mb-6 shadow-xl shadow-violet-500/25 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300" aria-hidden="true">
@@ -367,7 +429,7 @@ export default async function LandingPage({ params }: Props) {
                 </ScrollAnimate>
 
                 {/* Feature 3 - Voice Input */}
-                <ScrollAnimate variant="zoom-blur" delay={160} duration={600}>
+                <ScrollAnimate variant="zoom-blur" delay={100} duration={350}>
                   <MagneticButton strength={0.08} className="block h-full">
                     <article className="group h-full bg-gradient-to-br from-rose-50/90 to-orange-50/90 dark:from-rose-950/50 dark:to-orange-950/50 backdrop-blur-sm rounded-2xl p-7 border border-rose-100/80 dark:border-rose-900/40 hover:border-rose-300 dark:hover:border-rose-700 transition-all duration-300 hover:shadow-2xl hover:shadow-rose-500/15 cursor-pointer">
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center mb-6 shadow-xl shadow-rose-500/25 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300" aria-hidden="true">
@@ -382,7 +444,7 @@ export default async function LandingPage({ params }: Props) {
                 </ScrollAnimate>
 
                 {/* Feature 4 - Grammar Check */}
-                <ScrollAnimate variant="zoom-blur" delay={80} duration={600}>
+                <ScrollAnimate variant="zoom-blur" delay={50} duration={350}>
                   <MagneticButton strength={0.08} className="block h-full">
                     <article className="group h-full bg-gradient-to-br from-indigo-50/90 to-blue-50/90 dark:from-indigo-950/50 dark:to-blue-950/50 backdrop-blur-sm rounded-2xl p-7 border border-indigo-100/80 dark:border-indigo-900/40 hover:border-indigo-300 dark:hover:border-indigo-700 transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-500/15 cursor-pointer">
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center mb-6 shadow-xl shadow-indigo-500/25 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300" aria-hidden="true">
@@ -397,7 +459,7 @@ export default async function LandingPage({ params }: Props) {
                 </ScrollAnimate>
 
                 {/* Feature 5 - ODT Export */}
-                <ScrollAnimate variant="zoom-blur" delay={160} duration={600}>
+                <ScrollAnimate variant="zoom-blur" delay={100} duration={350}>
                   <MagneticButton strength={0.08} className="block h-full">
                     <article className="group h-full bg-gradient-to-br from-emerald-50/90 to-green-50/90 dark:from-emerald-950/50 dark:to-green-950/50 backdrop-blur-sm rounded-2xl p-7 border border-emerald-100/80 dark:border-emerald-900/40 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/15 cursor-pointer">
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center mb-6 shadow-xl shadow-emerald-500/25 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300" aria-hidden="true">
@@ -412,7 +474,7 @@ export default async function LandingPage({ params }: Props) {
                 </ScrollAnimate>
 
                 {/* Feature 6 - Personal Dictionary */}
-                <ScrollAnimate variant="zoom-blur" delay={240} duration={600}>
+                <ScrollAnimate variant="zoom-blur" delay={150} duration={350}>
                   <MagneticButton strength={0.08} className="block h-full">
                     <article className="group h-full bg-gradient-to-br from-amber-50/90 to-yellow-50/90 dark:from-amber-950/50 dark:to-yellow-950/50 backdrop-blur-sm rounded-2xl p-7 border border-amber-100/80 dark:border-amber-900/40 hover:border-amber-300 dark:hover:border-amber-700 transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/15 cursor-pointer">
                       <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-500 flex items-center justify-center mb-6 shadow-xl shadow-amber-500/25 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300" aria-hidden="true">
@@ -429,7 +491,7 @@ export default async function LandingPage({ params }: Props) {
 
               {/* Secondary features row with slide-in effect */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-                <ScrollAnimate variant="fade-left" delay={100} duration={500}>
+                <ScrollAnimate variant="fade-left" delay={0} duration={350}>
                   <article className="group flex items-center gap-4 bg-white/80 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl p-5 border border-slate-200/80 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 hover:shadow-lg cursor-pointer">
                     <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-md" aria-hidden="true">
                       <Cloud className="h-5 w-5 text-slate-600 dark:text-slate-300" />
@@ -441,7 +503,7 @@ export default async function LandingPage({ params }: Props) {
                   </article>
                 </ScrollAnimate>
 
-                <ScrollAnimate variant="fade-up" delay={200} duration={500}>
+                <ScrollAnimate variant="fade-up" delay={50} duration={350}>
                   <article className="group flex items-center gap-4 bg-white/80 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl p-5 border border-slate-200/80 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 hover:shadow-lg cursor-pointer">
                     <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-md" aria-hidden="true">
                       <Moon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
@@ -453,7 +515,7 @@ export default async function LandingPage({ params }: Props) {
                   </article>
                 </ScrollAnimate>
 
-                <ScrollAnimate variant="fade-right" delay={300} duration={500}>
+                <ScrollAnimate variant="fade-right" delay={100} duration={350}>
                   <article className="group flex items-center gap-4 bg-white/80 dark:bg-slate-800/60 backdrop-blur-sm rounded-xl p-5 border border-slate-200/80 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 hover:shadow-lg cursor-pointer">
                     <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-md" aria-hidden="true">
                       <FileText className="h-5 w-5 text-slate-600 dark:text-slate-300" />
@@ -477,9 +539,9 @@ export default async function LandingPage({ params }: Props) {
             </ParallaxLayer>
 
             <div className="max-w-6xl mx-auto px-4 sm:px-6 relative">
-              <ScrollAnimate variant="hero-title" duration={900}>
+              <ScrollAnimate variant="hero-title" duration={450}>
                 <div className="text-center mb-20">
-                  <ScrollAnimate variant="hero-badge" delay={0} duration={700}>
+                  <ScrollAnimate variant="hero-badge" delay={0} duration={350}>
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100/80 dark:bg-blue-900/40 backdrop-blur-sm text-blue-700 dark:text-blue-300 text-sm font-medium mb-6 border border-blue-200/50 dark:border-blue-700/50 shadow-md">
                       {t('howItWorks.badge')}
                     </div>
@@ -487,12 +549,12 @@ export default async function LandingPage({ params }: Props) {
                   <TextReveal
                     text={t('howItWorks.headline')}
                     className="text-3xl sm:text-5xl font-bold text-slate-900 dark:text-white mb-5"
-                    wordDelay={60}
-                    initialDelay={100}
-                    duration={600}
+                    wordDelay={40}
+                    initialDelay={50}
+                    duration={350}
                     as="h2"
                   />
-                  <ScrollAnimate variant="zoom-blur" delay={400} duration={700}>
+                  <ScrollAnimate variant="zoom-blur" delay={150} duration={350}>
                     <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
                       {t('howItWorks.subheadline')}
                     </p>
@@ -503,12 +565,12 @@ export default async function LandingPage({ params }: Props) {
               <div className="grid md:grid-cols-3 gap-8 lg:gap-16 relative">
                 {/* Animated connector line */}
                 <div className="hidden md:block absolute top-10 left-[20%] right-[20%] h-1 overflow-hidden" aria-hidden="true">
-                  <ScrollAnimate variant="fade" delay={400} duration={1000}>
+                  <ScrollAnimate variant="fade" delay={150} duration={500}>
                     <div className="h-full bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400 dark:from-blue-600 dark:via-indigo-600 dark:to-blue-600 rounded-full animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
                   </ScrollAnimate>
                 </div>
 
-                <ScrollAnimate variant="scale" delay={0} duration={700}>
+                <ScrollAnimate variant="scale" delay={0} duration={350}>
                   <div className="relative text-center group">
                     <MagneticButton strength={0.15}>
                       <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-blue-500/30 group-hover:shadow-blue-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 border-4 border-white/20">
@@ -522,7 +584,7 @@ export default async function LandingPage({ params }: Props) {
                   </div>
                 </ScrollAnimate>
 
-                <ScrollAnimate variant="scale" delay={200} duration={700}>
+                <ScrollAnimate variant="scale" delay={75} duration={350}>
                   <div className="relative text-center group">
                     <MagneticButton strength={0.15}>
                       <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-blue-500/30 group-hover:shadow-blue-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 border-4 border-white/20">
@@ -536,7 +598,7 @@ export default async function LandingPage({ params }: Props) {
                   </div>
                 </ScrollAnimate>
 
-                <ScrollAnimate variant="scale" delay={400} duration={700}>
+                <ScrollAnimate variant="scale" delay={150} duration={350}>
                   <div className="text-center group">
                     <MagneticButton strength={0.15}>
                       <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-blue-500/30 group-hover:shadow-blue-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 border-4 border-white/20">
@@ -575,33 +637,33 @@ export default async function LandingPage({ params }: Props) {
 
             <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center relative">
               <ParallaxLayer depth={0.05} maxOffset={15}>
-                <ScrollAnimate variant="hero-badge" delay={0} duration={800}>
+                <ScrollAnimate variant="hero-badge" delay={0} duration={400}>
                   <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/15 backdrop-blur-md text-white text-sm font-medium mb-10 border border-white/25 shadow-lg shadow-black/10">
                     <Zap className="w-4 h-4 animate-pulse" aria-hidden="true" />
                     {t('cta.badge')}
                   </div>
                 </ScrollAnimate>
 
-                <ScrollAnimate variant="hero-title" delay={100} duration={1000}>
+                <ScrollAnimate variant="hero-title" delay={50} duration={450}>
                   <TextReveal
                     text={t('cta.headline')}
                     className="text-4xl sm:text-6xl font-bold text-white mb-8"
-                    wordDelay={80}
-                    initialDelay={200}
-                    duration={600}
+                    wordDelay={50}
+                    initialDelay={100}
+                    duration={350}
                     as="h2"
                   />
                 </ScrollAnimate>
 
-                <ScrollAnimate variant="zoom-blur" delay={600} duration={700}>
+                <ScrollAnimate variant="zoom-blur" delay={200} duration={350}>
                   <p className="text-lg sm:text-xl text-blue-100/90 mb-12 max-w-2xl mx-auto leading-relaxed">
                     {t('cta.subheadline')}
                   </p>
                 </ScrollAnimate>
 
-                <ScrollAnimate variant="scale" delay={800} duration={600}>
+                <ScrollAnimate variant="scale" delay={300} duration={350}>
                   <MagneticButton strength={0.25}>
-                    <Link href="/editor">
+                    <Link href="/signup">
                       <Button size="lg" className="group gap-3 text-lg px-12 py-8 bg-white text-blue-700 hover:bg-blue-50 shadow-2xl shadow-black/20 transition-all duration-300 hover:shadow-black/30 cursor-pointer rounded-2xl font-semibold">
                         {t('cta.button')}
                         <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
@@ -611,7 +673,7 @@ export default async function LandingPage({ params }: Props) {
                 </ScrollAnimate>
 
                 {/* Trust indicators with staggered entrance */}
-                <ScrollAnimate variant="fade-up" delay={1000} duration={600}>
+                <ScrollAnimate variant="fade-up" delay={400} duration={350}>
                   <div className="flex flex-wrap items-center justify-center gap-8 mt-14">
                     <div className="flex items-center gap-2.5 text-blue-100/90 transition-all duration-200 hover:text-white hover:scale-105">
                       <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
