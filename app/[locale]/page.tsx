@@ -125,7 +125,7 @@ export default async function LandingPage({ params }: Props) {
                   អក្សរា
                 </span>
                 <span
-                  className="ml-[4px] text-base sm:text-2xl text-slate-600 dark:text-slate-400 leading-none font-medium"
+                  className="ml-[4px] text-base sm:text-2xl text-slate-900 dark:text-white leading-none font-medium"
                   style={{ fontFamily: "var(--font-geist-sans), sans" }}
                 >
                   Pro
