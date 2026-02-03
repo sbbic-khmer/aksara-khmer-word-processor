@@ -105,44 +105,45 @@ export default async function LandingPage({ params }: Props) {
             className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-lg shadow-slate-900/5 dark:shadow-slate-900/30"
             aria-label="Main navigation"
           >
-            <Link href="/" className="flex items-center gap-2 group" aria-label="Aksara Pro - Home">
+            <Link href="/" className="flex items-center gap-2 group shrink-0" aria-label="Aksara Pro - Home">
               {/* Logo icon */}
-              <div className="relative w-10 h-10 shrink-0 transition-transform duration-200 group-hover:scale-105">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg shadow-blue-500/25" />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
-                <div className="absolute inset-[1px] rounded-[10px] border border-white/20" />
+              <div className="relative w-8 h-8 sm:w-10 sm:h-10 shrink-0 transition-transform duration-200 group-hover:scale-105">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg sm:rounded-xl shadow-lg shadow-blue-500/25" />
+                <div className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-br from-white/20 via-transparent to-black/5" />
+                <div className="absolute inset-[1px] rounded-[7px] sm:rounded-[10px] border border-white/20" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-white text-2xl font-bold leading-none translate-y-[-2px] translate-x-[1px]">អ</span>
+                  <span className="text-white text-xl sm:text-2xl font-bold leading-none translate-y-[-2px] translate-x-[1px]">អ</span>
                 </div>
               </div>
 
-              {/* Logo text */}
-              <div className="flex items-baseline">
+              {/* Logo text - hidden on very small screens, shown on sm+ */}
+              <div className="hidden xs:flex items-baseline whitespace-nowrap">
                 <span
-                  className="text-xl sm:text-2xl text-slate-900 dark:text-white leading-none"
+                  className="text-lg sm:text-2xl text-slate-900 dark:text-white leading-none"
                   style={{ fontFamily: "var(--font-moul), serif" }}
                 >
                   អក្សរា
                 </span>
                 <span
-                  className="ml-[4px] text-base sm:text-2xl text-slate-900 dark:text-white leading-none font-medium"
+                  className="ml-[3px] sm:ml-[4px] text-lg sm:text-2xl text-slate-900 dark:text-white leading-none font-medium"
                   style={{ fontFamily: "var(--font-geist-sans), sans" }}
                 >
                   Pro
                 </span>
               </div>
             </Link>
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1 sm:gap-3">
               <LanguageSwitcher />
-              <Link href="/login">
+              <Link href="/login" className="hidden sm:block">
                 <Button variant="ghost" size="sm" className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer">
                   {t('nav.signIn')}
                 </Button>
               </Link>
               <Link href="/signup">
-                <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/25 cursor-pointer">
-                  {t('nav.getStarted')}
-                  <ArrowRight className="h-4 w-4" />
+                <Button size="sm" className="gap-1 sm:gap-2 px-3 sm:px-4 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/25 cursor-pointer text-xs sm:text-sm">
+                  <span className="hidden sm:inline">{t('nav.getStarted')}</span>
+                  <span className="sm:hidden">{t('nav.signIn')}</span>
+                  <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
               </Link>
             </div>
@@ -686,6 +687,12 @@ export default async function LandingPage({ params }: Props) {
                       className="text-sm text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                     >
                       Blog
+                    </a>
+                    <a
+                      href="/privacy"
+                      className="text-sm text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    >
+                      {t('footer.privacy')}
                     </a>
                   </nav>
                 </div>

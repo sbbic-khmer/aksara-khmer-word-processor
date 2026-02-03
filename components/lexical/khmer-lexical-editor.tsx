@@ -13,6 +13,7 @@ import { ListItemNode, ListNode } from "@lexical/list"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { useTheme } from "next-themes"
+import { useTranslations } from "next-intl"
 import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection, $createRangeSelection, $setSelection, CLICK_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, SELECTION_CHANGE_COMMAND, type TextNode } from "lexical"
 
 import { KhmerBreakNode } from "./nodes/khmer-break-node"
@@ -1011,6 +1012,7 @@ function EditorWrapper({
   userDictionaryWords: string[]
   ignoredDictionaryWords: string[]
 }) {
+  const t = useTranslations("editor")
   const [editor] = useLexicalComposerContext()
   const { getSplitInfo, confirmSplit } = useToolbarCommands()
   const [openDialogOpen, setOpenDialogOpen] = useState(false)
@@ -1212,7 +1214,7 @@ function EditorWrapper({
       const root = $getRoot()
       root.clear()
     })
-    setDocumentState({ id: null, title: "Untitled", hasUnsavedChanges: false, saveStatus: "idle", lastSavedAt: null })
+    setDocumentState({ id: null, title: t("header.untitled"), hasUnsavedChanges: false, saveStatus: "idle", lastSavedAt: null })
     updateLastOpenedDocumentId(null)
   }, [editor, documentState.hasUnsavedChanges, setDocumentState, updateLastOpenedDocumentId])
 
@@ -1648,7 +1650,7 @@ function EditorWrapper({
       if (documentState.id === id) {
         setDocumentState({
           id: null,
-          title: "Untitled",
+          title: t("header.untitled"),
           hasUnsavedChanges: false,
           saveStatus: "idle",
           lastSavedAt: null,
@@ -1822,6 +1824,7 @@ function EditorWrapper({
 
 export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexicalEditorProps>(
   function KhmerLexicalEditor({ className, initialEditorState }, ref) {
+    const t = useTranslations("editor")
     const [breaker] = useState(() => new KhmerBreaker(KHMER_DICTIONARY))
     const [showBreaks, setShowBreaks] = useState(true)
     const [wordCount, setWordCount] = useState(0)
@@ -1839,7 +1842,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
 
     const [documentState, setDocumentState] = useState<DocumentState>({
       id: null,
-      title: "Untitled",
+      title: t("header.untitled"),
       hasUnsavedChanges: false,
       saveStatus: "idle",
       lastSavedAt: null,
@@ -2020,8 +2023,8 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
 
         <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-4">
-            <span>{wordCount} words</span>
-            <span>{charCount} characters</span>
+            <span>{t("stats.words", { count: wordCount })}</span>
+            <span>{t("stats.characters", { count: charCount })}</span>
           </div>
         </div>
       </div>

@@ -79,6 +79,9 @@
 }
 
 @theme inline {
+  /* Custom breakpoints for better mobile control */
+  --breakpoint-xs: 420px;
+
   /* Font families with proper fallback stacks */
   /* Khmer UI font (modern, clean) with English fallback */
   --font-khmer-ui: var(--font-kantumruy), var(--font-geist-sans), system-ui, sans-serif;

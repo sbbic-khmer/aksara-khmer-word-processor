@@ -10,6 +10,7 @@ import { usePreferences } from "@/hooks/use-preferences"
 import { useWebSpeechRecognition } from "@/hooks/use-web-speech-recognition"
 import { applyVoiceTextRules } from "@/lib/voice-text-rules"
 import { useAuth } from "@/components/auth-provider"
+import { useTranslations } from "next-intl"
 
 interface VoiceInputProps {
   onTranscript: (text: string) => void
@@ -31,6 +32,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
   { onTranscript, onPartialTranscript, onVoiceStateChange, disabled, applyReplacements },
   ref,
 ) {
+  const t = useTranslations("editor")
   const { isDev, isAdmin } = useAuth()
   const canUseElevenLabs = isDev || isAdmin
 
@@ -203,12 +205,12 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       cleanupWaitingState()
 
       if (errorMessage.includes("capacity")) {
-        setError("Service busy. Please try again in a moment.")
+        setError(t("errors.serviceBusy"))
       } else if (errorMessage.includes("WebSocket")) {
         if (isDisconnectingRef.current) return
-        setError("Connection lost. Please try again.")
+        setError(t("errors.connectionLost"))
       } else {
-        setError("Voice error. Please try again.")
+        setError(t("errors.voiceError"))
       }
 
       onVoiceStateChange?.(false)
@@ -318,10 +320,10 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       })
     } catch (err) {
       console.error("[v0] Connection error:", err)
-      const errorMessage = err instanceof Error ? err.message : "Failed to start voice input"
+      const errorMessage = err instanceof Error ? err.message : t("errors.failedToStart")
 
       if (errorMessage.includes("capacity")) {
-        setError("Service busy. Please try again.")
+        setError(t("errors.serviceBusy"))
       } else {
         setError(errorMessage)
       }
@@ -421,16 +423,16 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
                 <Mic className="h-3.5 w-3.5" />
               )}
               <span className="hidden xs:inline">
-                {isWaitingForFinal ? "Processing..." : isActive ? "Stop" : "Voice"}
+                {isWaitingForFinal ? t("voice.processing") : isActive ? t("voice.stop") : t("voice.button")}
               </span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
             {isWaitingForFinal
-              ? "Finishing transcription..."
+              ? t("voice.finishingTooltip")
               : isActive
-                ? "Stop voice input (Ctrl+M)"
-                : "Start voice input (Ctrl+M)"}
+                ? t("voice.stopTooltip")
+                : t("voice.startTooltip")}
           </TooltipContent>
         </Tooltip>
 

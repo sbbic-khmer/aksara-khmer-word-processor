@@ -1,6 +1,6 @@
 ---
 title: Welcome to the Aksara Pro Blog
-date: 2026-02-03
+date: 2026-02-01
 description: Introducing our blog where we share tutorials, tips, and insights about Khmer language and the Aksara Pro text editor.
 author: Aksara Team
 ---

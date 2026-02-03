@@ -94,14 +94,14 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
       <Card className="w-full max-w-md relative backdrop-blur-sm bg-white/80 dark:bg-slate-900/80 border-slate-200/60 dark:border-slate-700/60 shadow-2xl shadow-slate-900/10 dark:shadow-black/30">
         <CardHeader className="text-center pb-2">
           {/* Logo */}
-          <Link href="/" className="flex items-center justify-center gap-3 mb-6 group">
+          <Link href="/" className="flex items-center justify-center gap-2 sm:gap-3 mb-6 group">
             {/* Logo icon */}
-            <div className="relative w-14 h-14 transition-transform duration-300 group-hover:scale-105">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-2xl shadow-xl shadow-blue-500/30" />
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/25 via-transparent to-black/5" />
-              <div className="absolute inset-[1px] rounded-[14px] border border-white/25" />
+            <div className="relative w-12 h-12 sm:w-14 sm:h-14 shrink-0 transition-transform duration-300 group-hover:scale-105">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-xl sm:rounded-2xl shadow-xl shadow-blue-500/30" />
+              <div className="absolute inset-0 rounded-xl sm:rounded-2xl bg-gradient-to-br from-white/25 via-transparent to-black/5" />
+              <div className="absolute inset-[1px] rounded-[10px] sm:rounded-[14px] border border-white/25" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white text-3xl font-bold leading-none translate-y-[-2px] translate-x-[1px]">
+                <span className="text-white text-2xl sm:text-3xl font-bold leading-none translate-y-[-2px] translate-x-[1px]">
                   អ
                 </span>
               </div>
@@ -110,18 +110,18 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
             {/* Brand text */}
             <div className="flex flex-col items-start gap-0">
               <span
-                className="flex items-baseline gap-1 text-3xl leading-none tracking-tight text-foreground"
+                className="flex items-baseline gap-1 text-2xl sm:text-3xl leading-none tracking-tight text-foreground whitespace-nowrap"
                 style={{ fontFamily: "var(--font-moul), serif" }}
               >
                 អក្សរា
                 <span
-                  className="text-3xl text-foreground font-semibold"
+                  className="text-2xl sm:text-3xl text-foreground font-semibold"
                   style={{ fontFamily: "var(--font-geist-sans), sans" }}
                 >
                   Pro
                 </span>
               </span>
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-[0.2em] mt-1">
+              <span className="text-[9px] sm:text-[10px] font-medium text-muted-foreground uppercase tracking-[0.15em] sm:tracking-[0.2em] mt-0.5 sm:mt-1">
                 {t('brandTagline')}
               </span>
             </div>
@@ -233,6 +233,14 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
             >
               {isRegister ? t('switchMode.signIn') : t('switchMode.createOne')}
             </button>
+
+            {/* Privacy Policy Link */}
+            <p className="text-center text-xs text-muted-foreground mt-6">
+              By continuing, you agree to our{' '}
+              <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">
+                Privacy Policy
+              </a>
+            </p>
           </form>
         </CardContent>
       </Card>

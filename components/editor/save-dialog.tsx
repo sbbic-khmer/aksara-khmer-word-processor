@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useTranslations } from "next-intl"
 
 interface SaveDialogProps {
   open: boolean
@@ -21,6 +22,8 @@ interface SaveDialogProps {
 }
 
 export function SaveDialog({ open, onOpenChange, onSave, defaultTitle = "" }: SaveDialogProps) {
+  const t = useTranslations("editor")
+  const tc = useTranslations("common")
   const [title, setTitle] = useState(defaultTitle)
 
   const handleSave = () => {
@@ -34,17 +37,17 @@ export function SaveDialog({ open, onOpenChange, onSave, defaultTitle = "" }: Sa
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Save Document</DialogTitle>
-          <DialogDescription>Enter a name for your document</DialogDescription>
+          <DialogTitle>{t("saveDialog.title")}</DialogTitle>
+          <DialogDescription>{t("saveDialog.description")}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="title">Document name</Label>
+            <Label htmlFor="title">{t("saveDialog.documentName")}</Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Untitled"
+              placeholder={t("header.untitled")}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -56,10 +59,10 @@ export function SaveDialog({ open, onOpenChange, onSave, defaultTitle = "" }: Sa
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {tc("cancel")}
           </Button>
           <Button onClick={handleSave} disabled={!title.trim()}>
-            Save
+            {tc("save")}
           </Button>
         </DialogFooter>
       </DialogContent>

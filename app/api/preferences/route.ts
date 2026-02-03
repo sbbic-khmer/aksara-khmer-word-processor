@@ -27,6 +27,7 @@ export async function GET() {
       stt_provider: preferences.sttProvider,
       last_opened_document_id: preferences.lastOpenedDocumentId,
       locale: preferences.locale,
+      has_seen_data_notice: preferences.hasSeenDataNotice,
     })
   } catch (error) {
     console.error("Error fetching preferences:", error)
@@ -55,6 +56,7 @@ export async function PUT(request: NextRequest) {
       stt_provider,
       last_opened_document_id,
       locale,
+      has_seen_data_notice,
     } = body
 
     // Validate locale
@@ -104,6 +106,9 @@ export async function PUT(request: NextRequest) {
           lastOpenedDocumentId: last_opened_document_id,
         }),
         ...(locale !== undefined && { locale }),
+        ...(has_seen_data_notice !== undefined && {
+          hasSeenDataNotice: has_seen_data_notice,
+        }),
       },
       create: {
         userId: user.id,
@@ -115,6 +120,7 @@ export async function PUT(request: NextRequest) {
         sttProvider: stt_provider ?? "browser",
         lastOpenedDocumentId: last_opened_document_id ?? null,
         locale: locale ?? "en",
+        hasSeenDataNotice: has_seen_data_notice ?? false,
       },
     })
 
@@ -128,6 +134,7 @@ export async function PUT(request: NextRequest) {
       stt_provider: preferences.sttProvider,
       last_opened_document_id: preferences.lastOpenedDocumentId,
       locale: preferences.locale,
+      has_seen_data_notice: preferences.hasSeenDataNotice,
     })
   } catch (error) {
     console.error("Error updating preferences:", error)

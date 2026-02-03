@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { Settings2, Mic, AlertCircle, RefreshCw, Globe, Zap } from "lucide-react"
 import { Slider } from "@/components/ui/slider"
 import { isDebugEnabled } from "@/lib/debug"
+import { useTranslations } from "next-intl"
 
 export type SttProvider = "elevenlabs" | "browser"
 
@@ -50,6 +51,8 @@ export function MicSelector({
   showElevenLabs = true,
   isLoadingPreferences = false,
 }: MicSelectorProps) {
+  const t = useTranslations("editor.micSelector")
+  const tv = useTranslations("editor.voice")
   const safeVadSilenceThreshold = vadSilenceThreshold ?? 1.0
   const safeVadSensitivity = vadSensitivity ?? 0.4
 
@@ -111,9 +114,9 @@ export function MicSelector({
       console.error("[v0] Failed to load audio devices:", err)
       if (err instanceof DOMException && err.name === "NotAllowedError") {
         setHasPermission(false)
-        setError("Microphone access denied")
+        setError(t("micAccessDenied"))
       } else {
-        setError("Failed to access microphones")
+        setError(t("failedToAccess"))
       }
     } finally {
       setIsLoading(false)
@@ -158,7 +161,7 @@ export function MicSelector({
       } catch (err) {
         // Always log errors
         console.error("[v0] Initial enumerate failed:", err)
-        setError("Failed to access microphones")
+        setError(t("failedToAccess"))
       }
     }
 
@@ -188,7 +191,7 @@ export function MicSelector({
     await loadDevices(true)
   }
 
-  const selectedLabel = devices.find((d) => d.deviceId === selectedDeviceId)?.label || "Select mic"
+  const selectedLabel = devices.find((d) => d.deviceId === selectedDeviceId)?.label || tv("selectMic")
 
   return (
     <TooltipProvider>
@@ -207,12 +210,12 @@ export function MicSelector({
               </Button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
-          <TooltipContent>Voice input settings</TooltipContent>
+          <TooltipContent>{tv("settingsTooltip")}</TooltipContent>
         </Tooltip>
         <DropdownMenuContent align="start" className="w-[280px]">
           <DropdownMenuLabel className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
-            Voice Recognition Provider
+            {t("provider")}
           </DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={sttProvider}
@@ -223,8 +226,8 @@ export function MicSelector({
                 <div className="flex items-center gap-2">
                   <Zap className="h-3.5 w-3.5 text-amber-500" />
                   <div>
-                    <span>ElevenLabs</span>
-                    <p className="text-[10px] text-muted-foreground">High accuracy, requires internet</p>
+                    <span>{t("elevenLabs")}</span>
+                    <p className="text-[10px] text-muted-foreground">{t("elevenLabsDesc")}</p>
                   </div>
                 </div>
               </DropdownMenuRadioItem>
@@ -233,9 +236,9 @@ export function MicSelector({
               <div className="flex items-center gap-2">
                 <Globe className="h-3.5 w-3.5 text-blue-500" />
                 <div>
-                  <span>Browser (Google)</span>
+                  <span>{t("browser")}</span>
                   <p className="text-[10px] text-muted-foreground">
-                    {webSpeechSupported ? "Free, runs in browser" : "Not supported in this browser"}
+                    {webSpeechSupported ? t("browserSupported") : t("browserNotSupported")}
                   </p>
                 </div>
               </div>
@@ -246,14 +249,14 @@ export function MicSelector({
 
           <DropdownMenuLabel className="flex items-center gap-2">
             <Mic className="h-4 w-4" />
-            Select Microphone
+            {t("selectMicrophone")}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
 
           {isLoading ? (
             <div className="px-2 py-3 text-sm text-muted-foreground flex items-center gap-2">
               <RefreshCw className="h-4 w-4 animate-spin" />
-              <span>Loading microphones...</span>
+              <span>{t("loadingMics")}</span>
             </div>
           ) : error ? (
             <div className="px-2 py-3 text-sm text-muted-foreground flex items-center gap-2">
@@ -262,7 +265,7 @@ export function MicSelector({
             </div>
           ) : devices.length === 0 ? (
             <div className="px-2 py-3 text-sm text-muted-foreground">
-              No microphones detected. Click below to grant access.
+              {t("noMicsDetected")}
             </div>
           ) : (
             <DropdownMenuRadioGroup
@@ -291,7 +294,7 @@ export function MicSelector({
             disabled={isLoading}
           >
             <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
-            {hasPermission ? "Refresh devices" : "Grant microphone access"}
+            {hasPermission ? t("refreshDevices") : t("grantAccess")}
           </Button>
 
           {sttProvider === "elevenlabs" && (
@@ -299,14 +302,14 @@ export function MicSelector({
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="flex items-center gap-2 text-xs">
                 <Settings2 className="h-3.5 w-3.5" />
-                Voice Detection Settings
+                {t("voiceDetection")}
               </DropdownMenuLabel>
 
               <div className="px-3 py-2 space-y-4">
                 {/* Silence threshold slider */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-muted-foreground">Pause before commit</label>
+                    <label className="text-xs text-muted-foreground">{t("pauseBeforeCommit")}</label>
                     <span className="text-xs font-medium tabular-nums">{safeVadSilenceThreshold.toFixed(1)}s</span>
                   </div>
                   <Slider
@@ -318,14 +321,14 @@ export function MicSelector({
                     className="w-full"
                   />
                   <p className="text-[10px] text-muted-foreground/70">
-                    How long to wait after you stop speaking before committing text
+                    {t("pauseDesc")}
                   </p>
                 </div>
 
                 {/* Sensitivity threshold slider */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-muted-foreground">Voice sensitivity</label>
+                    <label className="text-xs text-muted-foreground">{t("voiceSensitivity")}</label>
                     <span className="text-xs font-medium tabular-nums">{Math.round(safeVadSensitivity * 100)}%</span>
                   </div>
                   <Slider
@@ -337,7 +340,7 @@ export function MicSelector({
                     className="w-full"
                   />
                   <p className="text-[10px] text-muted-foreground/70">
-                    Lower = more sensitive (picks up quiet speech), Higher = less sensitive (ignores background noise)
+                    {t("sensitivityDesc")}
                   </p>
                 </div>
               </div>

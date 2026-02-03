@@ -8,6 +8,8 @@ import { UserDictionaryManager } from "./user-dictionary-manager"
 import { IgnoredDictionaryWordsManager } from "./ignored-dictionary-words-manager"
 import { SpellCheckCustomWordsManager } from "./spell-check-custom-words-manager"
 import { StorageUsage } from "./storage-usage"
+import { YourDataSection } from "./your-data-section"
+import { DangerZoneSection } from "./danger-zone-section"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, BookOpen, SpellCheck, Mic, Settings } from "lucide-react"
 import { Link } from "@/i18n/navigation"
@@ -105,6 +107,28 @@ export function UserSettingsDashboard() {
             <UserReplacementsManager />
           </TabsContent>
         </Tabs>
+
+        {/* Your Data Section */}
+        <div className="mt-8">
+          <YourDataSection />
+        </div>
+
+        {/* Danger Zone Section */}
+        <div className="mt-8">
+          <DangerZoneSection />
+        </div>
+
+        {/* Footer with privacy link */}
+        <footer className="mt-12 pt-6 border-t border-slate-200/50 dark:border-slate-700/50">
+          <div className="flex items-center justify-center gap-4 text-sm text-slate-500 dark:text-slate-400">
+            <a
+              href="/privacy"
+              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            >
+              Privacy Policy
+            </a>
+          </div>
+        </footer>
       </main>
     </div>
   )

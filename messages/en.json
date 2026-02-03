@@ -114,7 +114,8 @@
     },
     "footer": {
       "links": "Links",
-      "rights": "All rights reserved."
+      "rights": "All rights reserved.",
+      "privacy": "Privacy Policy"
     }
   },
   "auth": {
@@ -226,7 +227,85 @@
         "nonStandardSpelling": "Non-standard spelling:",
         "ignore": "Ignore"
       }
+    },
+    "header": {
+      "untitled": "Untitled",
+      "documentTitle": "Document title",
+      "clickToRename": "Click to rename",
+      "tagline": "Khmer Word Processor",
+      "switchToLight": "Switch to light mode",
+      "switchToDark": "Switch to dark mode",
+      "renameDocument": "Rename Document"
+    },
+    "status": {
+      "saving": "Saving...",
+      "saved": "Saved",
+      "error": "Save failed",
+      "unsavedChanges": "Unsaved changes",
+      "localOnly": "Local only",
+      "synced": "Synced"
+    },
+    "saveDialog": {
+      "title": "Save Document",
+      "description": "Give your document a name to save it to the cloud.",
+      "documentName": "Document Name"
+    },
+    "voice": {
+      "button": "Voice",
+      "stop": "Stop",
+      "processing": "Processing...",
+      "startTooltip": "Start voice input (Ctrl+M)",
+      "stopTooltip": "Stop voice input (Ctrl+M)",
+      "finishingTooltip": "Finishing transcription...",
+      "selectMic": "Select microphone",
+      "settingsTooltip": "Microphone settings"
+    },
+    "micSelector": {
+      "provider": "Speech-to-Text Provider",
+      "elevenLabs": "ElevenLabs Scribe",
+      "elevenLabsDesc": "Premium quality, real-time",
+      "browser": "Browser Speech",
+      "browserSupported": "Free, uses browser built-in",
+      "browserNotSupported": "Not supported in this browser",
+      "selectMicrophone": "Select Microphone",
+      "loadingMics": "Loading microphones...",
+      "noMicsDetected": "No microphones detected",
+      "refreshDevices": "Refresh devices",
+      "grantAccess": "Grant microphone access",
+      "micAccessDenied": "Microphone access denied",
+      "failedToAccess": "Failed to access microphone",
+      "voiceDetection": "Voice Detection Settings",
+      "pauseBeforeCommit": "Pause before commit",
+      "pauseDesc": "How long to wait after you stop speaking",
+      "voiceSensitivity": "Voice sensitivity",
+      "sensitivityDesc": "How sensitive to voice detection"
+    },
+    "errors": {
+      "serviceBusy": "Service busy, please try again",
+      "connectionLost": "Connection lost",
+      "voiceError": "Voice input error",
+      "failedToStart": "Failed to start voice input"
+    },
+    "stats": {
+      "words": "{count} words",
+      "characters": "{count} characters"
     }
+  },
+  "dataNotice": {
+    "title": "Your Data & Privacy",
+    "subtitle": "Here's how Aksara handles your information",
+    "documentsPrivate": {
+      "title": "Your documents are private",
+      "description": "Only you can see and access your documents. We never read or analyze your content."
+    },
+    "dictionaryHelps": {
+      "title": "Your dictionary helps improve Aksara",
+      "description": "Words you add to your dictionary help us improve the word breaker for all Khmer writers."
+    },
+    "neverShare": "We never share your personal information or sell your data to third parties.",
+    "readPolicy": "Read Privacy Policy",
+    "gotIt": "Got it",
+    "saving": "Saving..."
   },
   "settings": {
     "title": "Settings",

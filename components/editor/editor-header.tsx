@@ -11,6 +11,7 @@ import { UserMenu } from "@/components/user-menu"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { useTranslations } from "next-intl"
 
 interface EditorHeaderProps {
   theme: string | undefined
@@ -33,14 +34,16 @@ export function EditorHeader({
   saveStatus = "idle",
   onTitleChange,
 }: EditorHeaderProps) {
+  const t = useTranslations("editor")
+  const tc = useTranslations("common")
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [isMobileDialogOpen, setIsMobileDialogOpen] = useState(false)
-  const [editedTitle, setEditedTitle] = useState(documentTitle || "Untitled")
+  const [editedTitle, setEditedTitle] = useState(documentTitle || t("header.untitled"))
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    setEditedTitle(documentTitle || "Untitled")
-  }, [documentTitle])
+    setEditedTitle(documentTitle || t("header.untitled"))
+  }, [documentTitle, t])
 
   useEffect(() => {
     if (isEditingTitle && inputRef.current) {
@@ -57,7 +60,7 @@ export function EditorHeader({
 
   const handleMobileTitleClick = () => {
     if (onTitleChange) {
-      setEditedTitle(documentTitle || "Untitled")
+      setEditedTitle(documentTitle || t("header.untitled"))
       setIsMobileDialogOpen(true)
     }
   }
@@ -67,7 +70,7 @@ export function EditorHeader({
     if (trimmed && trimmed !== documentTitle && onTitleChange) {
       onTitleChange(trimmed)
     } else {
-      setEditedTitle(documentTitle || "Untitled")
+      setEditedTitle(documentTitle || t("header.untitled"))
     }
     setIsEditingTitle(false)
   }
@@ -84,7 +87,7 @@ export function EditorHeader({
     if (e.key === "Enter") {
       handleTitleSave()
     } else if (e.key === "Escape") {
-      setEditedTitle(documentTitle || "Untitled")
+      setEditedTitle(documentTitle || t("header.untitled"))
       setIsEditingTitle(false)
     }
   }
@@ -95,7 +98,7 @@ export function EditorHeader({
       return (
         <span className="text-xs text-muted-foreground flex items-center gap-1.5">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          {!compact && <span className="hidden sm:inline">Saving</span>}
+          {!compact && <span className="hidden sm:inline">{t("status.saving")}</span>}
         </span>
       )
     }
@@ -105,7 +108,7 @@ export function EditorHeader({
       return (
         <span className="text-xs text-red-500 flex items-center gap-1.5">
           <AlertCircle className="h-3.5 w-3.5" />
-          {!compact && <span className="hidden sm:inline">Error</span>}
+          {!compact && <span className="hidden sm:inline">{t("status.error")}</span>}
         </span>
       )
     }
@@ -115,7 +118,7 @@ export function EditorHeader({
       return (
         <span className="text-xs text-muted-foreground flex items-center gap-1.5">
           <CloudUpload className="h-3.5 w-3.5" />
-          {!compact && <span className="hidden sm:inline">Unsaved changes</span>}
+          {!compact && <span className="hidden sm:inline">{t("status.unsavedChanges")}</span>}
         </span>
       )
     }
@@ -125,7 +128,7 @@ export function EditorHeader({
       return (
         <span className="text-xs text-muted-foreground flex items-center gap-1.5">
           <CloudOff className="h-3.5 w-3.5" />
-          {!compact && <span className="hidden sm:inline">Local only</span>}
+          {!compact && <span className="hidden sm:inline">{t("status.localOnly")}</span>}
         </span>
       )
     }
@@ -135,7 +138,7 @@ export function EditorHeader({
       return (
         <span className="text-xs text-muted-foreground flex items-center gap-1.5">
           <Check className="h-3.5 w-3.5" />
-          {!compact && <span className="hidden sm:inline">Saved</span>}
+          {!compact && <span className="hidden sm:inline">{t("status.saved")}</span>}
         </span>
       )
     }
@@ -144,7 +147,7 @@ export function EditorHeader({
     return (
       <span className="text-xs text-muted-foreground flex items-center gap-1.5">
         <Cloud className="h-3.5 w-3.5" />
-        {!compact && <span className="hidden sm:inline">Synced</span>}
+        {!compact && <span className="hidden sm:inline">{t("status.synced")}</span>}
       </span>
     )
   }
@@ -161,7 +164,7 @@ export function EditorHeader({
             onBlur={handleTitleSave}
             onKeyDown={handleKeyDown}
             className="h-8 w-[250px] text-lg"
-            placeholder="Document title"
+            placeholder={t("header.documentTitle")}
           />
         </div>
       )
@@ -178,9 +181,9 @@ export function EditorHeader({
             "transition-colors cursor-pointer text-left",
             !onTitleChange && "cursor-default",
           )}
-          title={onTitleChange ? "Click to rename" : undefined}
+          title={onTitleChange ? t("header.clickToRename") : undefined}
         >
-          {documentTitle || "Untitled"}
+          {documentTitle || t("header.untitled")}
         </button>
       </div>
     )
@@ -216,7 +219,7 @@ export function EditorHeader({
                     !onTitleChange && "pointer-events-none",
                   )}
                 >
-                  {documentTitle || "Untitled"}
+                  {documentTitle || t("header.untitled")}
                 </button>
                 {renderSaveStatus(true)}
               </div>
@@ -239,7 +242,7 @@ export function EditorHeader({
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="text-[10px] sm:text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-[0.15em]">
-                    Smart Khmer Writing
+                    {t("header.tagline")}
                   </span>
                 </div>
               </div>
@@ -266,7 +269,7 @@ export function EditorHeader({
                       {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}</TooltipContent>
+                  <TooltipContent>{theme === "dark" ? t("header.switchToLight") : t("header.switchToDark")}</TooltipContent>
                 </Tooltip>
               )}
             </TooltipProvider>
@@ -279,13 +282,13 @@ export function EditorHeader({
       <Dialog open={isMobileDialogOpen} onOpenChange={setIsMobileDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Rename document</DialogTitle>
+            <DialogTitle>{t("header.renameDocument")}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <Input
               value={editedTitle}
               onChange={(e) => setEditedTitle(e.target.value)}
-              placeholder="Document title"
+              placeholder={t("header.documentTitle")}
               className="w-full"
               autoFocus
               onKeyDown={(e) => {
@@ -297,9 +300,9 @@ export function EditorHeader({
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setIsMobileDialogOpen(false)}>
-              Cancel
+              {tc("cancel")}
             </Button>
-            <Button onClick={handleMobileTitleSave}>Save</Button>
+            <Button onClick={handleMobileTitleSave}>{tc("save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

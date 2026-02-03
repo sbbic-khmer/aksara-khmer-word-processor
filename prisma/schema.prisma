@@ -136,6 +136,9 @@ model UserPreference {
   // Localization
   locale               String  @default("en") // "en" | "km"
 
+  // Data transparency
+  hasSeenDataNotice    Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

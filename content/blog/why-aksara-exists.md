@@ -1,7 +1,7 @@
 ---
 title: Writing Khmer the Way Khmer Is Written
-date: 2026-02-03
-description: Why Aksara Exists
+date: 2026-02-02
+description: Most software was never built for Khmer. This article explains why—and how Aksara Pro fixes word breaking at the core.
 author: Aksara Team
 ---
 

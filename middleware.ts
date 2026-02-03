@@ -51,8 +51,8 @@ function addSecurityHeaders(response: NextResponse) {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip i18n middleware for API routes, admin, and blog (English only)
-  if (pathname.startsWith('/api') || pathname.startsWith('/admin') || pathname.startsWith('/blog')) {
+  // Skip i18n middleware for API routes, admin, blog, and privacy (English only)
+  if (pathname.startsWith('/api') || pathname.startsWith('/admin') || pathname.startsWith('/blog') || pathname.startsWith('/privacy')) {
     const response = NextResponse.next()
     return addSecurityHeaders(response)
   }

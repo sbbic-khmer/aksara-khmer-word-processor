@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { KhmerLexicalEditor } from "@/components/lexical/khmer-lexical-editor"
 import { AdSenseProvider, SidebarAd, MobileAdPopup } from "@/components/ads"
 import { useAdTimer, COUNTDOWN_DURATION } from "@/hooks/use-ad-timer"
+import { DataTransparencyNotice } from "@/components/data-transparency-notice"
 
 interface EditorWithAdsProps {
   testMode?: boolean
@@ -12,6 +13,21 @@ interface EditorWithAdsProps {
 function EditorContent({ testMode = false }: EditorWithAdsProps) {
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const { showPopup, dismissAd, reportTypingActivity } = useAdTimer()
+  const [hasSeenDataNotice, setHasSeenDataNotice] = useState(true) // Default true to not show while loading
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false)
+
+  // Fetch preferences to check if user has seen data notice
+  useEffect(() => {
+    fetch("/api/preferences")
+      .then((res) => res.json())
+      .then((data) => {
+        setHasSeenDataNotice(data.has_seen_data_notice ?? false)
+        setPreferencesLoaded(true)
+      })
+      .catch(() => {
+        setPreferencesLoaded(true)
+      })
+  }, [])
 
   // Listen for typing activity in the editor
   useEffect(() => {
@@ -70,6 +86,14 @@ function EditorContent({ testMode = false }: EditorWithAdsProps) {
         countdownDuration={COUNTDOWN_DURATION}
         testMode={testMode}
       />
+
+      {/* Data transparency notice - shown once to new users */}
+      {preferencesLoaded && (
+        <DataTransparencyNotice
+          hasSeenNotice={hasSeenDataNotice}
+          onDismiss={() => setHasSeenDataNotice(true)}
+        />
+      )}
     </>
   )
 }
