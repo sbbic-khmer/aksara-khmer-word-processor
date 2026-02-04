@@ -137,18 +137,16 @@ export function MonetagProvider({ children }: MonetagProviderProps) {
             />
           )}
 
-          {/* Mobile: Vignette (full-screen interstitial) */}
-          {config.isMobile && (
-            <Script
-              id="monetag-vignette"
-              strategy="afterInteractive"
-              onLoad={handleScriptLoad}
-              onError={handleScriptError}
-              dangerouslySetInnerHTML={{
-                __html: `(function(s){s.dataset.zone='${ZONES.vignette}',s.src='https://gizokraijaw.net/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`,
-              }}
-            />
-          )}
+          {/* Vignette (full-screen interstitial) - Both desktop and mobile */}
+          <Script
+            id="monetag-vignette"
+            strategy="afterInteractive"
+            onLoad={handleScriptLoad}
+            onError={handleScriptError}
+            dangerouslySetInnerHTML={{
+              __html: `(function(s){s.dataset.zone='${ZONES.vignette}',s.src='https://gizokraijaw.net/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`,
+            }}
+          />
         </>
       )}
       {children}
