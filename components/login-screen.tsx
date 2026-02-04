@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2, ArrowRight } from "lucide-react"
+import { AlertCircle, Loader2, ArrowRight, Mail } from "lucide-react"
 import { TurnstileWidget, isTurnstileConfigured } from "./turnstile-widget"
 import { useRouter } from "@/i18n/navigation"
 import { LanguageSwitcher } from "@/components/language-switcher"
@@ -32,6 +32,9 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
   const [turnstileToken, setTurnstileToken] = useState<string>("")
   const [turnstileKey, setTurnstileKey] = useState(0)
   const [turnstileRequired, setTurnstileRequired] = useState(isTurnstileConfigured())
+  const [needsVerification, setNeedsVerification] = useState(false)
+  const [resendingVerification, setResendingVerification] = useState(false)
+  const [verificationSent, setVerificationSent] = useState(false)
 
   const resetTurnstile = useCallback(() => {
     setTurnstileToken("")
@@ -41,6 +44,8 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setNeedsVerification(false)
+    setVerificationSent(false)
 
     // Check for turnstile token only if Turnstile is configured and required
     if (turnstileRequired && !turnstileToken) {
@@ -62,12 +67,48 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
       return
     }
 
+    // Check if this is a verification-related error
+    if ('needsVerification' in result && result.needsVerification) {
+      setNeedsVerification(true)
+    }
+
     setError(result.error || (isRegister ? t('errors.registrationFailed') : t('errors.loginFailed')))
     // Reset turnstile on error (token is single-use)
     if (turnstileRequired) {
       resetTurnstile()
     }
     setIsLoading(false)
+  }
+
+  const handleResendVerification = async () => {
+    if (!email) {
+      setError(t('errors.emailRequired') || 'Please enter your email address first.')
+      return
+    }
+
+    setResendingVerification(true)
+    setError("")
+
+    try {
+      const response = await fetch('/api/auth/resend-verification-public', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setVerificationSent(true)
+        setNeedsVerification(false)
+      } else {
+        setError(data.error || 'Failed to resend verification email.')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setResendingVerification(false)
+    }
   }
 
   return (
@@ -133,10 +174,53 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
         </CardHeader>
         <CardContent className="pt-4">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {verificationSent && (
+              <div className="flex items-start gap-3 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-200 dark:border-green-800">
+                <Mail className="h-5 w-5 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">{t('verification.emailSent') || 'Verification email sent!'}</p>
+                  <p className="text-green-600 dark:text-green-500 mt-1">
+                    {t('verification.checkInbox') || 'Please check your inbox and click the verification link.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {error && (
-              <div className="flex items-center gap-3 text-sm text-destructive bg-destructive/10 dark:bg-destructive/20 p-4 rounded-xl border border-destructive/20">
-                <AlertCircle className="h-5 w-5 shrink-0" />
-                <span>{error}</span>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-start gap-3 text-sm text-destructive bg-destructive/10 dark:bg-destructive/20 p-4 rounded-xl border border-destructive/20">
+                  <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span>{error}</span>
+                    {needsVerification && (
+                      <div className="mt-3 pt-3 border-t border-destructive/20">
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {t('verification.instructions') || "Check your email for a verification link. Can't find it?"}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleResendVerification}
+                          disabled={resendingVerification}
+                          className="gap-2"
+                        >
+                          {resendingVerification ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              {t('verification.sending') || 'Sending...'}
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="h-4 w-4" />
+                              {t('verification.resend') || 'Resend verification email'}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 

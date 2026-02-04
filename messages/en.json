@@ -144,7 +144,8 @@
     "errors": {
       "securityVerification": "Please complete the security verification",
       "loginFailed": "Login failed",
-      "registrationFailed": "Registration failed"
+      "registrationFailed": "Registration failed",
+      "emailRequired": "Please enter your email address first"
     },
     "switchMode": {
       "hasAccount": "Already have an account?",
@@ -161,10 +162,14 @@
     "verification": {
       "title": "Verify Your Email",
       "subtitle": "Please check your inbox and click the verification link",
-      "instructions": "We sent a verification email to your address. Click the link in the email to verify your account.",
+      "instructions": "Check your email for a verification link. Can't find it?",
       "resendButton": "Resend Verification Email",
       "resending": "Sending...",
+      "resend": "Resend verification email",
+      "sending": "Sending...",
       "resendSuccess": "Verification email sent! Check your inbox.",
+      "emailSent": "Verification email sent!",
+      "checkInbox": "Please check your inbox and click the verification link.",
       "retryIn": "Retry in",
       "remainingResends": "{count} resends remaining this hour",
       "orSignOut": "Or",

@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     turnstileToken?: string
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; error?: string; needsVerification?: boolean }> => {
     try {
       // For now, we pass turnstileToken but Better Auth doesn't have built-in support
       // We'll need to add custom validation endpoint or use hooks
@@ -73,14 +73,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (result.error) {
-        return { success: false, error: result.error.message || "Login failed" }
+        const errorMessage = result.error.message || "Login failed"
+        const errorCode = result.error.code || ""
+
+        // Check if error is related to email verification
+        if (errorMessage.toLowerCase().includes("verify") ||
+            errorMessage.toLowerCase().includes("verification") ||
+            errorCode === "EMAIL_NOT_VERIFIED") {
+          return {
+            success: false,
+            error: "Please verify your email before signing in.",
+            needsVerification: true
+          }
+        }
+
+        // Check if error is related to credentials
+        if (errorMessage.toLowerCase().includes("invalid") ||
+            errorMessage.toLowerCase().includes("credentials") ||
+            errorMessage.toLowerCase().includes("password") ||
+            errorMessage.toLowerCase().includes("user not found")) {
+          return { success: false, error: "Invalid email or password" }
+        }
+
+        // Server errors
+        if (result.error.status === 500 || errorMessage.includes("500")) {
+          return {
+            success: false,
+            error: "We're experiencing technical difficulties. Please try again in a few minutes."
+          }
+        }
+
+        return { success: false, error: errorMessage }
       }
 
       await refetch()
       return { success: true }
     } catch (error) {
       console.error("Login error:", error)
-      return { success: false, error: "Network error" }
+      // Check if it's a server error (500)
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      if (errorMsg.includes("500") || errorMsg.includes("Internal Server Error")) {
+        return {
+          success: false,
+          error: "We're experiencing technical difficulties. Please try again in a few minutes."
+        }
+      }
+      return { success: false, error: "Network error. Please check your connection." }
     }
   }
 
