@@ -27,7 +27,10 @@ export async function queueCampaignEmails(campaignId: string): Promise<number> {
     : { verifiedOnly: true, inactiveDays: null, registeredAfter: null, registeredBefore: null }
 
   // Build where clause for users
-  const where: Record<string, unknown> = {}
+  const where: Record<string, unknown> = {
+    // Always exclude dev/test accounts
+    email: { notIn: ['dev@localhost'] },
+  }
 
   if (criteria.verifiedOnly) {
     where.emailVerified = true

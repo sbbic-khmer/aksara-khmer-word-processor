@@ -26,6 +26,8 @@ import {
   Users,
   Clock,
   AlertCircle,
+  Mail,
+  CheckCircle,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -64,6 +66,11 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
   const [sendOption, setSendOption] = useState<"now" | "schedule">("now")
   const [scheduledDate, setScheduledDate] = useState("")
   const [scheduledTime, setScheduledTime] = useState("")
+
+  // Test email
+  const [testEmail, setTestEmail] = useState("")
+  const [isSendingTest, setIsSendingTest] = useState(false)
+  const [testSuccess, setTestSuccess] = useState(false)
 
   // Get today's date in local timezone (YYYY-MM-DD format)
   const getLocalDateString = (date: Date = new Date()) => {
@@ -179,6 +186,34 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
       router.push('/admin/email')
     } catch (err) {
       setError('Failed to cancel campaign')
+    }
+  }
+
+  const handleSendTest = async () => {
+    if (!testEmail) return
+
+    setIsSendingTest(true)
+    setTestSuccess(false)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/admin/email/campaigns/${campaignId}/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: testEmail }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to send test email')
+      }
+
+      setTestSuccess(true)
+      setTimeout(() => setTestSuccess(false), 3000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send test email')
+    } finally {
+      setIsSendingTest(false)
     }
   }
 
@@ -327,6 +362,48 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
                 <span className="text-muted-foreground">users</span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Test Email */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Send Test Email
+            </CardTitle>
+            <CardDescription>
+              Send a test email to yourself before sending to all recipients
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Input
+                type="email"
+                placeholder="Enter email address"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                variant="outline"
+                onClick={handleSendTest}
+                disabled={!testEmail || isSendingTest}
+                className="gap-2"
+              >
+                {isSendingTest ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : testSuccess ? (
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {isSendingTest ? 'Sending...' : testSuccess ? 'Sent!' : 'Send Test'}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Test emails will have [TEST] added to the subject line
+            </p>
           </CardContent>
         </Card>
 
