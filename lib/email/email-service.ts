@@ -319,7 +319,8 @@ export async function sendCampaignEmail(
   to: string,
   subject: string,
   htmlContent: string,
-  senderName?: string
+  senderName?: string,
+  additionalHeaders?: Record<string, string>
 ): Promise<SendEmailResult> {
   const html = wrapCampaignHtml(htmlContent)
 
@@ -329,8 +330,7 @@ export async function sendCampaignEmail(
     html,
     headers: {
       'X-Email-Type': 'campaign',
-      // Include List-Unsubscribe header for better deliverability
-      'List-Unsubscribe': `<mailto:${SMTP_FROM_EMAIL}?subject=Unsubscribe>`,
+      ...additionalHeaders,
     },
   })
 }

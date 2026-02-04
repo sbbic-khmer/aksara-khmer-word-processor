@@ -32,6 +32,7 @@ model User {
   storageUsedBytes  Int      @default(0)       // Cached total storage used (maintained on doc changes)
   isAdmin           Boolean  @default(false)
   showAds           Boolean  @default(true)
+  marketingOptIn    Boolean  @default(true)    // Can receive marketing emails (can unsubscribe)
 
   // Better Auth relations
   sessions Session[]

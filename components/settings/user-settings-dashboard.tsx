@@ -10,6 +10,7 @@ import { SpellCheckCustomWordsManager } from "./spell-check-custom-words-manager
 import { StorageUsage } from "./storage-usage"
 import { YourDataSection } from "./your-data-section"
 import { DangerZoneSection } from "./danger-zone-section"
+import { EmailPreferencesSection } from "./email-preferences-section"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, BookOpen, SpellCheck, Mic, Settings } from "lucide-react"
 import { Link } from "@/i18n/navigation"
@@ -107,6 +108,11 @@ export function UserSettingsDashboard() {
             <UserReplacementsManager />
           </TabsContent>
         </Tabs>
+
+        {/* Email Preferences Section */}
+        <div className="mt-8">
+          <EmailPreferencesSection />
+        </div>
 
         {/* Your Data Section */}
         <div className="mt-8">

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { sendCampaignEmail, isEmailConfigured } from './email-service'
+import { getUnsubscribeUrl, getListUnsubscribeHeader } from './unsubscribe'
 
 interface SegmentCriteria {
   verifiedOnly: boolean
@@ -30,6 +31,8 @@ export async function queueCampaignEmails(campaignId: string): Promise<number> {
   const where: Record<string, unknown> = {
     // Always exclude dev/test accounts
     email: { notIn: ['dev@localhost'] },
+    // Only send to users who opted in to marketing emails
+    marketingOptIn: true,
   }
 
   if (criteria.verifiedOnly) {
@@ -136,17 +139,28 @@ export async function processEmailQueue(): Promise<{
     processed++
 
     try {
-      // Add tracking pixel to email content
+      // Add tracking pixel and unsubscribe link to email content
       const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'http://localhost:3000'
       const trackingPixel = `<img src="${baseUrl}/api/email/track/open/${send.id}" width="1" height="1" style="display:none" alt="" />`
-      const contentWithTracking = send.campaign.htmlContent + trackingPixel
+      const unsubscribeUrl = getUnsubscribeUrl(send.userId)
+      const unsubscribeFooter = `
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>You received this email because you're subscribed to Aksara updates.</p>
+          <p><a href="${unsubscribeUrl}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a> from marketing emails</p>
+        </div>
+      `
+      const contentWithTracking = send.campaign.htmlContent + unsubscribeFooter + trackingPixel
+
+      // Get List-Unsubscribe headers for one-click unsubscribe
+      const unsubscribeHeaders = getListUnsubscribeHeader(send.userId)
 
       // Send the email
       const result = await sendCampaignEmail(
         send.email,
         send.campaign.subject,
         contentWithTracking,
-        send.campaign.senderName || undefined
+        send.campaign.senderName || undefined,
+        unsubscribeHeaders
       )
 
       if (result.success) {

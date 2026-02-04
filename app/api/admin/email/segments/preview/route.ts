@@ -16,9 +16,10 @@ export async function GET(request: NextRequest) {
   const registeredBefore = searchParams.get('registeredBefore')
 
   try {
-    // Build where clause - always exclude dev/test accounts
+    // Build where clause - always exclude dev/test accounts and users who opted out
     const where: Record<string, unknown> = {
       email: { notIn: ['dev@localhost'] },
+      marketingOptIn: true,
     }
 
     if (verifiedOnly) {
