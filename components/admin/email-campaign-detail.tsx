@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -51,9 +52,26 @@ const statusColors: Record<string, string> = {
 }
 
 export function EmailCampaignDetail({ campaignId }: EmailCampaignDetailProps) {
+  const router = useRouter()
   const [analytics, setAnalytics] = useState<CampaignAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isCloning, setIsCloning] = useState(false)
+
+  const handleClone = async () => {
+    setIsCloning(true)
+    try {
+      const response = await fetch(`/api/admin/email/campaigns/${campaignId}/clone`, {
+        method: 'POST',
+      })
+      if (!response.ok) throw new Error('Failed to clone campaign')
+      const cloned = await response.json()
+      router.push(`/admin/email/compose/${cloned.id}`)
+    } catch (err) {
+      console.error('Failed to clone:', err)
+      setIsCloning(false)
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/admin/email/campaigns/${campaignId}/analytics`)
@@ -113,12 +131,20 @@ export function EmailCampaignDetail({ campaignId }: EmailCampaignDetailProps) {
           </div>
         </div>
         <div className="flex gap-2">
-          <Link href={`/api/admin/email/campaigns/${campaignId}/clone`}>
-            <Button variant="outline" size="sm" className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={handleClone}
+            disabled={isCloning}
+          >
+            {isCloning ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
               <Copy className="h-4 w-4" />
-              Clone
-            </Button>
-          </Link>
+            )}
+            {isCloning ? 'Cloning...' : 'Clone'}
+          </Button>
         </div>
       </div>
 
