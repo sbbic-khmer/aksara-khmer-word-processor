@@ -8,7 +8,6 @@ import { SpellCheckAddedWordsTab } from "./spell-check-added-words-tab"
 import { SpellCheckIgnoredWordsTab } from "./spell-check-ignored-words-tab"
 import { IgnoredDictionaryWordsTab } from "./ignored-dictionary-words-tab"
 import { UserAdControlTab } from "./user-ad-control-tab"
-import { AdFrequencyTab } from "./ad-frequency-tab"
 import { StorageManagementTab } from "./storage-management-tab"
 import { Button } from "@/components/ui/button"
 import {
@@ -74,7 +73,6 @@ const navigation: NavItem[] = [
     icon: <Megaphone className="h-4 w-4" />,
     children: [
       { id: "user-ads", label: "User Ad Control" },
-      { id: "ad-frequency", label: "Ad Frequency" },
     ],
   },
   {
@@ -137,8 +135,6 @@ export function AdminDashboard() {
         return <SpellCheckIgnoredWordsTab />
       case "user-ads":
         return <UserAdControlTab />
-      case "ad-frequency":
-        return <AdFrequencyTab />
       case "storage-management":
         return <StorageManagementTab />
       default:

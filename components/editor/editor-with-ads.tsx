@@ -5,10 +5,6 @@ import { KhmerLexicalEditor } from "@/components/lexical/khmer-lexical-editor"
 import { MonetagProvider } from "@/components/ads"
 import { DataTransparencyNotice } from "@/components/data-transparency-notice"
 
-interface EditorWithAdsProps {
-  testMode?: boolean
-}
-
 function EditorContent() {
   const [hasSeenDataNotice, setHasSeenDataNotice] = useState(true) // Default true to not show while loading
   const [preferencesLoaded, setPreferencesLoaded] = useState(false)
@@ -28,7 +24,7 @@ function EditorContent() {
 
   return (
     <>
-      {/* Full-width editor - Monetag in-page push handles its own ad display */}
+      {/* Full-width editor - Monetag handles ad display timing/frequency */}
       <div className="h-screen">
         <KhmerLexicalEditor />
       </div>
@@ -44,7 +40,7 @@ function EditorContent() {
   )
 }
 
-export function EditorWithAds({ testMode = false }: EditorWithAdsProps) {
+export function EditorWithAds() {
   return (
     <MonetagProvider>
       <EditorContent />
