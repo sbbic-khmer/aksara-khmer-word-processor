@@ -10,6 +10,7 @@ interface AuthRedirectProps {
 
 /**
  * Client component that checks auth and redirects authenticated users.
+ * Redirects to verify-email if not verified, editor if verified.
  * Renders children (the landing page) for unauthenticated users.
  */
 export function AuthRedirect({ children }: AuthRedirectProps) {
@@ -22,7 +23,12 @@ export function AuthRedirect({ children }: AuthRedirectProps) {
         const res = await fetch("/api/auth/check")
         const data = await res.json()
         if (data.authenticated) {
-          router.push("/editor")
+          // Check if email is verified
+          if (data.emailVerified === false) {
+            router.push("/verify-email")
+          } else {
+            router.push("/editor")
+          }
           return
         }
       } catch (error) {

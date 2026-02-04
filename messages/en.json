@@ -157,6 +157,52 @@
       "description": "We're not accepting new registrations at this time. Please check back later or contact us for access.",
       "signInExisting": "Sign in to existing account",
       "backToHome": "Back to home"
+    },
+    "verification": {
+      "title": "Verify Your Email",
+      "subtitle": "Please check your inbox and click the verification link",
+      "instructions": "We sent a verification email to your address. Click the link in the email to verify your account.",
+      "resendButton": "Resend Verification Email",
+      "resending": "Sending...",
+      "resendSuccess": "Verification email sent! Check your inbox.",
+      "retryIn": "Retry in",
+      "remainingResends": "{count} resends remaining this hour",
+      "orSignOut": "Or",
+      "signOutButton": "Sign out and use different email",
+      "errorExpired": "This verification link has expired. Please request a new one.",
+      "errorInvalid": "This verification link is invalid. Please request a new one.",
+      "errorMissing": "No verification token provided."
+    },
+    "forgotPassword": {
+      "link": "Forgot password?",
+      "title": "Forgot Password",
+      "subtitle": "Enter your email to reset your password",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "Enter your email",
+      "submitButton": "Send Reset Link",
+      "submitting": "Sending...",
+      "successTitle": "Check Your Email",
+      "successMessage": "If an account exists with this email, we've sent password reset instructions.",
+      "checkInbox": "Check your inbox for a password reset link. The link expires in 1 hour.",
+      "backToLogin": "Back to login"
+    },
+    "resetPassword": {
+      "title": "Reset Password",
+      "subtitle": "Enter your new password",
+      "newPassword": "New Password",
+      "newPasswordPlaceholder": "Enter new password",
+      "confirmPassword": "Confirm Password",
+      "confirmPasswordPlaceholder": "Confirm new password",
+      "requirements": "Password must be at least 6 characters",
+      "submitButton": "Reset Password",
+      "submitting": "Resetting...",
+      "successTitle": "Password Reset!",
+      "success": "Your password has been reset successfully. You can now sign in with your new password.",
+      "signInNow": "Sign In Now",
+      "errorExpired": "This reset link has expired. Please request a new one.",
+      "errorInvalid": "This reset link is invalid.",
+      "passwordMismatch": "Passwords do not match",
+      "requestNewLink": "Request new reset link"
     }
   },
   "editor": {

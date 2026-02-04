@@ -48,6 +48,11 @@ model User {
   createdMasterReplacements MasterReplacement[] @relation("CreatedBy")
   promotedIgnoredWords   PromotedIgnoredWord[]
 
+  // Email system relations
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  emailSends              EmailSend[]
+
   @@map("user")
 }
 
@@ -271,4 +276,107 @@ model AppSetting {
   updatedAt DateTime @default(now()) @updatedAt
 
   @@map("app_setting")
+}
+
+// ============================================================================
+// Email System Tables
+// ============================================================================
+
+// Email verification tokens (for new user email confirmation)
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   // SHA-256 hash of the actual token
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("email_verification_token")
+}
+
+// Password reset tokens
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   // SHA-256 hash of the actual token
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("password_reset_token")
+}
+
+// Email campaigns (admin-created bulk emails)
+model EmailCampaign {
+  id              String    @id @default(cuid())
+  subject         String
+  editorState     String?   @db.Text // Lexical editor state JSON
+  htmlContent     String    @db.Text // Rendered HTML for sending
+  senderName      String?   // Custom sender name (defaults to SMTP_FROM_NAME)
+  segmentCriteria String?   @db.Text // User segmentation filters JSON
+  status          String    @default("draft") // draft, scheduled, sending, sent, cancelled
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  recipientCount  Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sends EmailSend[]
+
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("email_campaign")
+}
+
+// Individual email sends for tracking
+model EmailSend {
+  id           String    @id @default(cuid())
+  campaignId   String
+  userId       String
+  email        String    // Email address at time of send (for tracking even if user deleted)
+  status       String    @default("queued") // queued, sent, failed
+  sentAt       DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  errorMessage String?   @db.Text
+  createdAt    DateTime  @default(now())
+
+  campaign EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([userId])
+  @@index([status])
+  @@map("email_send")
+}
+
+// Uploaded images for email campaigns
+model EmailImage {
+  id        String   @id @default(cuid())
+  filename  String
+  path      String   // Storage path
+  size      Int      // File size in bytes
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  @@map("email_image")
+}
+
+// Rate limiting for email operations
+model EmailRateLimit {
+  id          String   @id @default(cuid())
+  identifier  String   // Email address or IP
+  type        String   // verification_resend, password_reset
+  count       Int      @default(1)
+  windowStart DateTime @default(now())
+
+  @@unique([identifier, type])
+  @@index([identifier, type])
+  @@map("email_rate_limit")
 }

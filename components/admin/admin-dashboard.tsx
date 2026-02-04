@@ -21,6 +21,7 @@ import {
   X,
   Megaphone,
   HardDrive,
+  Mail,
 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -29,10 +30,17 @@ type NavItem = {
   id: string
   label: string
   icon?: React.ReactNode
+  href?: string
   children?: { id: string; label: string }[]
 }
 
 const navigation: NavItem[] = [
+  {
+    id: "email",
+    label: "Email Campaigns",
+    icon: <Mail className="h-4 w-4" />,
+    href: "/admin/email",
+  },
   {
     id: "voice-to-text",
     label: "Voice-to-Text",
@@ -142,44 +150,61 @@ export function AdminDashboard() {
     <nav className="space-y-1">
       {navigation.map((section) => (
         <div key={section.id}>
-          <button
-            onClick={() => toggleSection(section.id)}
-            className={cn(
-              "w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors",
-              "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-            )}
-          >
-            <span className="flex items-center gap-2">
+          {section.href ? (
+            // Direct link item (no children)
+            <Link
+              href={section.href}
+              onClick={onItemClick}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+              )}
+            >
               {section.icon}
               {section.label}
-            </span>
-            <ChevronRight
-              className={cn(
-                "h-4 w-4 transition-transform",
-                expandedSections.includes(section.id) && "rotate-90"
-              )}
-            />
-          </button>
-          {expandedSections.includes(section.id) && section.children && (
-            <div className="ml-6 mt-1 space-y-1">
-              {section.children.map((child) => (
-                <button
-                  key={child.id}
-                  onClick={() => {
-                    setActiveTab(child.id)
-                    onItemClick?.()
-                  }}
+            </Link>
+          ) : (
+            <>
+              <button
+                onClick={() => toggleSection(section.id)}
+                className={cn(
+                  "w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors",
+                  "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  {section.icon}
+                  {section.label}
+                </span>
+                <ChevronRight
                   className={cn(
-                    "w-full text-left px-3 py-2 text-sm rounded-lg transition-colors",
-                    activeTab === child.id
-                      ? "bg-primary text-primary-foreground font-medium"
-                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    "h-4 w-4 transition-transform",
+                    expandedSections.includes(section.id) && "rotate-90"
                   )}
-                >
-                  {child.label}
-                </button>
-              ))}
-            </div>
+                />
+              </button>
+              {expandedSections.includes(section.id) && section.children && (
+                <div className="ml-6 mt-1 space-y-1">
+                  {section.children.map((child) => (
+                    <button
+                      key={child.id}
+                      onClick={() => {
+                        setActiveTab(child.id)
+                        onItemClick?.()
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-sm rounded-lg transition-colors",
+                        activeTab === child.id
+                          ? "bg-primary text-primary-foreground font-medium"
+                          : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                      )}
+                    >
+                      {child.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       ))}

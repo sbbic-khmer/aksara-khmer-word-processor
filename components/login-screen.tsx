@@ -182,6 +182,16 @@ export function LoginScreen({ initialMode = "login" }: LoginScreenProps) {
                 minLength={6}
                 className="h-12 px-4 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
               />
+              {!isRegister && (
+                <div className="text-right">
+                  <Link
+                    href="/forgot-password"
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                  >
+                    {t('forgotPassword.link')}
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Turnstile Security Widget - only renders if configured */}

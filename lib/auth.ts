@@ -2,6 +2,8 @@ import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { prisma } from "./prisma"
 import { isPbkdf2Hash, verifyPbkdf2Password } from "./password-migration"
+import { createVerificationToken } from "./email/tokens"
+import { sendVerificationEmail, isEmailConfigured } from "./email/email-service"
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -76,6 +78,32 @@ export const auth = betterAuth({
   trustedOrigins: [
     process.env.BETTER_AUTH_URL || "http://localhost:3000",
   ],
+
+  // Hooks for email verification
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          // Send verification email after user creation
+          if (isEmailConfigured()) {
+            try {
+              const { token } = await createVerificationToken(user.id)
+              const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+              const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${token}`
+
+              await sendVerificationEmail(user.email, verificationUrl, user.name || undefined)
+              console.log(`Verification email sent to ${user.email}`)
+            } catch (error) {
+              console.error('Failed to send verification email:', error)
+              // Don't fail registration if email fails
+            }
+          } else {
+            console.log('Email not configured, skipping verification email')
+          }
+        },
+      },
+    },
+  },
 })
 
 // Export types for use in other files
