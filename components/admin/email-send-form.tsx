@@ -65,6 +65,25 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
   const [scheduledDate, setScheduledDate] = useState("")
   const [scheduledTime, setScheduledTime] = useState("")
 
+  // Get minimum time if scheduling for today
+  const getMinTime = () => {
+    const today = new Date().toISOString().split('T')[0]
+    if (scheduledDate === today) {
+      // Add 5 minutes buffer to current time
+      const now = new Date()
+      now.setMinutes(now.getMinutes() + 5)
+      return now.toTimeString().slice(0, 5)
+    }
+    return undefined
+  }
+
+  // Validate scheduled datetime is in the future
+  const isValidSchedule = () => {
+    if (sendOption !== 'schedule' || !scheduledDate || !scheduledTime) return false
+    const scheduled = new Date(`${scheduledDate}T${scheduledTime}`)
+    return scheduled > new Date()
+  }
+
   // Load campaign
   useEffect(() => {
     fetch(`/api/admin/email/campaigns/${campaignId}`)
@@ -203,13 +222,15 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
                 <div className="flex items-center gap-2">
                   <Clock className="h-5 w-5 text-blue-600" />
                   <span>
-                    Scheduled for{' '}
+                    Currently scheduled for{' '}
                     {campaign.scheduledAt && new Date(campaign.scheduledAt).toLocaleString()}
                   </span>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleCancel}>
-                  Cancel Schedule
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleCancel}>
+                    Cancel Schedule
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -297,72 +318,85 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
         </Card>
 
         {/* Scheduling */}
-        {!isScheduled && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                When to Send
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <RadioGroup
-                value={sendOption}
-                onValueChange={(v) => setSendOption(v as "now" | "schedule")}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="now" id="send-now" />
-                  <Label htmlFor="send-now">Send immediately</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="schedule" id="send-later" />
-                  <Label htmlFor="send-later">Schedule for later</Label>
-                </div>
-              </RadioGroup>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              {isScheduled ? 'Update Schedule' : 'When to Send'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <RadioGroup
+              value={sendOption}
+              onValueChange={(v) => setSendOption(v as "now" | "schedule")}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="now" id="send-now" />
+                <Label htmlFor="send-now">Send immediately</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="schedule" id="send-later" />
+                <Label htmlFor="send-later">Schedule for later</Label>
+              </div>
+            </RadioGroup>
 
-              {sendOption === "schedule" && (
-                <div className="grid gap-4 md:grid-cols-2 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="schedule-date">Date</Label>
-                    <Input
-                      id="schedule-date"
-                      type="date"
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="schedule-time">Time</Label>
-                    <Input
-                      id="schedule-time"
-                      type="time"
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                    />
-                  </div>
+            {sendOption === "schedule" && (
+              <div className="grid gap-4 md:grid-cols-2 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="schedule-date">Date</Label>
+                  <Input
+                    id="schedule-date"
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(e) => {
+                      setScheduledDate(e.target.value)
+                      // Reset time if changing to today and current time is invalid
+                      const minTime = getMinTime()
+                      if (minTime && scheduledTime && scheduledTime < minTime) {
+                        setScheduledTime(minTime)
+                      }
+                    }}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+                <div className="space-y-2">
+                  <Label htmlFor="schedule-time">Time</Label>
+                  <Input
+                    id="schedule-time"
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    min={getMinTime()}
+                  />
+                  {scheduledDate === new Date().toISOString().split('T')[0] && (
+                    <p className="text-xs text-muted-foreground">
+                      Must be at least 5 minutes from now
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Send Button */}
-        {!isScheduled && (
-          <div className="flex justify-end gap-4">
-            <Link href={`/admin/email/compose/${campaignId}`}>
-              <Button variant="outline">Edit Campaign</Button>
-            </Link>
-            <Button
-              onClick={() => setShowConfirm(true)}
-              disabled={recipientCount === 0 || (sendOption === "schedule" && (!scheduledDate || !scheduledTime))}
-              className="gap-2"
-            >
-              <Send className="h-4 w-4" />
-              {sendOption === "schedule" ? "Schedule Campaign" : "Send Now"}
-            </Button>
-          </div>
-        )}
+        <div className="flex justify-end gap-4">
+          <Link href={`/admin/email/compose/${campaignId}`}>
+            <Button variant="outline">Edit Campaign</Button>
+          </Link>
+          <Button
+            onClick={() => setShowConfirm(true)}
+            disabled={recipientCount === 0 || (sendOption === "schedule" && !isValidSchedule())}
+            className="gap-2"
+          >
+            <Send className="h-4 w-4" />
+            {sendOption === "schedule"
+              ? isScheduled
+                ? "Update Schedule"
+                : "Schedule Campaign"
+              : "Send Now"}
+          </Button>
+        </div>
       </div>
 
       {/* Confirmation Dialog */}

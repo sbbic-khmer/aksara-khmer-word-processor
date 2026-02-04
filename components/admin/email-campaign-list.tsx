@@ -258,7 +258,7 @@ export function EmailCampaignList() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {campaign.status === 'draft' && (
+                            {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
                               <DropdownMenuItem asChild>
                                 <Link href={`/admin/email/compose/${campaign.id}`}>
                                   <Edit className="h-4 w-4 mr-2" />
@@ -266,7 +266,15 @@ export function EmailCampaignList() {
                                 </Link>
                               </DropdownMenuItem>
                             )}
-                            {campaign.status !== 'draft' && (
+                            {campaign.status === 'scheduled' && (
+                              <DropdownMenuItem asChild>
+                                <Link href={`/admin/email/send/${campaign.id}`}>
+                                  <Send className="h-4 w-4 mr-2" />
+                                  Modify Schedule
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                            {(campaign.status === 'sent' || campaign.status === 'sending') && (
                               <DropdownMenuItem asChild>
                                 <Link href={`/admin/email/campaign/${campaign.id}`}>
                                   <Eye className="h-4 w-4 mr-2" />
@@ -278,7 +286,7 @@ export function EmailCampaignList() {
                               <Copy className="h-4 w-4 mr-2" />
                               Clone
                             </DropdownMenuItem>
-                            {campaign.status === 'draft' && (
+                            {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => setDeleteId(campaign.id)}
