@@ -36,9 +36,14 @@
       "getStarted": "Get Started"
     },
     "hero": {
-      "badge": "Khmer Text That Wraps Correctly",
-      "headline": "The Khmer Word Processor That Understands Your Language",
-      "subheadline": "Write with confidence using intelligent word segmentation, instant spell checking, and voice input. Export perfect documents to LibreOffice with proper Khmer line breaks.",
+      "badge": "Built for Khmer",
+      "headline": "Khmer, the way you actually write it.",
+      "subheadline": "You shouldn't have to add spaces just to make text behave. Aksara Pro handles Khmer word boundaries automatically—so you can just write.",
+      "khmerMicrocopy": "ពុំចាំបាច់បញ្ចូលចន្លោះទេ។",
+      "chip1": "Type Khmer naturally",
+      "chip1Detail": "no forced spaces",
+      "chip2": "Clean line wrapping",
+      "chip3": "Khmer spellcheck",
       "ctaStart": "Start Writing Now",
       "ctaSignIn": "Sign In",
       "trustNoInstall": "No Installation",

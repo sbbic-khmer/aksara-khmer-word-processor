@@ -428,6 +428,23 @@
   animation: gradient-shift 3s ease infinite;
 }
 
+/* 2026 Aurora gradient - horizontal sweep animation */
+@keyframes gradient-x {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-x {
+  animation: gradient-x 6s ease-in-out infinite;
+}
+
 /* Shimmer text animation - 2026 kinetic typography trend */
 @keyframes shimmer-text {
   0% {
@@ -488,6 +505,7 @@
 /* Respect user preference for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-gradient-text,
+  .animate-gradient-x,
   .animate-pulse-glow,
   .animate-shimmer,
   .animate-hero-glow {

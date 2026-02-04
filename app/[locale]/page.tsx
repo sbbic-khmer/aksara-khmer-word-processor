@@ -7,7 +7,7 @@ import { AuthRedirect } from "@/components/auth-redirect"
 import { Link } from "@/i18n/navigation"
 import { routing } from "@/i18n/routing"
 import { LanguageSwitcher } from "@/components/language-switcher"
-import { ScrollAnimate, FloatingElement, GlowOrb, ParallaxLayer, TextReveal, MagneticButton, ShimmerText } from "@/components/ui/scroll-animate"
+import { ScrollAnimate, FloatingElement, GlowOrb, ParallaxLayer, TextReveal, MagneticButton } from "@/components/ui/scroll-animate"
 
 type Props = {
   params: Promise<{ locale: string }>
@@ -203,63 +203,83 @@ export default async function LandingPage({ params }: Props) {
 
             <div className="max-w-6xl mx-auto px-4 sm:px-6 relative w-full">
               <div className="text-center max-w-4xl mx-auto">
-                {/* Badge with bounce entrance */}
+                {/* Badge with animated sparkle */}
                 <ScrollAnimate variant="hero-badge" delay={0} duration={400}>
-                  <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-blue-50/90 dark:bg-blue-900/50 backdrop-blur-md text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-medium mb-4 sm:mb-8 border border-blue-200/60 dark:border-blue-700/50 shadow-lg shadow-blue-500/15">
-                    <Sparkles className="w-4 h-4 animate-pulse" aria-hidden="true" />
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-600/15 via-indigo-600/15 to-violet-600/15 dark:from-blue-500/25 dark:via-indigo-500/25 dark:to-violet-500/25 backdrop-blur-xl border border-blue-500/20 dark:border-blue-400/30 text-blue-700 dark:text-blue-300 text-sm font-medium mb-6 sm:mb-8 shadow-lg shadow-blue-500/10">
+                    <Sparkles className="h-4 w-4 animate-pulse" aria-hidden="true" />
                     {t('hero.badge')}
                   </div>
                 </ScrollAnimate>
 
-                {/* Main headline with dramatic 3D reveal */}
-                <ParallaxLayer depth={0.05} maxOffset={15}>
-                  <ScrollAnimate variant="hero-title" delay={50} duration={500}>
-                    <h1 id="hero-heading" className="mb-4 sm:mb-8">
-                      {/* Brand name with shimmer effect */}
-                      <span
-                        className="flex justify-center items-center text-5xl sm:text-7xl lg:text-8xl mb-4 sm:mb-8 leading-normal"
-                        style={{ fontFamily: "var(--font-moul), serif" }}
-                      >
-                        <ShimmerText className="from-blue-600 via-indigo-500 to-blue-600 dark:from-blue-400 dark:via-indigo-300 dark:to-blue-400 drop-shadow-lg">
-                          អក្សរា
-                        </ShimmerText>
+                {/* Giant brand name - 2026 Aurora gradient text effect */}
+                <ScrollAnimate variant="hero-title" delay={50} duration={500}>
+                  <ParallaxLayer depth={0.1} maxOffset={15}>
+                    <div className="mb-4 sm:mb-6 relative">
+                      {/* Glow layer behind text */}
+                      <div className="absolute inset-0 blur-3xl opacity-40 dark:opacity-30 pointer-events-none" aria-hidden="true">
+                        <div className="inline-flex items-baseline gap-1 sm:gap-2">
+                          <span
+                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 bg-clip-text text-transparent tracking-tight leading-[1.3]"
+                            style={{ fontFamily: "var(--font-moul), serif" }}
+                          >
+                            អក្សរា
+                          </span>
+                          <span
+                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-indigo-500 to-blue-600 bg-clip-text text-transparent font-semibold tracking-tight leading-none"
+                            style={{ fontFamily: "var(--font-geist-sans), sans" }}
+                          >
+                            Pro
+                          </span>
+                        </div>
+                      </div>
+                      {/* Main text with animated gradient */}
+                      <div className="relative inline-flex items-baseline gap-1 sm:gap-2">
                         <span
-                          className="ml-2 sm:ml-3 mb-1 sm:mb-2 text-slate-900 dark:text-white font-bold relative"
+                          className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400 bg-clip-text text-transparent tracking-tight leading-[1.3] animate-gradient-x bg-[length:200%_auto]"
+                          style={{ fontFamily: "var(--font-moul), serif" }}
+                        >
+                          អក្សរា
+                        </span>
+                        <span
+                          className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900 dark:from-white dark:via-slate-100 dark:to-white bg-clip-text text-transparent font-semibold tracking-tight leading-none"
                           style={{ fontFamily: "var(--font-geist-sans), sans" }}
                         >
                           Pro
                         </span>
-                      </span>
+                      </div>
+                    </div>
+                  </ParallaxLayer>
+                </ScrollAnimate>
 
-                      {/* Tagline with word-by-word kinetic reveal */}
-                      <TextReveal
-                        text={t('hero.headline')}
-                        className="block text-2xl sm:text-4xl lg:text-5xl text-slate-900 dark:text-white tracking-tight font-bold"
-                        wordDelay={60}
-                        initialDelay={150}
-                        duration={400}
-                        as="span"
-                      />
-                    </h1>
-                  </ScrollAnimate>
-                </ParallaxLayer>
+                {/* Headline - the identity-affirming message */}
+                <ScrollAnimate variant="zoom-blur" delay={150} duration={400}>
+                  <h1 id="hero-heading" className="mb-6 sm:mb-8">
+                    <span className="block text-2xl sm:text-3xl lg:text-4xl text-slate-800 dark:text-slate-100 tracking-tight font-semibold leading-[1.2]">
+                      {t('hero.headline')}
+                    </span>
+                  </h1>
+                </ScrollAnimate>
 
-                {/* Subheadline with blur reveal */}
-                <ScrollAnimate variant="zoom-blur" delay={200} duration={400}>
-                  <p className="text-base sm:text-lg lg:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-8 sm:mb-12 leading-relaxed">
+                {/* Subheadline - the problem/solution */}
+                <ScrollAnimate variant="fade-up" delay={200} duration={350}>
+                  <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 sm:mb-12 leading-relaxed">
                     {t('hero.subheadline')}
                   </p>
                 </ScrollAnimate>
 
                 {/* CTA buttons with magnetic hover effect */}
-                <ScrollAnimate variant="scale" delay={300} duration={350}>
+                <ScrollAnimate variant="scale" delay={250} duration={350}>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                     <MagneticButton strength={0.2}>
                       <Link href="/signup">
-                        <Button size="lg" className="group gap-2 text-base px-10 py-7 bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 hover:from-blue-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-2xl shadow-blue-600/40 transition-all duration-300 hover:shadow-blue-600/60 cursor-pointer rounded-xl">
-                          {t('hero.ctaStart')}
-                          <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
-                        </Button>
+                        <div className="relative group">
+                          {/* Subtle glow behind button - appears on hover */}
+                          <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 rounded-xl blur opacity-0 group-hover:opacity-40 transition-opacity duration-300" aria-hidden="true" />
+                          <Button size="lg" className="relative gap-2 text-base px-10 py-7 bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600 hover:from-blue-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-xl shadow-blue-600/30 transition-all duration-300 hover:shadow-blue-600/50 cursor-pointer rounded-xl">
+                            {t('hero.ctaStart')}
+                            <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
+                          </Button>
+                        </div>
                       </Link>
                     </MagneticButton>
                     <MagneticButton strength={0.15}>
