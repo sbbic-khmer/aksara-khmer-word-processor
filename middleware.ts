@@ -13,7 +13,7 @@ function addSecurityHeaders(response: NextResponse) {
   const csp = [
     "default-src 'self'",
     // Scripts: self + inline (for Next.js) + eval (for some libs) + ad networks + analytics
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://challenges.cloudflare.com https://www.googletagservices.com https://adservice.google.com https://*.3nbf4.com https://3nbf4.com https://*.nap5k.com https://nap5k.com https://*.gizokraijaw.net https://gizokraijaw.net https://static.cloudflareinsights.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://challenges.cloudflare.com https://www.googletagservices.com https://adservice.google.com https://*.nap5k.com https://nap5k.com https://*.gizokraijaw.net https://gizokraijaw.net https://static.cloudflareinsights.com",
     // Styles: self + inline (for styled components, Tailwind)
     "style-src 'self' 'unsafe-inline'",
     // Images: self + https (for user avatars, ads) + data (for inline images)
@@ -23,7 +23,7 @@ function addSecurityHeaders(response: NextResponse) {
     // Connect: Allow HTTPS broadly for ad network tracking/delivery + specific APIs
     "connect-src 'self' https: wss://*.elevenlabs.io",
     // Frames: required for Turnstile, ads, and Monetag
-    "frame-src https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://www.google.com https://tpc.googlesyndication.com https://*.3nbf4.com https://*.nap5k.com https://*.gizokraijaw.net",
+    "frame-src https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://www.google.com https://tpc.googlesyndication.com https://*.nap5k.com https://*.gizokraijaw.net",
     // Prevent this site from being embedded in iframes
     "frame-ancestors 'none'",
     // Media: self + ElevenLabs for voice
@@ -78,6 +78,6 @@ export const config = {
      * - dictionaries (dictionary files)
      * - lib (library files)
      */
-    "/((?!_next/static|_next/image|favicon.ico|workers|dictionaries|lib|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.webp$|.*\\.gif$|.*\\.svg$|.*\\.ico$|.*\\.txt$|.*\\.js$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|workers|dictionaries|lib|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.webp$|.*\\.gif$|.*\\.svg$|.*\\.ico$|.*\\.txt$|.*\\.js$|.*\\.html$).*)",
   ],
 }
