@@ -203,9 +203,9 @@ export default async function LandingPage({ params }: Props) {
 
             <div className="max-w-6xl mx-auto px-4 sm:px-6 relative w-full">
               <div className="text-center max-w-4xl mx-auto">
-                {/* Badge with animated sparkle */}
+                {/* Badge with animated sparkle - extra top margin on mobile */}
                 <ScrollAnimate variant="hero-badge" delay={0} duration={400}>
-                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-600/15 via-indigo-600/15 to-violet-600/15 dark:from-blue-500/25 dark:via-indigo-500/25 dark:to-violet-500/25 backdrop-blur-xl border border-blue-500/20 dark:border-blue-400/30 text-blue-700 dark:text-blue-300 text-sm font-medium mb-6 sm:mb-8 shadow-lg shadow-blue-500/10">
+                  <div className="glass-badge inline-flex items-center gap-2 px-4 py-2 rounded-full text-blue-700 dark:text-blue-300 text-sm font-medium mt-4 sm:mt-0 mb-8 sm:mb-8">
                     <Sparkles className="h-4 w-4 animate-pulse" aria-hidden="true" />
                     {t('hero.badge')}
                   </div>
@@ -214,18 +214,35 @@ export default async function LandingPage({ params }: Props) {
                 {/* Giant brand name - 2026 Aurora gradient text effect */}
                 <ScrollAnimate variant="hero-title" delay={50} duration={500}>
                   <ParallaxLayer depth={0.1} maxOffset={15}>
-                    <div className="mb-4 sm:mb-6 relative">
-                      {/* Glow layer behind text */}
-                      <div className="absolute inset-0 blur-3xl opacity-40 dark:opacity-30 pointer-events-none" aria-hidden="true">
-                        <div className="inline-flex items-baseline gap-1 sm:gap-2">
+                    <div className={`relative ${locale === 'km' ? 'mb-8 sm:mb-10' : 'mb-6 sm:mb-8'}`}>
+                      {/* Deep shadow layer - furthest back */}
+                      <div className="absolute inset-0 pointer-events-none translate-y-2" aria-hidden="true">
+                        <div className="inline-flex items-baseline gap-2 sm:gap-3">
                           <span
-                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 bg-clip-text text-transparent tracking-tight leading-[1.3]"
+                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl text-blue-900/20 dark:text-blue-950/40 blur-3xl tracking-tight leading-[1.4]"
                             style={{ fontFamily: "var(--font-moul), serif" }}
                           >
                             អក្សរា
                           </span>
                           <span
-                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-indigo-500 to-blue-600 bg-clip-text text-transparent font-semibold tracking-tight leading-none"
+                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl text-slate-900/15 dark:text-slate-950/30 blur-3xl font-semibold tracking-tight leading-none"
+                            style={{ fontFamily: "var(--font-geist-sans), sans" }}
+                          >
+                            Pro
+                          </span>
+                        </div>
+                      </div>
+                      {/* Glow layer - middle */}
+                      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+                        <div className="inline-flex items-baseline gap-2 sm:gap-3">
+                          <span
+                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl text-blue-500/40 dark:text-blue-400/30 blur-2xl tracking-tight leading-[1.4]"
+                            style={{ fontFamily: "var(--font-moul), serif" }}
+                          >
+                            អក្សរា
+                          </span>
+                          <span
+                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl text-indigo-400/25 dark:text-indigo-300/15 blur-2xl font-semibold tracking-tight leading-none"
                             style={{ fontFamily: "var(--font-geist-sans), sans" }}
                           >
                             Pro
@@ -233,15 +250,15 @@ export default async function LandingPage({ params }: Props) {
                         </div>
                       </div>
                       {/* Main text with animated gradient */}
-                      <div className="relative inline-flex items-baseline gap-1 sm:gap-2">
+                      <div className="relative inline-flex items-baseline gap-2 sm:gap-3 drop-shadow-lg">
                         <span
-                          className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400 bg-clip-text text-transparent tracking-tight leading-[1.3] animate-gradient-x bg-[length:200%_auto]"
+                          className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400 bg-clip-text text-transparent tracking-tight leading-[1.4] animate-gradient-x bg-[length:200%_auto]"
                           style={{ fontFamily: "var(--font-moul), serif" }}
                         >
                           អក្សរា
                         </span>
                         <span
-                          className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900 dark:from-white dark:via-slate-100 dark:to-white bg-clip-text text-transparent font-semibold tracking-tight leading-none"
+                          className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900 dark:from-white dark:via-slate-100 dark:to-white bg-clip-text text-transparent font-semibold tracking-tight leading-none drop-shadow-sm"
                           style={{ fontFamily: "var(--font-geist-sans), sans" }}
                         >
                           Pro
@@ -253,8 +270,8 @@ export default async function LandingPage({ params }: Props) {
 
                 {/* Headline - the identity-affirming message */}
                 <ScrollAnimate variant="zoom-blur" delay={150} duration={400}>
-                  <h1 id="hero-heading" className="mb-6 sm:mb-8">
-                    <span className="block text-2xl sm:text-3xl lg:text-4xl text-slate-800 dark:text-slate-100 tracking-tight font-semibold leading-[1.2]">
+                  <h1 id="hero-heading" className={locale === 'km' ? 'mb-8 sm:mb-10' : 'mb-6 sm:mb-8'}>
+                    <span className={`block text-3xl sm:text-4xl lg:text-5xl text-slate-800 dark:text-slate-100 tracking-tight font-semibold ${locale === 'km' ? 'leading-[1.6]' : 'leading-[1.3]'}`}>
                       {t('hero.headline')}
                     </span>
                   </h1>
@@ -262,7 +279,7 @@ export default async function LandingPage({ params }: Props) {
 
                 {/* Subheadline - the problem/solution */}
                 <ScrollAnimate variant="fade-up" delay={200} duration={350}>
-                  <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 sm:mb-12 leading-relaxed">
+                  <p className={`text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-10 sm:mb-12 ${locale === 'km' ? 'leading-[1.9]' : 'leading-[1.7]'}`}>
                     {t('hero.subheadline')}
                   </p>
                 </ScrollAnimate>
@@ -396,20 +413,20 @@ export default async function LandingPage({ params }: Props) {
               <ScrollAnimate variant="hero-title" duration={450}>
                 <div className="text-center mb-20">
                   <ScrollAnimate variant="hero-badge" delay={0} duration={350}>
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100/80 dark:bg-blue-900/40 backdrop-blur-sm text-blue-700 dark:text-blue-300 text-sm font-medium mb-6 border border-blue-200/50 dark:border-blue-700/50 shadow-md">
+                    <div className="glass-badge inline-flex items-center gap-2 px-4 py-2 rounded-full text-blue-700 dark:text-blue-300 text-sm font-medium mb-6">
                       {t('features.badge')}
                     </div>
                   </ScrollAnimate>
                   <TextReveal
                     text={t('features.headline')}
-                    className="text-3xl sm:text-5xl font-bold text-slate-900 dark:text-white mb-5"
+                    className={`text-3xl sm:text-5xl font-bold text-slate-900 dark:text-white ${locale === 'km' ? 'mb-8 leading-[1.5]' : 'mb-5'}`}
                     wordDelay={40}
                     initialDelay={50}
                     duration={350}
                     as="h2"
                   />
                   <ScrollAnimate variant="zoom-blur" delay={150} duration={350}>
-                    <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+                    <p className={`text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto ${locale === 'km' ? 'leading-[1.9]' : ''}`}>
                       {t('features.subheadline')}
                     </p>
                   </ScrollAnimate>
@@ -562,20 +579,20 @@ export default async function LandingPage({ params }: Props) {
               <ScrollAnimate variant="hero-title" duration={450}>
                 <div className="text-center mb-20">
                   <ScrollAnimate variant="hero-badge" delay={0} duration={350}>
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100/80 dark:bg-blue-900/40 backdrop-blur-sm text-blue-700 dark:text-blue-300 text-sm font-medium mb-6 border border-blue-200/50 dark:border-blue-700/50 shadow-md">
+                    <div className="glass-badge inline-flex items-center gap-2 px-4 py-2 rounded-full text-blue-700 dark:text-blue-300 text-sm font-medium mb-6">
                       {t('howItWorks.badge')}
                     </div>
                   </ScrollAnimate>
                   <TextReveal
                     text={t('howItWorks.headline')}
-                    className="text-3xl sm:text-5xl font-bold text-slate-900 dark:text-white mb-5"
+                    className={`text-3xl sm:text-5xl font-bold text-slate-900 dark:text-white ${locale === 'km' ? 'mb-8 leading-[1.5]' : 'mb-5'}`}
                     wordDelay={40}
                     initialDelay={50}
                     duration={350}
                     as="h2"
                   />
                   <ScrollAnimate variant="zoom-blur" delay={150} duration={350}>
-                    <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+                    <p className={`text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto ${locale === 'km' ? 'leading-[1.9]' : ''}`}>
                       {t('howItWorks.subheadline')}
                     </p>
                   </ScrollAnimate>
@@ -667,7 +684,7 @@ export default async function LandingPage({ params }: Props) {
                 <ScrollAnimate variant="hero-title" delay={50} duration={450}>
                   <TextReveal
                     text={t('cta.headline')}
-                    className="text-4xl sm:text-6xl font-bold text-white mb-8"
+                    className={`text-4xl sm:text-6xl font-bold text-white ${locale === 'km' ? 'mb-10 leading-[1.4]' : 'mb-8'}`}
                     wordDelay={50}
                     initialDelay={100}
                     duration={350}
@@ -676,7 +693,7 @@ export default async function LandingPage({ params }: Props) {
                 </ScrollAnimate>
 
                 <ScrollAnimate variant="zoom-blur" delay={200} duration={350}>
-                  <p className="text-lg sm:text-xl text-blue-100/90 mb-12 max-w-2xl mx-auto leading-relaxed">
+                  <p className={`text-lg sm:text-xl text-blue-100/90 mb-12 max-w-2xl mx-auto ${locale === 'km' ? 'leading-[1.9]' : 'leading-relaxed'}`}>
                     {t('cta.subheadline')}
                   </p>
                 </ScrollAnimate>

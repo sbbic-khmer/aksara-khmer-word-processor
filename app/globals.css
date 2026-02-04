@@ -502,6 +502,30 @@
   background: radial-gradient(circle at center, var(--tw-gradient-from, currentColor), var(--tw-gradient-to, transparent));
 }
 
+/* 2026 Glassmorphism badge - realistic frosted glass effect */
+.glass-badge {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  /* Inner highlight (top-left), inner shadow (bottom-right), outer glow, edge highlight */
+  box-shadow:
+    inset 1px 1px 2px rgba(255, 255, 255, 0.4),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.05),
+    0 4px 16px rgba(59, 130, 246, 0.15),
+    0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.dark .glass-badge {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow:
+    inset 1px 1px 2px rgba(255, 255, 255, 0.2),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.2),
+    0 4px 16px rgba(59, 130, 246, 0.2),
+    0 0 1px rgba(255, 255, 255, 0.3);
+}
+
 /* Respect user preference for reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-gradient-text,
