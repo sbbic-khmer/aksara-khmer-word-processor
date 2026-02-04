@@ -12,17 +12,18 @@ function addSecurityHeaders(response: NextResponse) {
   const csp = [
     "default-src 'self'",
     // Scripts: self + inline (for Next.js hydration) + eval (for some libs) + third parties
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://challenges.cloudflare.com https://www.googletagservices.com https://adservice.google.com",
+    // Monetag domains: 3nbf4.com (push), nap5k.com (in-page push), gizokraijaw.net (vignette)
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://challenges.cloudflare.com https://www.googletagservices.com https://adservice.google.com https://*.3nbf4.com https://3nbf4.com https://*.nap5k.com https://nap5k.com https://*.gizokraijaw.net https://gizokraijaw.net",
     // Styles: self + inline (for styled components, Tailwind)
     "style-src 'self' 'unsafe-inline'",
     // Images: self + https (for user avatars, ads) + data (for inline images)
     "img-src 'self' https: data:",
-    // Fonts: self
-    "font-src 'self'",
-    // Connect: self + required APIs
-    "connect-src 'self' https://api.elevenlabs.io https://challenges.cloudflare.com https://pagead2.googlesyndication.com wss://*.elevenlabs.io",
-    // Frames: required for Turnstile and ads
-    "frame-src https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://www.google.com https://tpc.googlesyndication.com",
+    // Fonts: self + Google Fonts
+    "font-src 'self' https://fonts.gstatic.com",
+    // Connect: self + required APIs + Monetag
+    "connect-src 'self' https://api.elevenlabs.io https://challenges.cloudflare.com https://pagead2.googlesyndication.com wss://*.elevenlabs.io https://*.3nbf4.com https://3nbf4.com https://*.nap5k.com https://nap5k.com https://*.gizokraijaw.net https://gizokraijaw.net",
+    // Frames: required for Turnstile, ads, and Monetag
+    "frame-src https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://www.google.com https://tpc.googlesyndication.com https://*.3nbf4.com https://*.nap5k.com https://*.gizokraijaw.net",
     // Prevent this site from being embedded in iframes
     "frame-ancestors 'none'",
     // Media: self + ElevenLabs for voice
