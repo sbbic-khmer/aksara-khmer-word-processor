@@ -65,9 +65,18 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
   const [scheduledDate, setScheduledDate] = useState("")
   const [scheduledTime, setScheduledTime] = useState("")
 
+  // Get today's date in local timezone (YYYY-MM-DD format)
+  const getLocalDateString = (date: Date = new Date()) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const today = getLocalDateString()
+
   // Get minimum time if scheduling for today
   const getMinTime = () => {
-    const today = new Date().toISOString().split('T')[0]
     if (scheduledDate === today) {
       // Add 5 minutes buffer to current time
       const now = new Date()
@@ -93,7 +102,11 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
         if (data.status === 'scheduled' && data.scheduledAt) {
           setSendOption('schedule')
           const d = new Date(data.scheduledAt)
-          setScheduledDate(d.toISOString().split('T')[0])
+          // Format date in local timezone
+          const year = d.getFullYear()
+          const month = String(d.getMonth() + 1).padStart(2, '0')
+          const day = String(d.getDate()).padStart(2, '0')
+          setScheduledDate(`${year}-${month}-${day}`)
           setScheduledTime(d.toTimeString().slice(0, 5))
         }
       })
@@ -356,7 +369,7 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
                         setScheduledTime(minTime)
                       }
                     }}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={today}
                   />
                 </div>
                 <div className="space-y-2">
@@ -368,7 +381,7 @@ export function EmailSendForm({ campaignId }: EmailSendFormProps) {
                     onChange={(e) => setScheduledTime(e.target.value)}
                     min={getMinTime()}
                   />
-                  {scheduledDate === new Date().toISOString().split('T')[0] && (
+                  {scheduledDate === today && (
                     <p className="text-xs text-muted-foreground">
                       Must be at least 5 minutes from now
                     </p>
