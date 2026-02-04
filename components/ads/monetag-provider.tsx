@@ -71,6 +71,7 @@ export function MonetagProvider({ children }: MonetagProviderProps) {
         const response = await fetch("/api/ads/config")
         if (response.ok) {
           const data = await response.json()
+          console.log("[Monetag] Ad config received:", data)
           setConfig((prev) => ({
             ...prev,
             showAds: data.showAds ?? false,
@@ -78,6 +79,7 @@ export function MonetagProvider({ children }: MonetagProviderProps) {
           }))
         } else {
           // User not authenticated or error - disable ads
+          console.log("[Monetag] Ad config request failed:", response.status)
           setConfig((prev) => ({
             ...prev,
             showAds: false,
@@ -85,7 +87,7 @@ export function MonetagProvider({ children }: MonetagProviderProps) {
           }))
         }
       } catch (error) {
-        console.error("Failed to fetch ad config:", error)
+        console.error("[Monetag] Failed to fetch ad config:", error)
         setConfig((prev) => ({
           ...prev,
           showAds: false,
@@ -97,15 +99,16 @@ export function MonetagProvider({ children }: MonetagProviderProps) {
     fetchAdConfig()
   }, [])
 
-  const handleScriptLoad = () => {
+  const handleScriptLoad = (scriptName: string) => {
+    console.log(`[Monetag] ${scriptName} script loaded successfully`)
     setConfig((prev) => ({
       ...prev,
       isReady: true,
     }))
   }
 
-  const handleScriptError = () => {
-    console.debug("Monetag script failed to load (possibly blocked)")
+  const handleScriptError = (scriptName: string) => {
+    console.warn(`[Monetag] ${scriptName} script failed to load (possibly blocked by ad blocker)`)
   }
 
   const shouldShowAds = config.showAds && !config.isLoading
@@ -114,6 +117,13 @@ export function MonetagProvider({ children }: MonetagProviderProps) {
     <AdContext.Provider value={config}>
       {shouldShowAds && (
         <>
+          {/* Debug log when ads are enabled */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `console.log('[Monetag] Ads enabled, loading scripts. isMobile: ${config.isMobile}')`,
+            }}
+          />
+
           {/* Push Notifications - Both desktop and mobile (browser permission-based) */}
           <Script
             id="monetag-push-notification"
@@ -121,28 +131,27 @@ export function MonetagProvider({ children }: MonetagProviderProps) {
             strategy="afterInteractive"
             data-cfasync="false"
             async
-            onError={handleScriptError}
+            onLoad={() => handleScriptLoad("Push Notification")}
+            onError={() => handleScriptError("Push Notification")}
           />
 
-          {/* Desktop: In-page push */}
-          {!config.isMobile && (
-            <Script
-              id="monetag-inpage-push"
-              strategy="afterInteractive"
-              onLoad={handleScriptLoad}
-              onError={handleScriptError}
-              dangerouslySetInnerHTML={{
-                __html: `(function(s){s.dataset.zone='${ZONES.inPagePush}',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`,
-              }}
-            />
-          )}
+          {/* In-page push - Both desktop and mobile */}
+          <Script
+            id="monetag-inpage-push"
+            strategy="afterInteractive"
+            onLoad={() => handleScriptLoad("In-Page Push")}
+            onError={() => handleScriptError("In-Page Push")}
+            dangerouslySetInnerHTML={{
+              __html: `(function(s){s.dataset.zone='${ZONES.inPagePush}',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`,
+            }}
+          />
 
           {/* Vignette (full-screen interstitial) - Both desktop and mobile */}
           <Script
             id="monetag-vignette"
             strategy="afterInteractive"
-            onLoad={handleScriptLoad}
-            onError={handleScriptError}
+            onLoad={() => handleScriptLoad("Vignette")}
+            onError={() => handleScriptError("Vignette")}
             dangerouslySetInnerHTML={{
               __html: `(function(s){s.dataset.zone='${ZONES.vignette}',s.src='https://gizokraijaw.net/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`,
             }}
