@@ -140,6 +140,7 @@ function htmlToPlainText(html: string): string {
 
 /**
  * Generate verification email HTML
+ * Uses email-client-safe CSS
  */
 function generateVerificationEmailHtml(verificationUrl: string, userName?: string): string {
   const greeting = userName ? `Hi ${userName},` : 'Hi,'
@@ -150,20 +151,22 @@ function generateVerificationEmailHtml(verificationUrl: string, userName?: strin
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>Verify your email</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f1f5f9;" bgcolor="#f1f5f9">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f1f5f9;" bgcolor="#f1f5f9">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%;">
           <!-- Header -->
           <tr>
             <td align="center" style="padding: 20px 0;">
-              <table role="presentation" style="border-collapse: collapse;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #3b82f6, #4f46e5); border-radius: 12px; padding: 12px 16px;">
-                    <span style="color: white; font-size: 24px; font-weight: bold;">អ</span>
+                  <td style="background-color: #4f46e5; padding: 12px 16px; border-radius: 12px;" bgcolor="#4f46e5">
+                    <span style="color: #ffffff; font-size: 24px; font-weight: bold; line-height: 1;">អ</span>
                   </td>
                   <td style="padding-left: 12px;">
                     <span style="font-size: 24px; font-weight: bold; color: #0f172a;">Aksara Pro</span>
@@ -173,43 +176,49 @@ function generateVerificationEmailHtml(verificationUrl: string, userName?: strin
             </td>
           </tr>
 
-          <!-- Main Content -->
+          <!-- Main Content Card -->
           <tr>
-            <td style="background-color: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-              <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: bold; color: #0f172a;">Welcome to Aksara Pro!</h1>
-              <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #475569;">${greeting}</p>
-              <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #475569;">
-                Thank you for signing up. Please verify your email address to get started with the best Khmer word processor.
-              </p>
-
-              <!-- CTA Button -->
-              <table role="presentation" style="margin: 32px 0; border-collapse: collapse;">
+            <td>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;" bgcolor="#ffffff">
                 <tr>
-                  <td align="center" style="background: linear-gradient(135deg, #3b82f6, #4f46e5); border-radius: 12px;">
-                    <a href="${verificationUrl}" style="display: inline-block; padding: 16px 32px; color: white; text-decoration: none; font-size: 16px; font-weight: 600;">
-                      Verify Email Address
-                    </a>
+                  <td style="padding: 40px;">
+                    <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: bold; color: #0f172a;">Welcome to Aksara Pro!</h1>
+                    <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #475569;">${greeting}</p>
+                    <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #475569;">
+                      Thank you for signing up. Please verify your email address to get started with the best Khmer word processor.
+                    </p>
+
+                    <!-- CTA Button -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 32px 0;">
+                      <tr>
+                        <td align="center" style="background-color: #4f46e5; border-radius: 8px;" bgcolor="#4f46e5">
+                          <a href="${verificationUrl}" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
+                            Verify Email Address
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">
+                      Or copy and paste this link into your browser:
+                    </p>
+                    <p style="margin: 0 0 24px 0; font-size: 14px; color: #3b82f6; word-break: break-all;">
+                      ${verificationUrl}
+                    </p>
+
+                    <p style="margin: 0; font-size: 14px; color: #64748b;">
+                      This link expires in 48 hours. If you didn't create an account, you can safely ignore this email.
+                    </p>
                   </td>
                 </tr>
               </table>
-
-              <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">
-                Or copy and paste this link into your browser:
-              </p>
-              <p style="margin: 0 0 24px 0; font-size: 14px; color: #3b82f6; word-break: break-all;">
-                ${verificationUrl}
-              </p>
-
-              <p style="margin: 0; font-size: 14px; color: #94a3b8;">
-                This link expires in 48 hours. If you didn't create an account, you can safely ignore this email.
-              </p>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
             <td align="center" style="padding: 32px 20px;">
-              <p style="margin: 0; font-size: 14px; color: #94a3b8;">
+              <p style="margin: 0; font-size: 14px; color: #64748b;">
                 &copy; ${new Date().getFullYear()} Aksara Pro. The intelligent Khmer word processor.
               </p>
             </td>
@@ -225,6 +234,7 @@ function generateVerificationEmailHtml(verificationUrl: string, userName?: strin
 
 /**
  * Generate password reset email HTML
+ * Uses email-client-safe CSS
  */
 function generatePasswordResetEmailHtml(resetUrl: string): string {
   return `
@@ -233,20 +243,22 @@ function generatePasswordResetEmailHtml(resetUrl: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>Reset your password</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f1f5f9;" bgcolor="#f1f5f9">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f1f5f9;" bgcolor="#f1f5f9">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%;">
           <!-- Header -->
           <tr>
             <td align="center" style="padding: 20px 0;">
-              <table role="presentation" style="border-collapse: collapse;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #3b82f6, #4f46e5); border-radius: 12px; padding: 12px 16px;">
-                    <span style="color: white; font-size: 24px; font-weight: bold;">អ</span>
+                  <td style="background-color: #4f46e5; padding: 12px 16px; border-radius: 12px;" bgcolor="#4f46e5">
+                    <span style="color: #ffffff; font-size: 24px; font-weight: bold; line-height: 1;">អ</span>
                   </td>
                   <td style="padding-left: 12px;">
                     <span style="font-size: 24px; font-weight: bold; color: #0f172a;">Aksara Pro</span>
@@ -256,39 +268,45 @@ function generatePasswordResetEmailHtml(resetUrl: string): string {
             </td>
           </tr>
 
-          <!-- Main Content -->
+          <!-- Main Content Card -->
           <tr>
-            <td style="background-color: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-              <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: bold; color: #0f172a;">Reset Your Password</h1>
-              <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #475569;">
-                We received a request to reset your password. Click the button below to choose a new password.
-              </p>
-
-              <!-- CTA Button -->
-              <table role="presentation" style="margin: 32px 0; border-collapse: collapse;">
+            <td>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;" bgcolor="#ffffff">
                 <tr>
-                  <td align="center" style="background: linear-gradient(135deg, #3b82f6, #4f46e5); border-radius: 12px;">
-                    <a href="${resetUrl}" style="display: inline-block; padding: 16px 32px; color: white; text-decoration: none; font-size: 16px; font-weight: 600;">
-                      Reset Password
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">
-                Or copy and paste this link into your browser:
-              </p>
-              <p style="margin: 0 0 24px 0; font-size: 14px; color: #3b82f6; word-break: break-all;">
-                ${resetUrl}
-              </p>
-
-              <!-- Security Notice -->
-              <table role="presentation" style="margin: 24px 0 0 0; border-collapse: collapse; background-color: #fef3c7; border-radius: 8px;">
-                <tr>
-                  <td style="padding: 16px;">
-                    <p style="margin: 0; font-size: 14px; color: #92400e;">
-                      <strong>Security Notice:</strong> This link expires in 1 hour. If you didn't request a password reset, please ignore this email. Your password will remain unchanged.
+                  <td style="padding: 40px;">
+                    <h1 style="margin: 0 0 16px 0; font-size: 24px; font-weight: bold; color: #0f172a;">Reset Your Password</h1>
+                    <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #475569;">
+                      We received a request to reset your password. Click the button below to choose a new password.
                     </p>
+
+                    <!-- CTA Button -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 32px 0;">
+                      <tr>
+                        <td align="center" style="background-color: #4f46e5; border-radius: 8px;" bgcolor="#4f46e5">
+                          <a href="${resetUrl}" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
+                            Reset Password
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">
+                      Or copy and paste this link into your browser:
+                    </p>
+                    <p style="margin: 0 0 24px 0; font-size: 14px; color: #3b82f6; word-break: break-all;">
+                      ${resetUrl}
+                    </p>
+
+                    <!-- Security Notice -->
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0 0 0; background-color: #fef3c7; border-radius: 8px;" bgcolor="#fef3c7">
+                      <tr>
+                        <td style="padding: 16px;">
+                          <p style="margin: 0; font-size: 14px; color: #92400e;">
+                            <strong>Security Notice:</strong> This link expires in 1 hour. If you didn't request a password reset, please ignore this email. Your password will remain unchanged.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                 </tr>
               </table>
@@ -298,7 +316,7 @@ function generatePasswordResetEmailHtml(resetUrl: string): string {
           <!-- Footer -->
           <tr>
             <td align="center" style="padding: 32px 20px;">
-              <p style="margin: 0; font-size: 14px; color: #94a3b8;">
+              <p style="margin: 0; font-size: 14px; color: #64748b;">
                 &copy; ${new Date().getFullYear()} Aksara Pro. The intelligent Khmer word processor.
               </p>
             </td>
@@ -337,6 +355,7 @@ export async function sendCampaignEmail(
 
 /**
  * Wrap campaign content in email-safe HTML template
+ * Uses email-client-safe CSS (no gradients, limited border-radius, bgcolor fallbacks)
  */
 function wrapCampaignHtml(content: string): string {
   return `
@@ -345,20 +364,28 @@ function wrapCampaignHtml(content: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Email</title>
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Email from Aksara Pro</title>
+  <!--[if mso]>
+  <style type="text/css">
+    table { border-collapse: collapse; }
+    .content-card { border: 1px solid #e2e8f0; }
+  </style>
+  <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Khmer OS Battambang', 'Khmer OS', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #f8fafc;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+<body style="margin: 0; padding: 0; font-family: 'Khmer OS Battambang', 'Khmer OS', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #f1f5f9;" bgcolor="#f1f5f9">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f1f5f9;" bgcolor="#f1f5f9">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; width: 100%;">
           <!-- Header -->
           <tr>
             <td align="center" style="padding: 20px 0;">
-              <table role="presentation" style="border-collapse: collapse;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #3b82f6, #4f46e5); border-radius: 12px; padding: 12px 16px;">
-                    <span style="color: white; font-size: 24px; font-weight: bold;">អ</span>
+                  <td style="background-color: #4f46e5; padding: 12px 16px; border-radius: 12px;" bgcolor="#4f46e5">
+                    <span style="color: #ffffff; font-size: 24px; font-weight: bold; line-height: 1;">អ</span>
                   </td>
                   <td style="padding-left: 12px;">
                     <span style="font-size: 24px; font-weight: bold; color: #0f172a;">Aksara Pro</span>
@@ -368,20 +395,26 @@ function wrapCampaignHtml(content: string): string {
             </td>
           </tr>
 
-          <!-- Main Content -->
+          <!-- Main Content Card -->
           <tr>
-            <td style="background-color: white; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-              ${content}
+            <td>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="content-card" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;" bgcolor="#ffffff">
+                <tr>
+                  <td style="padding: 40px; color: #1e293b; font-size: 16px; line-height: 1.6;">
+                    ${content}
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
             <td align="center" style="padding: 32px 20px;">
-              <p style="margin: 0 0 8px 0; font-size: 14px; color: #94a3b8;">
+              <p style="margin: 0 0 8px 0; font-size: 14px; color: #64748b;">
                 &copy; ${new Date().getFullYear()} Aksara Pro. The intelligent Khmer word processor.
               </p>
-              <p style="margin: 0; font-size: 12px; color: #cbd5e1;">
+              <p style="margin: 0; font-size: 12px; color: #94a3b8;">
                 You received this email because you have an account with Aksara Pro.
               </p>
             </td>
