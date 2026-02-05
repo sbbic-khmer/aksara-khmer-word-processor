@@ -52,7 +52,8 @@ export function IgnoredDictionaryWordsTab() {
   const [promotingWord, setPromotingWord] = useState<string | null>(null)
   const [selectedWords, setSelectedWords] = useState<Set<string>>(new Set())
   const [bulkPromoteDialogOpen, setBulkPromoteDialogOpen] = useState(false)
-  const [regexCopied, setRegexCopied] = useState(false)
+  const [tsRegexCopied, setTsRegexCopied] = useState(false)
+  const [jsonRegexCopied, setJsonRegexCopied] = useState(false)
   const [isBulkPromoting, setIsBulkPromoting] = useState(false)
   const tableRef = useRef<HTMLDivElement>(null)
 
@@ -143,8 +144,8 @@ export function IgnoredDictionaryWordsTab() {
     setSelectedWords(new Set())
   }
 
-  // Generate regex to match frequency dictionary lines (includes newline for clean removal)
-  const generateRegex = useMemo(() => {
+  // Generate regex to match frequency dictionary lines in .ts format (includes newline for clean removal)
+  const generateTsRegex = useMemo(() => {
     if (selectedWords.size === 0) return ""
     const wordsArray = Array.from(selectedWords)
     // Escape special regex characters in words
@@ -159,11 +160,37 @@ export function IgnoredDictionaryWordsTab() {
     return `^\\s*\\{ word: "(${escapedWords.join("|")})", frequency: \\d+ \\},?\\s*(\\r?\\n|$)`
   }, [selectedWords])
 
-  const copyRegex = async () => {
+  // Generate regex to match frequency dictionary lines in .json format (includes newline for clean removal)
+  const generateJsonRegex = useMemo(() => {
+    if (selectedWords.size === 0) return ""
+    const wordsArray = Array.from(selectedWords)
+    // Escape special regex characters in words
+    const escapedWords = wordsArray.map((w) =>
+      w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    )
+    // Generate regex that matches: "WORD": NUMBER,
+    // Includes (\r?\n|$) at end to remove the newline, preventing blank lines
+    if (escapedWords.length === 1) {
+      return `^\\s*"${escapedWords[0]}":\\s*\\d+,?\\s*(\\r?\\n|$)`
+    }
+    return `^\\s*"(${escapedWords.join("|")})":\\s*\\d+,?\\s*(\\r?\\n|$)`
+  }, [selectedWords])
+
+  const copyTsRegex = async () => {
     try {
-      await navigator.clipboard.writeText(generateRegex)
-      setRegexCopied(true)
-      setTimeout(() => setRegexCopied(false), 2000)
+      await navigator.clipboard.writeText(generateTsRegex)
+      setTsRegexCopied(true)
+      setTimeout(() => setTsRegexCopied(false), 2000)
+    } catch {
+      // Clipboard API not available
+    }
+  }
+
+  const copyJsonRegex = async () => {
+    try {
+      await navigator.clipboard.writeText(generateJsonRegex)
+      setJsonRegexCopied(true)
+      setTimeout(() => setJsonRegexCopied(false), 2000)
     } catch {
       // Clipboard API not available
     }
@@ -285,36 +312,68 @@ export function IgnoredDictionaryWordsTab() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <h4 className="font-medium mb-2">Step 1: Copy this regex</h4>
+              <h4 className="font-medium mb-2">Step 1: Copy these regexes</h4>
               <p className="text-sm text-muted-foreground mb-2">
-                Use this regex in your code editor (with multiline mode) to find and delete the matching lines in{" "}
-                <code className="bg-muted px-1 rounded">lib/khmer-dictionary-data.ts</code>
+                Use these regexes in your code editor (with multiline mode) to find and delete the matching lines.
               </p>
-              <div className="relative">
-                <Textarea
-                  readOnly
-                  value={generateRegex}
-                  className="font-mono text-sm pr-12 min-h-[80px]"
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute top-2 right-2"
-                  onClick={copyRegex}
-                >
-                  {regexCopied ? (
-                    <Check className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    For <code className="bg-muted px-1 rounded">lib/khmer-dictionary-data.ts</code>:
+                  </p>
+                  <div className="relative">
+                    <Textarea
+                      readOnly
+                      value={generateTsRegex}
+                      className="font-mono text-sm pr-12 min-h-[60px]"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={copyTsRegex}
+                    >
+                      {tsRegexCopied ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">
+                    For <code className="bg-muted px-1 rounded">lib/khmer-affixes.json</code> (or similar JSON files):
+                  </p>
+                  <div className="relative">
+                    <Textarea
+                      readOnly
+                      value={generateJsonRegex}
+                      className="font-mono text-sm pr-12 min-h-[60px]"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={copyJsonRegex}
+                    >
+                      {jsonRegexCopied ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div>
               <h4 className="font-medium mb-2">Step 2: Remove the lines</h4>
               <p className="text-sm text-muted-foreground">
-                Open <code className="bg-muted px-1 rounded">lib/khmer-dictionary-data.ts</code> in your editor, use Find & Replace with regex mode enabled, and delete all matching lines.
+                Open each dictionary file in your editor, use Find & Replace with regex mode enabled, and delete all matching lines.
               </p>
             </div>
 
