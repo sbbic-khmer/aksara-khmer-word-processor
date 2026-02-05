@@ -12,6 +12,8 @@
 
 import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
 import { PROTECTED_PHRASES } from "./protected-phrases"
+import { PREFIX_MAP, SUFFIX_MAP, PREFIXES_BY_LENGTH, SUFFIXES_BY_LENGTH, type AffixConfig } from "./khmer-affixes"
+import { TITLE_SET, TITLES_BY_LENGTH, isTitle } from "./khmer-titles"
 
 const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
@@ -187,6 +189,23 @@ class KhmerTrie {
       node = node.children.get(char)!
     }
     return node.isWord ? node.frequency : 0
+  }
+
+  /**
+   * Check if a word exists in the trie, regardless of frequency.
+   * Unlike hasWord() which returns false for ignored words (frequency 0),
+   * this returns true for ANY word that was inserted, including ignored ones.
+   * Used by loadFullDictionaryAsync to avoid overwriting ignored words.
+   */
+  existsInTrie(word: string): boolean {
+    let node = this.root
+    for (const char of word) {
+      if (!node.children.has(char)) {
+        return false
+      }
+      node = node.children.get(char)!
+    }
+    return node.isWord
   }
 }
 
@@ -489,6 +508,9 @@ export class KhmerBreaker {
     }
   }
 
+  // Track whether full dictionary has been loaded
+  private fullDictionaryLoaded = false
+
   loadDictionary(dictionaryData: DictionaryEntry[]) {
     if (isDebugEnabled()) {
       console.log("[v0] Loading dictionary with", dictionaryData.length, "entries")
@@ -501,6 +523,69 @@ export class KhmerBreaker {
     if (isDebugEnabled()) {
       console.log("[v0] Loaded", this.trie.wordCount, "words into trie")
     }
+  }
+
+  /**
+   * Asynchronously load the full frequency dictionary from JSON.
+   * This supplements the embedded dictionary with additional words.
+   * Called after initial page load to avoid blocking rendering.
+   *
+   * @param url Path to the JSON dictionary (default: /dictionaries/km_frequency_dictionary.json)
+   * @returns Promise that resolves when dictionary is loaded
+   */
+  async loadFullDictionaryAsync(url = '/dictionaries/km_frequency_dictionary.json'): Promise<void> {
+    if (this.fullDictionaryLoaded) {
+      return // Already loaded
+    }
+
+    try {
+      if (isDebugEnabled()) {
+        console.log("[v0] Fetching full dictionary from", url)
+      }
+
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dictionary: ${response.status}`)
+      }
+
+      const data: Record<string, number> = await response.json()
+      const entries = Object.entries(data)
+
+      if (isDebugEnabled()) {
+        console.log("[v0] Merging", entries.length, "entries from full dictionary")
+      }
+
+      // Merge into trie (won't overwrite existing entries)
+      // IMPORTANT: Use existsInTrie() instead of getFrequency() === 0
+      // because ignored words have frequency 0 but should NOT be overwritten
+      let newWords = 0
+      for (const [word, frequency] of entries) {
+        if (word && word.length > 0) {
+          if (!this.trie.existsInTrie(word)) {
+            // Word not in trie yet, add it
+            this.trie.insert(word, frequency)
+            newWords++
+          }
+          // If word exists (including ignored words), keep existing state
+        }
+      }
+
+      this.fullDictionaryLoaded = true
+
+      if (isDebugEnabled()) {
+        console.log("[v0] Full dictionary loaded. Added", newWords, "new words. Total:", this.trie.wordCount)
+      }
+    } catch (error) {
+      console.error("[v0] Failed to load full dictionary:", error)
+      // Non-fatal - word breaking will still work with embedded dictionary
+    }
+  }
+
+  /**
+   * Check if the full dictionary has been loaded
+   */
+  isFullDictionaryLoaded(): boolean {
+    return this.fullDictionaryLoaded
   }
 
   /**
@@ -532,6 +617,169 @@ export class KhmerBreaker {
         this.trie.insert(cleanWord, 0)
       }
     }
+  }
+
+  // ============ Affix-Based Compound Detection ============
+
+  /**
+   * Check if a word can be decomposed into a valid compound using known affixes.
+   *
+   * Returns information about the decomposition if found:
+   * - For prefix compounds: prefix + remainder (where remainder is in dictionary)
+   * - For suffix compounds: stem + suffix (where stem is in dictionary)
+   *
+   * Break-point affixes (like អ្នក) indicate the compound should be segmented.
+   * Non-break-point affixes indicate it should stay as one unit.
+   *
+   * @param word The word to check for compound decomposition
+   * @returns Compound info if valid, null otherwise
+   */
+  checkAffixCompound(word: string): {
+    type: 'prefix' | 'suffix'
+    affix: AffixConfig
+    affixText: string
+    remainder: string
+    remainderFreq: number
+    isBreakPoint: boolean
+  } | null {
+    // Try prefix decomposition (longest prefix first)
+    for (const prefixText of PREFIXES_BY_LENGTH) {
+      if (word.startsWith(prefixText) && word.length > prefixText.length) {
+        const remainder = word.slice(prefixText.length)
+        const remainderFreq = this.trie.getFrequency(remainder)
+
+        // Check if remainder is a known dictionary word
+        if (remainderFreq > 0) {
+          const affix = PREFIX_MAP.get(prefixText)!
+
+          if (isWordBreakerDebugEnabled()) {
+            console.log(
+              `[v0] checkAffixCompound: "${word}" = prefix "${prefixText}" + "${remainder}" (freq: ${remainderFreq}, breakPoint: ${affix.isBreakPoint})`
+            )
+          }
+
+          return {
+            type: 'prefix',
+            affix,
+            affixText: prefixText,
+            remainder,
+            remainderFreq,
+            isBreakPoint: affix.isBreakPoint,
+          }
+        }
+      }
+    }
+
+    // Try suffix decomposition (longest suffix first)
+    for (const suffixText of SUFFIXES_BY_LENGTH) {
+      if (word.endsWith(suffixText) && word.length > suffixText.length) {
+        const stem = word.slice(0, -suffixText.length)
+        const stemFreq = this.trie.getFrequency(stem)
+
+        // Check if stem is a known dictionary word
+        if (stemFreq > 0) {
+          const affix = SUFFIX_MAP.get(suffixText)!
+
+          if (isWordBreakerDebugEnabled()) {
+            console.log(
+              `[v0] checkAffixCompound: "${word}" = "${stem}" + suffix "${suffixText}" (freq: ${stemFreq}, breakPoint: ${affix.isBreakPoint})`
+            )
+          }
+
+          return {
+            type: 'suffix',
+            affix,
+            affixText: suffixText,
+            remainder: stem,
+            remainderFreq: stemFreq,
+            isBreakPoint: affix.isBreakPoint,
+          }
+        }
+      }
+    }
+
+    return null
+  }
+
+  // ============ Title-Based Proper Noun Detection ============
+
+  /**
+   * Analyze segmented text to detect likely proper nouns.
+   *
+   * A word is likely a proper noun if:
+   * 1. It follows a known title (like លោក, អ្នកស្រី, etc.)
+   * 2. There's whitespace between the title and the word
+   * 3. The word is not in the dictionary (unknown/OOV)
+   *
+   * Example: "លោក កូនេលាស" → "កូនេលាស" is likely a proper noun
+   *
+   * @param segments Array of segmented text (from getSegments)
+   * @returns Set of words that are likely proper nouns
+   */
+  detectLikelyProperNouns(segments: string[]): Set<string> {
+    const likelyProperNouns = new Set<string>()
+
+    for (let i = 0; i < segments.length - 2; i++) {
+      const current = segments[i]
+      const space = segments[i + 1]
+      const next = segments[i + 2]
+
+      // Check pattern: [title] [whitespace] [word]
+      if (isTitle(current) && /^\s+$/.test(space)) {
+        // Check if the word after the title is unknown (not in dictionary)
+        // and is Khmer text (not punctuation, numbers, etc.)
+        const nextClean = next.trim()
+        if (nextClean && !this.trie.hasWord(nextClean) && this.hasKhmerLetters(nextClean)) {
+          likelyProperNouns.add(nextClean)
+
+          if (isWordBreakerDebugEnabled()) {
+            console.log(
+              `[v0] detectLikelyProperNouns: "${nextClean}" follows title "${current}" - marking as likely proper noun`
+            )
+          }
+
+          // Also check for multi-part names (e.g., "លោក ហ៊ុន សែន")
+          // If the next-next segment is also whitespace + unknown word, it might be part of the name
+          if (i + 4 < segments.length) {
+            const space2 = segments[i + 3]
+            const next2 = segments[i + 4]
+            if (/^\s+$/.test(space2)) {
+              const next2Clean = next2.trim()
+              if (next2Clean && !this.trie.hasWord(next2Clean) && this.hasKhmerLetters(next2Clean)) {
+                likelyProperNouns.add(next2Clean)
+
+                if (isWordBreakerDebugEnabled()) {
+                  console.log(
+                    `[v0] detectLikelyProperNouns: "${next2Clean}" follows title "${current}" (2nd part) - marking as likely proper noun`
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return likelyProperNouns
+  }
+
+  /**
+   * Check if a string contains any Khmer letters (not just digits/punctuation)
+   */
+  private hasKhmerLetters(text: string): boolean {
+    for (const char of text) {
+      if (this.charSets.isKhmerChar(char) && !this.charSets.isKhmerDigit(char)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * Check if a word is a known title/honorific
+   */
+  isKnownTitle(word: string): boolean {
+    return isTitle(word)
   }
 
   /**
@@ -975,6 +1223,7 @@ export class KhmerBreaker {
   private static readonly SEMIVOWEL_BOUNDARY_PENALTY = 3.0   // Penalty for breaking before semivowel (យ/វ) after combining mark
   private static readonly BOUNDARY_PENALTY = 2.0             // Cost per token boundary
   private static readonly LENGTH_BONUS = 0.25                // Reward per character for longer tokens
+  private static readonly COMPOUND_BONUS = 4.0               // Bonus for valid affix-based compounds (reduces OOV penalty)
 
   /**
    * Check if a position is a safe token boundary.
@@ -1171,10 +1420,12 @@ export class KhmerBreaker {
         // Khmer text - find dictionary matches
         const maxLen = Math.min(KhmerBreaker.MAX_WORD_LEN, endPos - s.pos)
         const matches = this.trie.findAllMatches(text, s.pos, maxLen, this.charSets)
-        
+
         // Build candidate tokens
-        const candidates: Array<{ len: number; score: number }> = []
-        
+        // segments?: string[] allows a single candidate to produce multiple output pieces
+        // (used for break-point compounds like អ្នក + ចំរorg)
+        const candidates: Array<{ len: number; score: number; segments?: string[] }> = []
+
         // Add dictionary matches as candidates (only if they end at safe boundaries)
         for (const m of matches) {
           const end = s.pos + m.length
@@ -1188,26 +1439,49 @@ export class KhmerBreaker {
           if (!this.isSafeBoundary(text, end)) {
             continue
           }
-          
+
           // Get the actual word to check significance
           const word = text.slice(s.pos, end)
-          
+
           // Calculate penalty for short low-frequency words
           // This replaces the hard gate of isSignificantWord with a soft penalty
           const penalty = this.shortWordPenalty(word, m.frequency)
-          
+
           // Skip if penalty is infinite (single-cluster below threshold)
           if (!Number.isFinite(penalty)) {
             continue
           }
-          
+
           let sc = Math.log((m.frequency || 1) + 1)
           sc += KhmerBreaker.LENGTH_BONUS * m.length
           sc -= KhmerBreaker.BOUNDARY_PENALTY
           sc -= penalty // Apply frequency-based penalty for short words
           candidates.push({ len: m.length, score: sc })
         }
-        
+
+        // FIRST: Check for affix-based compounds BEFORE determining OOV chunk
+        // This is important because findOovChunkEnd may stop at a boundary between
+        // prefix and remainder (since the remainder is a dictionary word), but we
+        // want to detect the compound as a whole.
+        //
+        // Try progressively shorter strings to find the longest valid compound
+        let compound: ReturnType<typeof this.checkAffixCompound> = null
+        let compoundLen = 0
+
+        for (let tryLen = maxLen; tryLen >= 4; tryLen--) {
+          const tryEnd = s.pos + tryLen
+          // Only try lengths that end at valid boundaries
+          if (!this.isSafeBoundary(text, tryEnd)) continue
+
+          const tryWord = text.slice(s.pos, tryEnd)
+          const tryCompound = this.checkAffixCompound(tryWord)
+          if (tryCompound) {
+            compound = tryCompound
+            compoundLen = tryLen
+            break // Found longest compound
+          }
+        }
+
         // OOV fallback: consume multiple clusters until next strong known word start
         // This prevents over-splitting of unknown words like names and transliterations
         let oovEnd = this.findOovChunkEnd(text, s.pos)
@@ -1217,21 +1491,119 @@ export class KhmerBreaker {
           oovEnd++
         }
 
-        const oovLen = oovEnd - s.pos
+        // If compound is followed by ៗ (repetition sign), extend compound length
+        if (compound && s.pos + compoundLen < endPos && this.charSets.isRepetitionSign(text[s.pos + compoundLen])) {
+          compoundLen++
+        }
+
+        // Use compound length if we found a compound, otherwise use OOV chunk
+        const oovLen = compound ? compoundLen : (oovEnd - s.pos)
+        const oovChunk = text.slice(s.pos, s.pos + oovLen)
+
+        if (compound) {
+          // Valid compound found - give it a much better score than regular OOV
+          if (compound.isBreakPoint) {
+            // Break-point compound: add a SINGLE candidate that outputs MULTIPLE segments
+            // This ensures the compound stays together as [prefix][remainder] and doesn't
+            // get split differently by subsequent beam search iterations
+            if (compound.type === 'prefix') {
+              const prefixLen = compound.affixText.length
+              const remainderLen = compound.remainder.length
+
+              // Calculate combined score for the compound path
+              // This is a SINGLE candidate, so only ONE boundary penalty total
+              //
+              // Prefix: look up actual dictionary frequency (not a fixed value)
+              // This is important because prefixes like អ្នក have high freq (50000)
+              // and using that makes the compound path competitive with the
+              // "step-by-step" path that uses the prefix as a standalone word
+              const prefixDictFreq = this.trie.getFrequency(compound.affixText)
+              const prefixFreq = prefixDictFreq > 0 ? prefixDictFreq : 10000 // Fallback if not in dict
+              const prefixContrib = Math.log(prefixFreq + 1) + KhmerBreaker.LENGTH_BONUS * prefixLen
+
+              // Remainder: use its actual dictionary frequency (NO shortWordPenalty since
+              // we know it's a valid compound remainder)
+              const remainderContrib = Math.log(compound.remainderFreq + 1) + KhmerBreaker.LENGTH_BONUS * remainderLen
+
+              // Total score: sum of both parts, minus ONE boundary penalty (single candidate)
+              // We only subtract ONE boundary penalty because this is a single candidate
+              // that produces two pieces. The non-compound path would pay TWO penalties
+              // (one for each word), so the compound has a 2.0 point advantage.
+              const compoundScore = prefixContrib + remainderContrib - KhmerBreaker.BOUNDARY_PENALTY
+
+              // Add as a single candidate with multiple segments
+              // The segments array tells the state expansion to add both pieces
+              candidates.push({
+                len: oovLen, // Full compound length
+                score: compoundScore,
+                segments: [compound.affixText, compound.remainder],
+              })
+
+              if (isWordBreakerDebugEnabled()) {
+                console.log(
+                  `[v0] beamSegment: break-point compound "${oovChunk}" → ["${compound.affixText}", "${compound.remainder}"] score: ${compoundScore.toFixed(2)}`
+                )
+              }
+            } else {
+              // Suffix break-point (rare) - stem comes first, then suffix
+              const stemLen = compound.remainder.length
+              const suffixLen = compound.affixText.length
+
+              const stemContrib = Math.log(compound.remainderFreq + 1) + KhmerBreaker.LENGTH_BONUS * stemLen
+              // Look up actual suffix frequency from dictionary
+              const suffixDictFreq = this.trie.getFrequency(compound.affixText)
+              const suffixFreq = suffixDictFreq > 0 ? suffixDictFreq : 10000 // Fallback if not in dict
+              const suffixContrib = Math.log(suffixFreq + 1) + KhmerBreaker.LENGTH_BONUS * suffixLen
+              const compoundScore = stemContrib + suffixContrib - KhmerBreaker.BOUNDARY_PENALTY
+
+              candidates.push({
+                len: oovLen,
+                score: compoundScore,
+                segments: [compound.remainder, compound.affixText],
+              })
+
+              if (isWordBreakerDebugEnabled()) {
+                console.log(
+                  `[v0] beamSegment: break-point suffix compound "${oovChunk}" → ["${compound.remainder}", "${compound.affixText}"] score: ${compoundScore.toFixed(2)}`
+                )
+              }
+            }
+          } else {
+            // Non-break-point compound: keep as single unit with good score
+            // Score it similarly to a dictionary word based on the remainder's frequency
+            const compoundScore = Math.log(compound.remainderFreq + 1) +
+              KhmerBreaker.LENGTH_BONUS * oovLen +
+              KhmerBreaker.COMPOUND_BONUS - // Bonus for being a valid compound
+              KhmerBreaker.BOUNDARY_PENALTY
+
+            candidates.push({
+              len: oovLen,
+              score: compoundScore,
+            })
+
+            if (isWordBreakerDebugEnabled()) {
+              console.log(
+                `[v0] beamSegment: fused compound "${oovChunk}" (${compound.type}: ${compound.affixText} + ${compound.remainder}) score: ${compoundScore.toFixed(2)}`
+              )
+            }
+          }
+        }
 
         // Count clusters in the OOV chunk for better scoring
-        const oovClusters = this.charSets.extractClusters(text.slice(s.pos, oovEnd)).length
-        
+        const oovClusters = this.charSets.extractClusters(oovChunk).length
+
         // Scoring: penalize OOV, but give a small length bonus so one longer OOV chunk
         // is preferred over many small OOV chunks
         // Single-cluster OOVs still get heavier penalty to encourage dictionary matches
-        const oovPenalty = oovClusters <= 1 
-          ? KhmerBreaker.OOV_SINGLE_CLUSTER_PENALTY 
+        const oovPenalty = oovClusters <= 1
+          ? KhmerBreaker.OOV_SINGLE_CLUSTER_PENALTY
           : KhmerBreaker.OOV_PENALTY
-        
+
         // Length bonus encourages keeping OOV chunks together
         const oovLengthBonus = KhmerBreaker.LENGTH_BONUS * oovLen * 0.5
-        
+
+        // Always add the raw OOV as a fallback candidate (compound detection might have
+        // added better alternatives above, but beam search will choose the best one)
         candidates.push({
           len: oovLen,
           score: -oovPenalty - KhmerBreaker.BOUNDARY_PENALTY + oovLengthBonus,
@@ -1239,41 +1611,50 @@ export class KhmerBreaker {
         
         // Expand states with all candidates
         for (const c of candidates) {
-          const piece = text.slice(s.pos, s.pos + c.len)
           const pieceEnd = s.pos + c.len
           let score = c.score
-          
-          // Apply heavy penalty for "dangling bantoc" tokens (consonant + ់)
-          // These are almost always misbreaks and should stay with the previous word
-          // e.g., "របស់" should not be split as "រប|ស់"
-          // Also penalize tokens that START with consonant + ់ (like "ស់ប្រិ")
-          if (this.charSets.isDanglingBantoc(piece) || this.charSets.startsWithDanglingBantoc(piece)) {
-            // Only allow if it's a known dictionary word (very rare)
-            if (!this.trie.hasWord(piece)) {
-              score -= KhmerBreaker.DANGLING_BANTOC_PENALTY
+
+          // If candidate has explicit segments (from compound detection), use them
+          // Otherwise, extract the piece from text
+          const pieces = c.segments ?? [text.slice(s.pos, pieceEnd)]
+
+          // Apply penalties to single-piece candidates (skip for multi-segment compounds
+          // since they've already been validated)
+          if (pieces.length === 1) {
+            const piece = pieces[0]
+
+            // Apply heavy penalty for "dangling bantoc" tokens (consonant + ់)
+            // These are almost always misbreaks and should stay with the previous word
+            // e.g., "របស់" should not be split as "រប|ស់"
+            // Also penalize tokens that START with consonant + ់ (like "ស់ប្រorg")
+            if (this.charSets.isDanglingBantoc(piece) || this.charSets.startsWithDanglingBantoc(piece)) {
+              // Only allow if it's a known dictionary word (very rare)
+              if (!this.trie.hasWord(piece)) {
+                score -= KhmerBreaker.DANGLING_BANTOC_PENALTY
+              }
             }
-          }
-          
-          // Apply penalty for breaking before a semivowel (យ/វ) when the current
-          // token ends with a combining mark. This pattern often indicates we're
-          // cutting a word too early (e.g., "���្រិ|យ..." instead of "ប្រិយ...")
-          if (pieceEnd < text.length && piece.length > 0) {
-            const lastChar = piece[piece.length - 1]
-            const nextChar = text[pieceEnd]
-            if (this.charSets.isDependentMark(lastChar) && this.charSets.isSemivowel(nextChar)) {
-              // Check if the next-next char is a base consonant (indicating a new word)
-              // If so, breaking here might still be wrong
-              const nextNextChar = pieceEnd + 1 < text.length ? text[pieceEnd + 1] : ''
-              if (nextNextChar && this.charSets.isBase(nextNextChar)) {
-                score -= KhmerBreaker.SEMIVOWEL_BOUNDARY_PENALTY
+
+            // Apply penalty for breaking before a semivowel (org/org) when the current
+            // token ends with a combining mark. This pattern often indicates we're
+            // cutting a word too early (e.g., "org org org|org..." instead of "org org org...")
+            if (pieceEnd < text.length && piece.length > 0) {
+              const lastChar = piece[piece.length - 1]
+              const nextChar = text[pieceEnd]
+              if (this.charSets.isDependentMark(lastChar) && this.charSets.isSemivowel(nextChar)) {
+                // Check if the next-next char is a base consonant (indicating a new word)
+                // If so, breaking here might still be wrong
+                const nextNextChar = pieceEnd + 1 < text.length ? text[pieceEnd + 1] : ''
+                if (nextNextChar && this.charSets.isBase(nextNextChar)) {
+                  score -= KhmerBreaker.SEMIVOWEL_BOUNDARY_PENALTY
+                }
               }
             }
           }
-          
+
           nextStates.push({
             pos: pieceEnd,
             score: s.score + score,
-            pieces: [...s.pieces, piece],
+            pieces: [...s.pieces, ...pieces],
           })
         }
       }

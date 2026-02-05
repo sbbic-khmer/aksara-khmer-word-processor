@@ -21,6 +21,7 @@ import { generateRequestId } from '@/lib/spell-check-types';
 import { $isKhmerBreakNode } from '../nodes/khmer-break-node';
 import { useSpellCheckCustomWords } from '@/hooks/use-spell-check-custom-words';
 import { measurePerformance, isPerfDebugEnabled, isDebugEnabled } from '@/lib/debug';
+import { isTitle } from '@/lib/khmer-titles';
 
 /**
  * Cross-browser caret range from point helper
@@ -128,6 +129,91 @@ let previousSpanSet = new Set<Element>();
 export function clearSpanTracking(): void {
     previousSpanSet = new Set<Element>();
     // WeakMap entries for removed elements will be garbage collected automatically
+}
+
+/**
+ * Check if a word likely follows a title pattern in the DOM.
+ * Returns true if the word's previous sibling(s) form a [title][whitespace] pattern,
+ * or if it continues a name sequence after a title.
+ *
+ * Handles patterns like:
+ * - "លោក កូនេលាស" - direct title + name
+ * - "លោកគ្រូ ហ័ដសិន ថេល័រ" - title + first name + last name
+ * - "លោក​គ្រូ ..." - title with ZWSP inside
+ *
+ * @param span The span element containing the word
+ * @returns true if the word likely follows a title pattern
+ */
+function followsTitlePattern(span: Element): boolean {
+    // Helper to get previous content element (skipping whitespace)
+    const getPrevContentElement = (node: Node | null): { element: Element | null; hadWhitespace: boolean } => {
+        let hadWhitespace = false;
+        let current = node;
+
+        while (current) {
+            if (current.nodeType === Node.TEXT_NODE) {
+                const text = current.textContent || '';
+                if (/^\s+$/.test(text)) {
+                    hadWhitespace = true;
+                    current = current.previousSibling;
+                    continue;
+                }
+            }
+
+            if (current.nodeType === Node.ELEMENT_NODE) {
+                const el = current as Element;
+                const text = el.textContent || '';
+                if (/^\s+$/.test(text)) {
+                    hadWhitespace = true;
+                    current = current.previousSibling;
+                    continue;
+                }
+                return { element: el, hadWhitespace };
+            }
+
+            current = current.previousSibling;
+        }
+
+        return { element: null, hadWhitespace };
+    };
+
+    // Helper to check if element contains a title (handles ZWSP inside titles)
+    const isElementTitle = (el: Element): boolean => {
+        const text = cleanKhmerWord(el.textContent || '');
+        return isTitle(text);
+    };
+
+    // Helper to check if element contains Khmer text (potential name)
+    const isKhmerContent = (el: Element): boolean => {
+        const text = el.textContent || '';
+        return containsKhmer(text);
+    };
+
+    // Check pattern 1: [title][whitespace][this_word]
+    const prev1 = getPrevContentElement(span.previousSibling);
+    if (prev1.hadWhitespace && prev1.element && isElementTitle(prev1.element)) {
+        return true;
+    }
+
+    // Check pattern 2: [title][whitespace][name][whitespace][this_word]
+    // This handles multi-part names like "ហ័ដសិន ថេល័រ" after a title
+    if (prev1.hadWhitespace && prev1.element && isKhmerContent(prev1.element)) {
+        const prev2 = getPrevContentElement(prev1.element.previousSibling);
+        if (prev2.hadWhitespace && prev2.element && isElementTitle(prev2.element)) {
+            return true;
+        }
+
+        // Check pattern 3: [title][whitespace][name1][whitespace][name2][whitespace][this_word]
+        // For three-part names
+        if (prev2.hadWhitespace && prev2.element && isKhmerContent(prev2.element)) {
+            const prev3 = getPrevContentElement(prev2.element.previousSibling);
+            if (prev3.hadWhitespace && prev3.element && isElementTitle(prev3.element)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 // Extract leading and trailing punctuation from a word.
@@ -395,6 +481,17 @@ export function KhmerSpellCheckPlugin() {
                 // Skip non-Khmer text
                 if (!containsKhmer(cleanWord)) {
                     span.classList.remove(MISSPELLED_CLASS);
+                    return;
+                }
+
+                // Skip likely proper nouns (words following titles like "លោក កូនេលាស")
+                // This prevents flagging names as misspellings
+                if (followsTitlePattern(span)) {
+                    span.classList.remove(MISSPELLED_CLASS);
+                    skippedCount++;
+                    if (debugMode) {
+                        console.log(`[SpellCheck] Skipping "${cleanWord}" - follows title pattern (likely proper noun)`);
+                    }
                     return;
                 }
 

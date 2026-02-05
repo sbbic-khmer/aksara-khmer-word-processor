@@ -6,11 +6,11 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Sun, Moon, Loader2, Cloud, CloudOff, CloudUpload, FileText, Check, AlertCircle } from "lucide-react"
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { UserMenu } from "@/components/user-menu"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { useTranslations, useLocale } from "next-intl"
 
 interface EditorHeaderProps {
@@ -265,8 +265,8 @@ export function EditorHeader({
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">
-            <TooltipProvider>
-              {mounted && (
+            {mounted && (
+              <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -278,10 +278,12 @@ export function EditorHeader({
                       {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{theme === "dark" ? t("header.switchToLight") : t("header.switchToDark")}</TooltipContent>
+                  <TooltipContent>
+                    {theme === "dark" ? t("header.switchToLight") : t("header.switchToDark")}
+                  </TooltipContent>
                 </Tooltip>
-              )}
-            </TooltipProvider>
+              </TooltipProvider>
+            )}
             <LanguageSwitcher />
             <UserMenu />
           </div>

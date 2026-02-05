@@ -1,7 +1,7 @@
 "use client"
 
 import useSWR from "swr"
-import { useCallback, useRef } from "react"
+import { useCallback, useRef, useMemo } from "react"
 
 export interface UserPreferences {
   vad_silence_threshold: number
@@ -70,8 +70,15 @@ export function usePreferences() {
     [mutate],
   )
 
+  // Memoize preferences to prevent creating new object on every render
+  // This prevents infinite loops in components that depend on preferences
+  const preferences = useMemo(
+    () => ({ ...DEFAULT_PREFERENCES, ...data }),
+    [data]
+  )
+
   return {
-    preferences: { ...DEFAULT_PREFERENCES, ...data },
+    preferences,
     isLoading,
     error,
     updatePreference,

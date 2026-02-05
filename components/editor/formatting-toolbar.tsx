@@ -1,7 +1,6 @@
 "use client"
 
 import { useTranslations } from 'next-intl'
-import { Button } from "@/components/ui/button"
 import {
   Bold,
   Italic,
@@ -87,27 +86,21 @@ function ToolbarButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
+          type="button"
           onClick={onClick}
           className={cn(
-            "h-8 w-8 p-0 transition-all duration-150",
+            "inline-flex items-center justify-center h-8 w-8 p-0 transition-all duration-150 rounded-md",
             "hover:bg-slate-100 dark:hover:bg-slate-800",
-            "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+            "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:outline-none",
             isActive && activeStyles[variant]
           )}
         >
           {children}
-        </Button>
+        </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="flex items-center gap-2">
-        <span>{tooltip}</span>
-        {shortcut && (
-          <kbd className="px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
-            {shortcut}
-          </kbd>
-        )}
+      <TooltipContent>
+        {tooltip}{shortcut && <span className="ml-1 text-muted-foreground">({shortcut})</span>}
       </TooltipContent>
     </Tooltip>
   )
@@ -365,17 +358,14 @@ export function FormattingToolbar({
           {/* Settings */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href="/settings">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
+              <Link
+                href="/settings"
+                className="inline-flex items-center justify-center h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-md focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+              >
+                <Settings className="h-4 w-4" />
               </Link>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{t('settings')}</TooltipContent>
+            <TooltipContent>{t('settings')}</TooltipContent>
           </Tooltip>
         </div>
       </div>

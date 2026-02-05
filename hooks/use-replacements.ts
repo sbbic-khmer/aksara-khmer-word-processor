@@ -34,9 +34,18 @@ const fetcher = async (url: string): Promise<ReplacementsData> => {
 
 // Create a singleton breaker instance for word segmentation
 let breakerInstance: KhmerBreaker | null = null
+let fullDictionaryLoadStarted = false
+
 function getBreaker(): KhmerBreaker {
   if (!breakerInstance) {
     breakerInstance = new KhmerBreaker(KHMER_DICTIONARY)
+    // Trigger async load of full dictionary (non-blocking)
+    if (!fullDictionaryLoadStarted) {
+      fullDictionaryLoadStarted = true
+      breakerInstance.loadFullDictionaryAsync().catch((err) => {
+        console.error("Failed to load full dictionary:", err)
+      })
+    }
   }
   return breakerInstance
 }

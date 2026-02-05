@@ -10,7 +10,7 @@ import {
   $createParagraphNode,
   $isTextNode,
 } from "lexical"
-import { FORCE_RESEGMENT_COMMAND } from "./khmer-word-break-plugin"
+import { FORCE_RESEGMENT_COMMAND, clearSegmentationCache } from "./khmer-word-break-plugin"
 import { $setBlocksType } from "@lexical/selection"
 import { $createHeadingNode, $isHeadingNode, type HeadingTagType } from "@lexical/rich-text"
 import { INSERT_UNORDERED_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND, REMOVE_LIST_COMMAND } from "@lexical/list"
@@ -340,9 +340,9 @@ export function useToolbarCommands() {
         mutate('/api/dictionary/user/ignored')
       ])
 
-      // 5. Force resegmentation immediately (don't wait for word count to increase)
-      // This is important because split might not change word count if the split
-      // words already exist in the dictionary
+      // 5. Clear segmentation cache and force resegmentation
+      // Cache must be cleared so stale results with the old word aren't returned
+      clearSegmentationCache()
       editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
     } catch (error) {
       console.error('Error splitting word:', error)

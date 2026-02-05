@@ -217,9 +217,9 @@ export default async function LandingPage({ params }: Props) {
                     <div className={`relative ${locale === 'km' ? 'mb-8 sm:mb-10' : 'mb-6 sm:mb-8'}`}>
                       {/* Deep shadow layer - furthest back */}
                       <div className="absolute inset-0 pointer-events-none translate-y-2" aria-hidden="true">
-                        <div className="inline-flex items-baseline gap-2 sm:gap-3">
+                        <div className="inline-flex items-baseline">
                           <span
-                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl text-blue-900/20 dark:text-blue-950/40 blur-3xl tracking-tight leading-[1.4]"
+                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl text-blue-900/20 dark:text-blue-950/40 blur-3xl tracking-tight leading-[1.4] pr-2 sm:pr-3"
                             style={{ fontFamily: "var(--font-moul), serif" }}
                           >
                             អក្សរា
@@ -234,9 +234,9 @@ export default async function LandingPage({ params }: Props) {
                       </div>
                       {/* Glow layer - middle */}
                       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-                        <div className="inline-flex items-baseline gap-2 sm:gap-3">
+                        <div className="inline-flex items-baseline">
                           <span
-                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl text-blue-500/40 dark:text-blue-400/30 blur-2xl tracking-tight leading-[1.4]"
+                            className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl text-blue-500/40 dark:text-blue-400/30 blur-2xl tracking-tight leading-[1.4] pr-2 sm:pr-3"
                             style={{ fontFamily: "var(--font-moul), serif" }}
                           >
                             អក្សរា
@@ -250,9 +250,9 @@ export default async function LandingPage({ params }: Props) {
                         </div>
                       </div>
                       {/* Main text with animated gradient */}
-                      <div className="relative inline-flex items-baseline gap-2 sm:gap-3 drop-shadow-lg">
+                      <div className="relative inline-flex items-baseline drop-shadow-lg">
                         <span
-                          className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400 bg-clip-text text-transparent tracking-tight leading-[1.4] animate-gradient-x bg-[length:200%_auto]"
+                          className="text-5xl xs:text-6xl sm:text-7xl lg:text-8xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 dark:from-blue-400 dark:via-indigo-400 dark:to-violet-400 bg-clip-text text-transparent tracking-tight leading-[1.4] animate-gradient-x bg-[length:200%_auto] pr-2 sm:pr-3"
                           style={{ fontFamily: "var(--font-moul), serif" }}
                         >
                           អក្សរា

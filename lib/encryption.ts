@@ -163,18 +163,29 @@ export function encryptJson(obj: unknown): string | null {
 /**
  * Decrypt a JSON object
  * Decrypts, then parses JSON string
+ *
+ * Handles backwards compatibility with older documents that were encrypted
+ * using encrypt() directly (without JSON.stringify). If JSON.parse fails,
+ * returns the decrypted string as-is (e.g., for gzip-compressed data).
  */
 export function decryptJson(ciphertext: string | null | undefined): unknown {
   if (ciphertext === null || ciphertext === undefined) return null
 
   try {
-    const jsonString = decrypt(ciphertext)
-    if (jsonString === null) return null
+    const decrypted = decrypt(ciphertext)
+    if (decrypted === null) return null
 
-    return JSON.parse(jsonString)
+    try {
+      return JSON.parse(decrypted)
+    } catch {
+      // Backwards compatibility: older documents may have been encrypted
+      // without JSON.stringify, so the decrypted value is the raw data
+      // (e.g., gzip-compressed string). Return as-is for further processing.
+      return decrypted
+    }
   } catch (error) {
-    console.error("JSON decryption failed:", error)
-    throw new Error("Failed to decrypt JSON data")
+    console.error("Decryption failed:", error)
+    throw new Error("Failed to decrypt data")
   }
 }
 

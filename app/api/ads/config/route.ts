@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth-server"
+import { prisma } from "@/lib/prisma"
 
 // GET ad configuration for current user
 // Returns whether ads should be shown (admin can disable per user)
@@ -10,8 +11,14 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // Get user's showAds status (default to true if not set)
-  const showAds = (user as { showAds?: boolean }).showAds ?? true
+  // Fetch showAds directly from database (session may not include this field)
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { showAds: true },
+  })
+
+  // Default to true if not found (show ads by default)
+  const showAds = dbUser?.showAds ?? true
 
   return NextResponse.json({ showAds })
 }

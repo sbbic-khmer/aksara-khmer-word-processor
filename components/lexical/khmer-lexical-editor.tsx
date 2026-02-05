@@ -17,7 +17,7 @@ import { useTranslations } from "next-intl"
 import { $getRoot, $isTextNode, $isElementNode, $isParagraphNode, $getSelection, $isRangeSelection, $createRangeSelection, $setSelection, CLICK_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, SELECTION_CHANGE_COMMAND, type TextNode } from "lexical"
 
 import { KhmerBreakNode } from "./nodes/khmer-break-node"
-import { KhmerWordBreakPlugin, FORCE_RESEGMENT_COMMAND } from "./plugins/khmer-word-break-plugin"
+import { KhmerWordBreakPlugin, FORCE_RESEGMENT_COMMAND, clearSegmentationCache } from "./plugins/khmer-word-break-plugin"
 import { VoiceInputPlugin, INSERT_VOICE_TEXT_COMMAND } from "./plugins/voice-input-plugin"
 import { ToolbarPlugin, useToolbarCommands, type ActiveFormats } from "./plugins/toolbar-plugin"
 import { OnChangePlugin } from "./plugins/on-change-plugin"
@@ -1080,6 +1080,8 @@ function EditorWrapper({
         // Always trigger resegmentation when ignored words change
         // This ensures words are properly unsplit even if the count doesn't change
         if (!initialDictLoadRef.current) {
+          // Clear segmentation cache to ensure stale results aren't used
+          clearSegmentationCache()
           editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
         }
       } catch (error) {
@@ -1129,12 +1131,22 @@ function EditorWrapper({
       try {
         const docState = JSON.parse(sessionDocState)
         if (docState.id === sessionDocId) {
-          skipNextContentChangeRef.current = true
-          const state = editor.parseEditorState(sessionEditorState)
-          editor.setEditorState(state)
-          setTimeout(() => {
-            editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
-          }, 50)
+          // Use queueMicrotask to avoid flushSync error during useEffect
+          // editor.setEditorState internally calls flushSync which can't run during React render
+          queueMicrotask(() => {
+            skipNextContentChangeRef.current = true
+            try {
+              const state = editor.parseEditorState(sessionEditorState)
+              editor.setEditorState(state)
+              // Re-save to sessionStorage to ensure it's current
+              sessionStorage.setItem('aksara-editor-state', sessionEditorState)
+              setTimeout(() => {
+                editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+              }, 50)
+            } catch {
+              // Error setting editor state, will fall back to API on next load
+            }
+          })
           setDocumentState({
             id: docState.id,
             title: docState.title,
@@ -1191,11 +1203,18 @@ function EditorWrapper({
         })
         .then((doc) => {
           try {
+            // CRITICAL: Update sessionStorage BEFORE setting document state
+            // This prevents the document loading effect from seeing stale sessionStorage
+            // and trying to re-load a different document, which could cause infinite loops
+            sessionStorage.setItem('aksara-current-doc-id', doc.id)
+
             if (doc.editor_state) {
               // Skip the content change from loading to avoid triggering auto-save
               skipNextContentChangeRef.current = true
               const state = editor.parseEditorState(doc.editor_state)
               editor.setEditorState(state)
+              // Save editor state to sessionStorage for future reloads
+              sessionStorage.setItem('aksara-editor-state', JSON.stringify(state.toJSON()))
               // Force resegmentation after content is loaded
               // Use a small delay to ensure editor state is fully set
               setTimeout(() => {
@@ -1244,15 +1263,15 @@ function EditorWrapper({
   // Track if we've completed initial document load to avoid clearing sessionStorage prematurely
   const hasCompletedInitialLoadRef = useRef(false)
 
+  // Track document state changes for preferences sync (but don't save editor state here)
+  // Editor state is saved only on beforeunload/visibilitychange/unmount to avoid race conditions
   useEffect(() => {
     if (documentState.id) {
       hasCompletedInitialLoadRef.current = true
       updateLastOpenedDocumentId(documentState.id)
-      // Save document ID for language switches
+      // Only save the document ID, not the editor state
+      // Editor state saving is handled by beforeunload/visibilitychange handlers
       sessionStorage.setItem('aksara-current-doc-id', documentState.id)
-      // Also save the full document state and editor content for instant restore
-      const editorState = editor.getEditorState()
-      sessionStorage.setItem('aksara-editor-state', JSON.stringify(editorState.toJSON()))
       sessionStorage.setItem('aksara-doc-state', JSON.stringify({
         id: documentState.id,
         title: documentState.title,
@@ -1265,7 +1284,64 @@ function EditorWrapper({
       sessionStorage.removeItem('aksara-editor-state')
       sessionStorage.removeItem('aksara-doc-state')
     }
-  }, [documentState.id, documentState.title, documentState.lastSavedAt, updateLastOpenedDocumentId, editor])
+  }, [documentState.id, documentState.title, documentState.lastSavedAt, updateLastOpenedDocumentId])
+
+  // Save current editor state before unmounting (navigation away from editor)
+  useEffect(() => {
+    return () => {
+      const currentDocId = documentStateRef.current.id
+      if (currentDocId) {
+        try {
+          const editorState = editor.getEditorState()
+          sessionStorage.setItem('aksara-current-doc-id', currentDocId)
+          sessionStorage.setItem('aksara-editor-state', JSON.stringify(editorState.toJSON()))
+          sessionStorage.setItem('aksara-doc-state', JSON.stringify({
+            id: currentDocId,
+            title: documentStateRef.current.title,
+            lastSavedAt: documentStateRef.current.lastSavedAt,
+          }))
+        } catch {
+          // Ignore errors during cleanup
+        }
+      }
+    }
+  }, [editor])
+
+  // Save editor state on page unload (handles browser refresh/close)
+  // React cleanup effects may not run fast enough on page unload
+  useEffect(() => {
+    const saveStateToSession = () => {
+      const currentDocId = documentStateRef.current.id
+      if (currentDocId) {
+        try {
+          const editorState = editor.getEditorState()
+          sessionStorage.setItem('aksara-current-doc-id', currentDocId)
+          sessionStorage.setItem('aksara-editor-state', JSON.stringify(editorState.toJSON()))
+          sessionStorage.setItem('aksara-doc-state', JSON.stringify({
+            id: currentDocId,
+            title: documentStateRef.current.title,
+            lastSavedAt: documentStateRef.current.lastSavedAt,
+          }))
+        } catch {
+          // Ignore errors during unload
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', saveStateToSession)
+    // Also save on visibilitychange to hidden (covers mobile tab switches, etc.)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveStateToSession()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', saveStateToSession)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [editor])
 
   const handleNew = useCallback(() => {
     if (documentState.hasUnsavedChanges) {
@@ -1622,6 +1698,11 @@ function EditorWrapper({
         if (response.ok) {
           const doc = await response.json()
 
+          // CRITICAL: Update sessionStorage BEFORE setting document state
+          // This prevents the document loading effect from seeing stale sessionStorage
+          // and trying to re-load a different document, which could cause infinite loops
+          sessionStorage.setItem('aksara-current-doc-id', doc.id)
+
           if (doc.editor_state) {
             try {
               // Only skip content change if we're actually going to set editor state
@@ -1912,6 +1993,12 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       lastSavedAt: null,
     })
 
+    // Keep a ref to documentState for use in callbacks (avoids stale closures)
+    const documentStateRef = useRef(documentState)
+    useEffect(() => {
+      documentStateRef.current = documentState
+    }, [documentState])
+
     const { applyReplacements } = useReplacements()
     const { preferences, isLoading: isLoadingPreferences, updatePreference } = usePreferences()
     const { wordStrings: userDictionaryWords } = useUserDictionary()
@@ -1929,6 +2016,14 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     useEffect(() => {
       setMounted(true)
     }, [])
+
+    // Load full dictionary asynchronously after mount
+    // This supplements the embedded 5k dictionary with the full 32k dictionary
+    useEffect(() => {
+      breaker.loadFullDictionaryAsync().catch((err) => {
+        console.error("Failed to load full dictionary:", err)
+      })
+    }, [breaker])
 
     // User dictionary words are passed to EditorWrapper which handles loading and resegmentation
 
@@ -1977,12 +2072,20 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
         try {
           if (currentId) {
             // Update existing document title
-            await fetch(`/api/documents/${currentId}`, {
+            const response = await fetch(`/api/documents/${currentId}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ title: newTitle }),
+              body: JSON.stringify({ title: newTitle, titleOnly: true }),
             })
-            setDocumentState((prev) => ({ ...prev, saveStatus: "saved", hasUnsavedChanges: false }))
+            if (response.ok) {
+              setDocumentState((prev) => ({ ...prev, saveStatus: "saved" }))
+              // Transition to idle after brief "saved" indication
+              setTimeout(() => {
+                setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
+              }, 2000)
+            } else {
+              setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
+            }
           } else {
             // Create new document when user names it
             const response = await fetch("/api/documents", {
@@ -2003,6 +2106,12 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
                 lastSavedAt: doc.updated_at,
               }))
               updateLastOpenedDocumentId(doc.id)
+              // Transition to idle after brief "saved" indication
+              setTimeout(() => {
+                setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
+              }, 2000)
+            } else {
+              setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
             }
           }
         } catch (error) {

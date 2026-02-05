@@ -94,13 +94,22 @@ export function DocumentsDialog({ open, onOpenChange, onOpen, onDelete }: Docume
           ) : (
             <div className="space-y-1">
               {filteredDocs.map((doc) => (
-                <button
+                <div
                   key={doc.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     onOpen(doc.id)
                     onOpenChange(false)
                   }}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left group"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      onOpen(doc.id)
+                      onOpenChange(false)
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left group cursor-pointer"
                 >
                   <FileText className="h-5 w-5 text-blue-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -118,7 +127,7 @@ export function DocumentsDialog({ open, onOpenChange, onOpen, onDelete }: Docume
                   >
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
-                </button>
+                </div>
               ))}
             </div>
           )}

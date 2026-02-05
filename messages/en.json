@@ -436,6 +436,45 @@
       "emptyState": "No personal replacements yet. Add one to customize word corrections for your writing.",
       "noMatch": "No replacements found matching \"{query}\"",
       "loadError": "Failed to load your replacements"
+    },
+    "yourData": {
+      "title": "Your Data",
+      "subtitle": "Overview of your stored data and export options",
+      "documents": "Documents",
+      "dictionaryWords": "Dictionary Words",
+      "spellCheckWords": "Spell Check Words",
+      "replacements": "Replacements",
+      "encryptionNotice": "Your documents are encrypted and stored securely. Only you have access to your content.",
+      "dictionaryNotice": "Dictionary words you add help improve Aksara for all Khmer writers. See our",
+      "privacyPolicy": "Privacy Policy",
+      "exportTitle": "Export Your Data",
+      "exportDescription": "Download a copy of all your data including documents, dictionary, and settings.",
+      "exporting": "Exporting...",
+      "exported": "Downloaded!",
+      "exportFailed": "Export Failed",
+      "exportButton": "Export All Data",
+      "exportInfo": "Your export will include all documents, dictionary entries, spell check words, and replacements in JSON format."
+    },
+    "dangerZone": {
+      "title": "Danger Zone",
+      "subtitle": "Irreversible account actions",
+      "warning": "Deleting your account will permanently remove all your data, including documents, dictionary entries, and settings. This action cannot be undone.",
+      "exportFirst": "Consider exporting your data first before deleting your account.",
+      "deleteButton": "Delete My Account",
+      "modal": {
+        "title": "Delete Account",
+        "description": "This action is permanent and cannot be undone. All your data will be deleted immediately.",
+        "willDelete": "This will permanently delete:",
+        "account": "Your account and login credentials",
+        "loadingCount": "Loading...",
+        "documents": "{count, plural, =0 {No documents} =1 {1 document} other {# documents}}",
+        "dictionaryData": "All dictionary and spell check data",
+        "preferences": "All preferences and settings",
+        "typeDelete": "Type DELETE to confirm",
+        "cancel": "Cancel",
+        "deleting": "Deleting...",
+        "deleteButton": "Delete Account"
+      }
     }
   }
 }

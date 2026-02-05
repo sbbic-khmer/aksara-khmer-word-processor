@@ -69,7 +69,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { id } = await params
-    const { title, content, editorState, lastSavedAt, forceOverwrite, isAutoSave } = await request.json()
+    const { title, content, editorState, lastSavedAt, forceOverwrite, isAutoSave, titleOnly } = await request.json()
+
+    // Fast path for title-only updates (no size recalculation needed)
+    if (titleOnly && title !== undefined) {
+      const updated = await prisma.document.update({
+        where: { id, userId: user.id },
+        data: { title },
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      })
+      return NextResponse.json({
+        id: updated.id,
+        title: updated.title,
+        created_at: updated.createdAt,
+        updated_at: updated.updatedAt,
+      })
+    }
 
     // Calculate document size before compression (for MAX_DOCUMENT_SIZE check)
     const uncompressedSize = calculateDocumentSize(content, editorState)
