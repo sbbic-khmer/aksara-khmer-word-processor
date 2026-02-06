@@ -2,6 +2,7 @@
 
 import useSWR from "swr"
 import { useCallback, useRef, useMemo } from "react"
+import { useAuth } from "@/components/auth-provider"
 
 export interface UserPreferences {
   vad_silence_threshold: number
@@ -24,29 +25,59 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 }
 
 const fetcher = async (url: string) => {
-  const res = await fetch(url)
+  // Use cache: 'no-store' to bypass service worker and browser caching
+  const res = await fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache',
+    },
+  })
   if (!res.ok) {
-    // Return defaults if not authenticated or error
+    // Return null if not authenticated - this signals we should wait
     if (res.status === 401) {
-      return DEFAULT_PREFERENCES
+      return null
     }
     throw new Error("Failed to fetch preferences")
   }
-  return res.json()
+  return await res.json()
 }
 
 export function usePreferences() {
-  const { data, error, isLoading, mutate } = useSWR<UserPreferences>("/api/preferences", fetcher, {
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+
+  // Only fetch when authenticated - include auth state in key to refetch when it changes
+  // When not authenticated, SWR returns undefined and we use defaults
+  const swrKey = isAuthenticated ? "/api/preferences" : null
+
+  const { data, error, isLoading: swrLoading, mutate } = useSWR<UserPreferences | null>(swrKey, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 5000,
   })
 
+  // Loading if auth is loading OR SWR is loading (but only when we have a key)
+  // Also loading if authenticated but no data yet (SWR hasn't started fetching)
+  // CRITICAL: Check for data being truthy with actual content, not just defined
+  // This prevents race conditions where loading becomes false before real data arrives
+  const hasRealData = data !== undefined && data !== null
+  const isLoading = authLoading || (isAuthenticated && (swrLoading || !hasRealData))
+
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const dataLoadedRef = useRef(false)
+
+  // Track when real server data first arrives
+  if (!swrLoading && data !== undefined && data !== null) {
+    dataLoadedRef.current = true
+  }
 
   const updatePreference = useCallback(
     async <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
-      // Optimistically update local state
-      mutate((current) => ({ ...DEFAULT_PREFERENCES, ...current, [key]: value }), false)
+      // Only optimistically update SWR cache if initial data has loaded from server.
+      // If the initial fetch is still in-flight, calling mutate() with revalidate:false
+      // causes SWR to discard the in-flight result, losing real server values
+      // (e.g., stt_provider: "browser" gets overwritten by the default null).
+      if (dataLoadedRef.current) {
+        mutate((current) => ({ ...DEFAULT_PREFERENCES, ...current, [key]: value }), false)
+      }
 
       // Debounce API calls
       if (debounceRef.current) {
@@ -55,7 +86,7 @@ export function usePreferences() {
 
       debounceRef.current = setTimeout(async () => {
         try {
-          await fetch("/api/preferences", {
+          const res = await fetch("/api/preferences", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ [key]: value }),
@@ -70,11 +101,9 @@ export function usePreferences() {
     [mutate],
   )
 
-  // Memoize preferences to prevent creating new object on every render
-  // This prevents infinite loops in components that depend on preferences
   const preferences = useMemo(
     () => ({ ...DEFAULT_PREFERENCES, ...data }),
-    [data]
+    [data],
   )
 
   return {

@@ -58,6 +58,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
       setSelectedMicId(preferences.preferred_mic_device_id)
       setVadSilenceThreshold(Number(preferences.vad_silence_threshold) || DEFAULT_VAD_SILENCE)
       setVadSensitivity(Number(preferences.vad_threshold) || DEFAULT_VAD_SENSITIVITY)
+
       if (preferences.stt_provider) {
         const savedProvider = preferences.stt_provider as SttProvider
         if (savedProvider === "elevenlabs" && !canUseElevenLabs) {
@@ -65,12 +66,12 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
         } else {
           setSttProvider(savedProvider)
         }
-      } else {
+      } else if (!prefsInitialized) {
         setSttProvider(canUseElevenLabs ? "elevenlabs" : "browser")
       }
       setPrefsInitialized(true)
     }
-  }, [preferences, prefsLoading, canUseElevenLabs])
+  }, [preferences, prefsLoading, canUseElevenLabs, prefsInitialized])
 
   const handleMicChange = useCallback(
     (deviceId: string | null) => {

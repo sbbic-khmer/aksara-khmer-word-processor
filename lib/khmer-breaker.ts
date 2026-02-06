@@ -1540,8 +1540,13 @@ export class KhmerBreaker {
               })
 
               if (isWordBreakerDebugEnabled()) {
+                // Also log competing candidates at same position
+                const competingScores = candidates
+                  .filter(c => !c.segments) // Non-compound candidates
+                  .map(c => `len=${c.len}:${c.score.toFixed(2)}`)
+                  .slice(0, 5)
                 console.log(
-                  `[v0] beamSegment: break-point compound "${oovChunk}" → ["${compound.affixText}", "${compound.remainder}"] score: ${compoundScore.toFixed(2)}`
+                  `[v0] beamSegment: break-point compound "${oovChunk}" → ["${compound.affixText}", "${compound.remainder}"] score: ${compoundScore.toFixed(2)}, competing: [${competingScores.join(', ')}]`
                 )
               }
             } else {
@@ -1661,6 +1666,25 @@ export class KhmerBreaker {
       
       // Keep top BEAM_WIDTH states, favoring higher scores and further progress
       nextStates.sort((a, b) => (b.score - a.score) || (b.pos - a.pos))
+
+      // Debug: Log state counts and top scores at each iteration
+      if (isWordBreakerDebugEnabled() && nextStates.length > KhmerBreaker.BEAM_WIDTH) {
+        // Find states that have the compound segments (pieces ending with two specific words)
+        const statesWithCompound = nextStates.filter(s => {
+          if (s.pieces.length < 2) return false
+          const last = s.pieces[s.pieces.length - 1]
+          const secondLast = s.pieces[s.pieces.length - 2]
+          // Check if these look like a prefix + remainder compound split
+          // Prefix "org org org" is 4 chars, remainder would be around 5 chars
+          return secondLast.length >= 3 && secondLast.length <= 5 && last.length >= 4 && last.length <= 7
+        })
+        if (statesWithCompound.length > 0) {
+          const bestCompound = statesWithCompound.reduce((a, b) => a.score > b.score ? a : b)
+          const rank = nextStates.indexOf(bestCompound)
+          console.log(`[v0] beamSegment: ${nextStates.length} states, possible compound at rank ${rank}, score ${bestCompound.score.toFixed(2)}, pieces: [${bestCompound.pieces.slice(-3).map(p => `"${p}"`).join(', ')}]`)
+        }
+      }
+
       states = nextStates.slice(0, KhmerBreaker.BEAM_WIDTH)
     }
     

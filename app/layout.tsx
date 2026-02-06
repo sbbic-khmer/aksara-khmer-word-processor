@@ -1,7 +1,6 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono, Moul, Battambang, Kantumruy_Pro, Noto_Sans_Khmer } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
 const geistSans = Geist({
@@ -118,7 +117,6 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${moul.variable} ${battambang.variable} ${kantumruyPro.variable} ${notoSansKhmer.variable} font-sans antialiased`}
       >
         {children}
-        <Analytics />
       </body>
     </html>
   )

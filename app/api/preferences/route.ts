@@ -2,6 +2,11 @@ import { type NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-server"
 
+// Disable all caching for this route
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
+export const revalidate = 0
+
 // GET user preferences
 export async function GET() {
   const user = await getCurrentUser()
@@ -10,12 +15,16 @@ export async function GET() {
   }
 
   try {
-    // Upsert to ensure preferences exist, then return them
-    const preferences = await prisma.userPreference.upsert({
+    // First try to find existing preferences
+    let preferences = await prisma.userPreference.findUnique({
       where: { userId: user.id },
-      update: {},
-      create: { userId: user.id },
     })
+
+    if (!preferences) {
+      preferences = await prisma.userPreference.create({
+        data: { userId: user.id },
+      })
+    }
 
     return NextResponse.json({
       user_id: preferences.userId,
@@ -28,6 +37,10 @@ export async function GET() {
       last_opened_document_id: preferences.lastOpenedDocumentId,
       locale: preferences.locale,
       has_seen_data_notice: preferences.hasSeenDataNotice,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
     })
   } catch (error) {
     console.error("Error fetching preferences:", error)
