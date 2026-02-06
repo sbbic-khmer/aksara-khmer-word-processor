@@ -406,7 +406,6 @@ export const KHMER_DICTIONARY: DictionaryEntry[] = [
   { word: "គ្រាន់", frequency: 3690 },
   { word: "ខ្ពស់", frequency: 3659 },
   { word: "រាជ", frequency: 3652 },
-  { word: "នា", frequency: 3634 },
   { word: "ទិញ", frequency: 3632 },
   { word: "បង់", frequency: 3620 },
   { word: "ពិភពលោក", frequency: 3619 },
