@@ -268,7 +268,13 @@
         "large": "Large",
         "xLarge": "X-Large",
         "xxLarge": "XX-Large"
-      }
+      },
+      "zoom": {
+        "label": "Zoom",
+        "fitToWidth": "Fit to width"
+      },
+      "compactToolbar": "Compact toolbar",
+      "fullToolbar": "Full toolbar"
     },
     "contextMenu": {
       "spellCheck": {

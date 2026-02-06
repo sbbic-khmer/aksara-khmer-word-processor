@@ -32,6 +32,7 @@ export interface AffixConfig {
 export const KHMER_PREFIXES: AffixConfig[] = [
   // Agentive/nominalization prefixes - typically segmented separately
   { text: 'អ្នក', type: 'prefix', isBreakPoint: true },  // doer/agent (អ្នកចម្រៀង = singer)
+  { text: 'យ៉ាង', type: 'prefix', isBreakPoint: true }, 
   { text: 'ជន', type: 'prefix', isBreakPoint: true },   // person (ជនរងគ្រោះ = victim)
   { text: 'ការ', type: 'prefix', isBreakPoint: true },  // nominalization (ការធ្វើ = the doing)
   { text: 'សេចក្តី', type: 'prefix', isBreakPoint: true }, // abstract nominalization

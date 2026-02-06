@@ -291,6 +291,10 @@ function EditorContent({
   onContentChange,
   onSplitWord,
   isLoadingDocument,
+  zoomLevel,
+  onZoomChange,
+  isCompactToolbar,
+  onToggleCompactToolbar,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -316,6 +320,10 @@ function EditorContent({
   onContentChange: () => void
   onSplitWord: () => void
   isLoadingDocument: boolean
+  zoomLevel: number
+  onZoomChange: (level: number) => void
+  isCompactToolbar: boolean
+  onToggleCompactToolbar: () => void
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
@@ -332,6 +340,28 @@ function EditorContent({
     alignment: "left",
     list: null,
   })
+
+  // Zoom: calculate effective zoom (fit-to-width when zoomLevel === 0)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [fitToWidthZoom, setFitToWidthZoom] = useState(100)
+
+  useEffect(() => {
+    if (zoomLevel !== 0) return
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const calculate = () => {
+      const available = container.clientWidth - 48 // 24px margin each side
+      const zoom = Math.round((available / 816) * 100)
+      setFitToWidthZoom(Math.max(50, Math.min(200, zoom)))
+    }
+
+    calculate()
+    window.addEventListener('resize', calculate)
+    return () => window.removeEventListener('resize', calculate)
+  }, [zoomLevel])
+
+  const effectiveZoom = zoomLevel === 0 ? fitToWidthZoom : zoomLevel
 
   const handleFormatsChange = useCallback(
     (formats: ActiveFormats) => {
@@ -911,6 +941,10 @@ function EditorContent({
           onToggleSpellCheck={() => setSpellCheckEnabled(!spellCheckEnabled)}
           grammarCheckEnabled={grammarCheckEnabled}
           onToggleGrammarCheck={() => setGrammarCheckEnabled(!grammarCheckEnabled)}
+          zoomLevel={zoomLevel}
+          onZoomChange={onZoomChange}
+          isCompact={isCompactToolbar}
+          onToggleCompact={onToggleCompactToolbar}
         />
 
         <div className="ml-auto flex items-center">
@@ -924,10 +958,13 @@ function EditorContent({
         </div>
       </div>
 
-      <div className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
+      <div ref={scrollContainerRef} className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
         <SpellCheckContextMenu>
           <GrammarCheckContextMenu>
-          <div className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative flex flex-col">
+          <div
+            className="max-w-[816px] mx-auto my-6 bg-white dark:bg-gray-900 shadow-lg rounded-sm min-h-[1056px] relative flex flex-col"
+            style={{ zoom: effectiveZoom / 100 }}
+          >
             <RichTextPlugin
               contentEditable={
                 <ContentEditable
@@ -986,6 +1023,10 @@ function EditorWrapper({
   isLoadingPreferences,
   userDictionaryWords,
   ignoredDictionaryWords,
+  zoomLevel,
+  onZoomChange,
+  isCompactToolbar,
+  onToggleCompactToolbar,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -1011,6 +1052,10 @@ function EditorWrapper({
   isLoadingPreferences: boolean
   userDictionaryWords: string[]
   ignoredDictionaryWords: string[]
+  zoomLevel: number
+  onZoomChange: (level: number) => void
+  isCompactToolbar: boolean
+  onToggleCompactToolbar: () => void
 }) {
   const t = useTranslations("editor")
   const [editor] = useLexicalComposerContext()
@@ -1923,6 +1968,10 @@ function EditorWrapper({
           onContentChange={handleContentChange}
           onSplitWord={handleSplitWord}
           isLoadingDocument={isLoadingDocument}
+          zoomLevel={zoomLevel}
+          onZoomChange={onZoomChange}
+          isCompactToolbar={isCompactToolbar}
+          onToggleCompactToolbar={onToggleCompactToolbar}
         />
       </div>
 
@@ -1979,6 +2028,10 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     const [debugMode, setDebugMode] = useState(isDebugEnabled())
     const [wordBreakerDebugMode, setWordBreakerDebugMode] = useState(isWordBreakerDebugEnabled())
     const [cursorDebugMode, setCursorDebugMode] = useState(isCursorDebugEnabled())
+    const [isCompactToolbar, setIsCompactToolbar] = useState(() => {
+      if (typeof window === "undefined") return false
+      return localStorage.getItem("aksara-compact-toolbar") === "true"
+    })
     const [mounted, setMounted] = useState(false)
     const [isVoiceActive, setIsVoiceActive] = useState(false)
     const [partialTranscript, setPartialTranscript] = useState("")
@@ -2013,6 +2066,21 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       },
       [updatePreference],
     )
+
+    const handleZoomChange = useCallback(
+      (level: number) => {
+        updatePreference("zoom_level", level)
+      },
+      [updatePreference],
+    )
+
+    const handleToggleCompactToolbar = useCallback(() => {
+      setIsCompactToolbar((prev) => {
+        const next = !prev
+        localStorage.setItem("aksara-compact-toolbar", String(next))
+        return next
+      })
+    }, [])
 
     useEffect(() => {
       setMounted(true)
@@ -2190,6 +2258,10 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
               isLoadingPreferences={isLoadingPreferences}
               userDictionaryWords={userDictionaryWords}
               ignoredDictionaryWords={ignoredWordStrings}
+              zoomLevel={preferences.zoom_level}
+              onZoomChange={handleZoomChange}
+              isCompactToolbar={isCompactToolbar}
+              onToggleCompactToolbar={handleToggleCompactToolbar}
             />
           </GrammarCheckProvider>
           </SpellCheckProvider>

@@ -11,7 +11,7 @@ import {
   $isTextNode,
 } from "lexical"
 import { FORCE_RESEGMENT_COMMAND, clearSegmentationCache } from "./khmer-word-break-plugin"
-import { $setBlocksType } from "@lexical/selection"
+import { $setBlocksType, $patchStyleText } from "@lexical/selection"
 import { $createHeadingNode, $isHeadingNode, type HeadingTagType } from "@lexical/rich-text"
 import { INSERT_UNORDERED_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND, REMOVE_LIST_COMMAND } from "@lexical/list"
 import { useCallback, useEffect, useState } from "react"
@@ -154,17 +154,7 @@ export function useToolbarCommands() {
             break
           case "fontSize":
             if (value && FONT_SIZE_MAP[value]) {
-              const fontSize = FONT_SIZE_MAP[value]
-              const nodes = selection.getNodes()
-              nodes.forEach((node) => {
-                if ($isTextNode(node)) {
-                  const currentStyle = node.getStyle()
-                  // Remove existing font-size and add new one
-                  const newStyle = currentStyle.replace(/font-size:\s*[^;]+;?/g, "").trim()
-                  const styleWithSize = newStyle ? `${newStyle}; font-size: ${fontSize}` : `font-size: ${fontSize}`
-                  node.setStyle(styleWithSize)
-                }
-              })
+              $patchStyleText(selection, { "font-size": FONT_SIZE_MAP[value] })
             }
             break
           case "heading":

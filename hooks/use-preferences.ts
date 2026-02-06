@@ -12,6 +12,7 @@ export interface UserPreferences {
   theme: string
   stt_provider: string | null
   last_opened_document_id: string | null
+  zoom_level: number
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -22,6 +23,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   theme: "light",
   stt_provider: null,
   last_opened_document_id: null,
+  zoom_level: 100,
 }
 
 const fetcher = async (url: string) => {

@@ -548,9 +548,13 @@ useEffect(() => {
         }
       } finally {
         processingParagraphRef.current = false
-        queueMicrotask(() => {
-          processedParagraphKeysRef.current.clear()
-        })
+        // NOTE: Do NOT clear processedParagraphKeysRef here.
+        // The callers (processPendingParagraphs, forceResegmentAllParagraphs) manage
+        // clearing before their processing loops. Clearing here via queueMicrotask
+        // would wipe the guard after the synchronous editor.update() completes,
+        // allowing subsequent NodeTransform triggers (from the new TextNodes we just
+        // created) to re-queue paragraphs that were already processed — causing
+        // cascading resegmentation and visible word "jumping".
       }
     }
 
@@ -778,8 +782,14 @@ useEffect(() => {
           }
         })
       })
+
+      // Clear guards after editor.update() returns (same pattern as processPendingParagraphs)
+      setTimeout(() => {
+        processedNodesRef.current = new WeakSet<TextNode>()
+        processedParagraphKeysRef.current = new Set<string>()
+      }, 0)
     }
-    
+
     // Store ref so it can be called from command handler
     forceResegmentAllParagraphsRef.current = forceResegmentAllParagraphs
 
@@ -882,6 +892,18 @@ useEffect(() => {
           }
         }
       })
+
+      // Clear guards AFTER editor.update() returns, using setTimeout(0).
+      // At this point, all NodeTransforms triggered by the resegmentation have
+      // already run (they execute synchronously within editor.update()).
+      // The guards blocked cascade re-queuing during that window.
+      // Now we lift the guards so the next user keystroke can trigger new
+      // resegmentation. setTimeout(0) defers to the next macrotask, which is
+      // after all microtasks but before the next user input event.
+      setTimeout(() => {
+        processedNodesRef.current = new WeakSet<TextNode>()
+        processedParagraphKeysRef.current = new Set<string>()
+      }, 0)
     }
 
     // Queue a paragraph for debounced resegmentation

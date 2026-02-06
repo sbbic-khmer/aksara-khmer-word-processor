@@ -37,6 +37,7 @@ export async function GET() {
       last_opened_document_id: preferences.lastOpenedDocumentId,
       locale: preferences.locale,
       has_seen_data_notice: preferences.hasSeenDataNotice,
+      zoom_level: preferences.zoomLevel,
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -70,6 +71,7 @@ export async function PUT(request: NextRequest) {
       last_opened_document_id,
       locale,
       has_seen_data_notice,
+      zoom_level,
     } = body
 
     // Validate locale
@@ -102,6 +104,17 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Validate zoom_level: 0 = fit-to-width, 50-200 = percentage
+    if (zoom_level !== undefined) {
+      const value = parseInt(zoom_level)
+      if (isNaN(value) || (value !== 0 && (value < 50 || value > 200))) {
+        return NextResponse.json(
+          { error: "zoom_level must be 0 (fit to width) or between 50 and 200" },
+          { status: 400 }
+        )
+      }
+    }
+
     const preferences = await prisma.userPreference.upsert({
       where: { userId: user.id },
       update: {
@@ -122,6 +135,7 @@ export async function PUT(request: NextRequest) {
         ...(has_seen_data_notice !== undefined && {
           hasSeenDataNotice: has_seen_data_notice,
         }),
+        ...(zoom_level !== undefined && { zoomLevel: zoom_level }),
       },
       create: {
         userId: user.id,
@@ -134,6 +148,7 @@ export async function PUT(request: NextRequest) {
         lastOpenedDocumentId: last_opened_document_id ?? null,
         locale: locale ?? "en",
         hasSeenDataNotice: has_seen_data_notice ?? false,
+        zoomLevel: zoom_level ?? 100,
       },
     })
 
@@ -148,6 +163,7 @@ export async function PUT(request: NextRequest) {
       last_opened_document_id: preferences.lastOpenedDocumentId,
       locale: preferences.locale,
       has_seen_data_notice: preferences.hasSeenDataNotice,
+      zoom_level: preferences.zoomLevel,
     })
   } catch (error) {
     console.error("Error updating preferences:", error)
