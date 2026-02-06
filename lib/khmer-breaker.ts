@@ -1229,7 +1229,7 @@ export class KhmerBreaker {
   private static readonly SEMIVOWEL_BOUNDARY_PENALTY = 3.0   // Penalty for breaking before semivowel (យ/វ) after combining mark
   private static readonly BOUNDARY_PENALTY = 2.0             // Cost per token boundary
   private static readonly LENGTH_BONUS = 0.25                // Reward per character for longer tokens
-  private static readonly COMPOUND_BONUS = 4.0               // Bonus for valid affix-based compounds (reduces OOV penalty)
+  private static readonly COMPOUND_BONUS = 0                  // Fused compounds scored on stem freq + length alone (no artificial boost)
 
   /**
    * Check if a position is a safe token boundary.
@@ -1547,6 +1547,23 @@ export class KhmerBreaker {
             : text.slice(s.pos, tryEnd)
           const tryCompound = this.checkAffixCompound(tryWord)
           if (tryCompound) {
+            // Lookahead: reject fused suffix compounds whose suffix portion overlaps
+            // with a longer dictionary word. Example: "ចorg org org org org org org org org org org org" = "ចorg org" + suffix "org org org org"
+            // — reject because "org org org org org org org org org org org org org org org org" (8 chars) starts where the suffix starts
+            // and extends past the compound's end.
+            if (!tryCompound.isBreakPoint && tryCompound.type === 'suffix') {
+              const suffixStartInText = s.pos + tryWord.length - tryCompound.affixText.length
+              const longestAtSuffix = this.trie.findLongestMatch(text, suffixStartInText)
+              if (longestAtSuffix && suffixStartInText + longestAtSuffix.word.length > tryEnd) {
+                if (isWordBreakerDebugEnabled()) {
+                  console.log(
+                    `[v0] beamSegment: rejected fused compound "${tryWord}" (suffix "${tryCompound.affixText}" overlaps with longer word "${longestAtSuffix.word}" at pos ${suffixStartInText})`
+                  )
+                }
+                continue // Suffix eats into a longer dictionary word — try shorter compounds
+              }
+            }
+
             // If extended, update the remainder to include the trailing combining marks
             if (wasExtended && tryCompound.isBreakPoint) {
               if (tryCompound.type === 'prefix') {
@@ -1769,8 +1786,15 @@ export class KhmerBreaker {
       states = nextStates.slice(0, KhmerBreaker.BEAM_WIDTH)
     }
     
-    // Choose best finished state (furthest position, then highest score)
-    states.sort((a, b) => (b.pos - a.pos) || (b.score - a.score))
+    // Choose best finished state: furthest position, then highest average score per segment.
+    // Normalizing by segment count prevents over-segmentation where many short dictionary
+    // words accumulate more total score than fewer correct longer words.
+    states.sort((a, b) => {
+      if (a.pos !== b.pos) return b.pos - a.pos
+      const avgA = a.pieces.length > 0 ? a.score / a.pieces.length : a.score
+      const avgB = b.pieces.length > 0 ? b.score / b.pieces.length : b.score
+      return avgB - avgA
+    })
     const result = states[0]?.pieces ?? [text]
     
     if (isWordBreakerDebugEnabled()) {

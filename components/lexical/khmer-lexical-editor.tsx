@@ -1055,6 +1055,7 @@ function EditorWrapper({
         
         // Trigger resegmentation if word count increased AFTER initial load
         if (!initialDictLoadRef.current && userDictionaryWords.length > prevUserDictWordCountRef.current) {
+          clearSegmentationCache()
           editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
         }
       } catch (error) {
