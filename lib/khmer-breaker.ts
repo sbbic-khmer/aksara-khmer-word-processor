@@ -243,9 +243,10 @@ class KhmerCharSets {
     for (let i = 0x17c6; i <= 0x17d1; i++) {
       this.signs.add(String.fromCodePoint(i))
     }
-    for (let i = 0x17d3; i <= 0x17dd; i++) {
-      this.signs.add(String.fromCodePoint(i))
-    }
+    // Only include actual combining marks from the upper sign range.
+    // U+17D4-U+17DA are punctuation (Po), U+17DB is currency, U+17DC is a letter.
+    this.signs.add(String.fromCodePoint(0x17d3)) // BATHAMASAT (Mn)
+    this.signs.add(String.fromCodePoint(0x17dd)) // ATTHACAN (Mn)
 
     this.combiningMarks = new Set([...this.dependentVowels, ...this.signs])
     this.baseChars = new Set([...this.consonants, ...this.independentVowels])
@@ -402,17 +403,22 @@ class KhmerCharSets {
     // 2) CRITICAL: never break after or before COENG
     if (this.isCoeng(before) || this.isCoeng(after)) return false
 
-    // 3) Never break BEFORE repetition sign (ៗ)
+    // 3) Never break AFTER samyok sannya (័, U+17D0)
+    // Samyok sannya never appears at the end of a word in Khmer.
+    // Example: ព័ណ៌នា (describe) — must not break after ័
+    if (before === "\u17D0") return false
+
+    // 4) Never break BEFORE repetition sign (ៗ)
     // The repetition sign is a suffix that must attach to the preceding word
     // Example: អ្វីៗ (things), ផ្សេងៗ (various)
     if (this.isRepetitionSign(after)) return false
 
-    // 4) Unicode LB9: never break BEFORE a combining mark.
+    // 5) Unicode LB9: never break BEFORE a combining mark.
     // In Khmer this means dependent vowels, signs, and other marks
     // must stay attached to the previous base/cluster.
     if (this.isCombiningMark(after)) return false
 
-    // 5) Don't break right after a combining mark unless the next char
+    // 6) Don't break right after a combining mark unless the next char
     // begins a new cluster (is a base), or is whitespace/punctuation.
     // This prevents ugly breaks like "...VOWEL | non-base"
     if (this.isCombiningMark(before) && !this.isBase(after) && !/\s/.test(after) && !this.isPunctuation(after)) {
@@ -495,7 +501,7 @@ export class KhmerBreaker {
   // Short dictionary matches (1-2 chars) with low frequency are likely
   // just particles/letters, not real words worth breaking at.
   // This prevents breaking up transliterated foreign names like "វ៉កគ័រ" (Walker)
-  private MIN_FREQUENCY_FOR_SINGLE_CHAR = 3000
+  private MIN_FREQUENCY_FOR_SINGLE_CHAR = 4000
   private MIN_FREQUENCY_FOR_TWO_CHAR = 1000
 
   constructor(dictionaryData: DictionaryEntry[] | null = null) {
@@ -1234,6 +1240,49 @@ export class KhmerBreaker {
     return this.charSets.canBreakAt(text, endIndex)
   }
 
+  /**
+   * Extend a position past trailing combining marks to find a valid boundary.
+   *
+   * When a dictionary match ends right before a combining mark (dependent vowel,
+   * sign, etc.), the combining mark belongs to the matched word — it attaches to
+   * the last cluster's base consonant. The dictionary entry may simply omit it.
+   *
+   * Example: dictionary has "ពិនិត្យ" (7 chars) but the text has "ពិនិត្យេ" (8 chars)
+   * where org org (dependent vowel) belongs to the ត org org org cluster. We extend the match
+   * to include org org, giving a valid boundary after it.
+   *
+   * Returns the extended position if a valid boundary is found, or -1 if not.
+   */
+  private extendPastCombiningMarks(text: string, pos: number): number {
+    const endPos = text.length
+    if (pos >= endPos) return pos
+
+    // Only extend if the current position is blocked by a combining mark
+    if (this.isSafeBoundary(text, pos)) return pos
+
+    let extended = pos
+    // Walk past combining marks (dependent vowels, signs) and any COENG+consonant sequences
+    while (extended < endPos) {
+      const ch = text[extended]
+      if (this.charSets.isCombiningMark(ch) || this.charSets.isCoeng(ch) || this.charSets.isRepetitionSign(ch)) {
+        extended++
+        // After COENG, also consume the subscript consonant
+        if (this.charSets.isCoeng(ch) && extended < endPos && this.charSets.isBase(text[extended])) {
+          extended++
+        }
+      } else {
+        break
+      }
+    }
+
+    // Check if the extended position is a valid boundary
+    if (extended > pos && this.isSafeBoundary(text, extended)) {
+      return extended
+    }
+
+    return -1 // No valid boundary found
+  }
+
   // Maximum number of clusters to consume in an OOV chunk before forcing a break
   private static readonly MAX_OOV_CLUSTERS = 8
 
@@ -1428,20 +1477,28 @@ export class KhmerBreaker {
 
         // Add dictionary matches as candidates (only if they end at safe boundaries)
         for (const m of matches) {
-          const end = s.pos + m.length
+          let end = s.pos + m.length
 
           // Skip ignored words (frequency set to 0 by addIgnoredWords)
           if (m.frequency === 0) {
             continue
           }
 
-          // Reject dictionary matches that would end at an illegal boundary
+          // If the match ends at an illegal boundary, try extending past trailing
+          // combining marks. A combining mark after a dictionary word's last cluster
+          // belongs to that word (e.g., dictionary has "ពorg org org org org org org" but text has
+          // "ពorg org org org org org org org" — the org org belongs to the ត org org org cluster).
           if (!this.isSafeBoundary(text, end)) {
-            continue
+            const extended = this.extendPastCombiningMarks(text, end)
+            if (extended < 0) {
+              continue // No valid boundary found even after extension
+            }
+            end = extended
           }
 
-          // Get the actual word to check significance
+          // Get the actual word (including any extended combining marks)
           const word = text.slice(s.pos, end)
+          const len = end - s.pos
 
           // Calculate penalty for short low-frequency words
           // This replaces the hard gate of isSignificantWord with a soft penalty
@@ -1453,10 +1510,10 @@ export class KhmerBreaker {
           }
 
           let sc = Math.log((m.frequency || 1) + 1)
-          sc += KhmerBreaker.LENGTH_BONUS * m.length
+          sc += KhmerBreaker.LENGTH_BONUS * len
           sc -= KhmerBreaker.BOUNDARY_PENALTY
           sc -= penalty // Apply frequency-based penalty for short words
-          candidates.push({ len: m.length, score: sc })
+          candidates.push({ len, score: sc })
         }
 
         // FIRST: Check for affix-based compounds BEFORE determining OOV chunk
@@ -1469,15 +1526,39 @@ export class KhmerBreaker {
         let compoundLen = 0
 
         for (let tryLen = maxLen; tryLen >= 4; tryLen--) {
-          const tryEnd = s.pos + tryLen
-          // Only try lengths that end at valid boundaries
-          if (!this.isSafeBoundary(text, tryEnd)) continue
+          let tryEnd = s.pos + tryLen
+          let wasExtended = false
 
-          const tryWord = text.slice(s.pos, tryEnd)
+          // Only try lengths that end at valid boundaries.
+          // If the boundary fails due to a trailing combining mark, extend past it —
+          // the combining mark belongs to the compound's last cluster.
+          if (!this.isSafeBoundary(text, tryEnd)) {
+            const extended = this.extendPastCombiningMarks(text, tryEnd)
+            if (extended < 0) continue
+            tryEnd = extended
+            wasExtended = true
+          }
+
+          // When extended, check compound decomposition on the ORIGINAL word
+          // (the trie stores words without trailing combining marks). The extra
+          // combining marks are then included in the compound's actual text span.
+          const tryWord = wasExtended
+            ? text.slice(s.pos, s.pos + tryLen)
+            : text.slice(s.pos, tryEnd)
           const tryCompound = this.checkAffixCompound(tryWord)
           if (tryCompound) {
+            // If extended, update the remainder to include the trailing combining marks
+            if (wasExtended && tryCompound.isBreakPoint) {
+              if (tryCompound.type === 'prefix') {
+                tryCompound.remainder = text.slice(s.pos + tryCompound.affixText.length, tryEnd)
+              } else {
+                // Suffix: the combining marks trail the suffix
+                const affixStart = s.pos + tryLen - tryCompound.affixText.length
+                tryCompound.affixText = text.slice(affixStart, tryEnd)
+              }
+            }
             compound = tryCompound
-            compoundLen = tryLen
+            compoundLen = tryEnd - s.pos
             break // Found longest compound
           }
         }
