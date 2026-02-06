@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef, useImperativeHandle, forwardRef } from "react"
+import { useState, useCallback, useEffect, useRef, useImperativeHandle, forwardRef, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import { Mic, MicOff, Loader2 } from "lucide-react"
@@ -47,63 +47,35 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
 
   const { preferences, updatePreference, isLoading: prefsLoading } = usePreferences()
 
-  const [selectedMicId, setSelectedMicId] = useState<string | null>(null)
-  const [vadSilenceThreshold, setVadSilenceThreshold] = useState<number>(DEFAULT_VAD_SILENCE)
-  const [vadSensitivity, setVadSensitivity] = useState<number>(DEFAULT_VAD_SENSITIVITY)
-  const [sttProvider, setSttProvider] = useState<SttProvider>("browser")
-  const [prefsInitialized, setPrefsInitialized] = useState(false)
+  const selectedMicId = preferences.preferred_mic_device_id
+  const vadSilenceThreshold = Number(preferences.vad_silence_threshold) || DEFAULT_VAD_SILENCE
+  const vadSensitivity = Number(preferences.vad_threshold) || DEFAULT_VAD_SENSITIVITY
 
-  useEffect(() => {
-    if (!prefsLoading && preferences) {
-      setSelectedMicId(preferences.preferred_mic_device_id)
-      setVadSilenceThreshold(Number(preferences.vad_silence_threshold) || DEFAULT_VAD_SILENCE)
-      setVadSensitivity(Number(preferences.vad_threshold) || DEFAULT_VAD_SENSITIVITY)
-
-      if (preferences.stt_provider) {
-        const savedProvider = preferences.stt_provider as SttProvider
-        if (savedProvider === "elevenlabs" && !canUseElevenLabs) {
-          setSttProvider("browser")
-        } else {
-          setSttProvider(savedProvider)
-        }
-      } else if (!prefsInitialized) {
-        setSttProvider(canUseElevenLabs ? "elevenlabs" : "browser")
-      }
-      setPrefsInitialized(true)
+  const sttProvider: SttProvider = useMemo(() => {
+    const saved = preferences.stt_provider as SttProvider | null
+    if (saved) {
+      return (saved === "elevenlabs" && !canUseElevenLabs) ? "browser" : saved
     }
-  }, [preferences, prefsLoading, canUseElevenLabs, prefsInitialized])
+    return canUseElevenLabs ? "elevenlabs" : "browser"
+  }, [preferences.stt_provider, canUseElevenLabs])
 
   const handleMicChange = useCallback(
-    (deviceId: string | null) => {
-      setSelectedMicId(deviceId)
-      if (prefsInitialized) {
-        updatePreference("preferred_mic_device_id", deviceId)
-      }
-    },
-    [updatePreference, prefsInitialized],
+    (deviceId: string | null) => updatePreference("preferred_mic_device_id", deviceId),
+    [updatePreference],
   )
 
   const handleVadSilenceChange = useCallback(
-    (value: number) => {
-      setVadSilenceThreshold(value)
-      updatePreference("vad_silence_threshold", value)
-    },
+    (value: number) => updatePreference("vad_silence_threshold", value),
     [updatePreference],
   )
 
   const handleVadSensitivityChange = useCallback(
-    (value: number) => {
-      setVadSensitivity(value)
-      updatePreference("vad_threshold", value)
-    },
+    (value: number) => updatePreference("vad_threshold", value),
     [updatePreference],
   )
 
   const handleSttProviderChange = useCallback(
-    (provider: SttProvider) => {
-      setSttProvider(provider)
-      updatePreference("stt_provider", provider)
-    },
+    (provider: SttProvider) => updatePreference("stt_provider", provider),
     [updatePreference],
   )
 
@@ -339,8 +311,6 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
     webSpeech,
     selectedMicId,
     onTranscript,
-    vadSilenceThreshold,
-    vadSensitivity,
     processTranscript,
     cleanupWaitingState,
   ])
@@ -384,9 +354,9 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
         <MicSelector
           selectedDeviceId={selectedMicId}
           onDeviceChange={handleMicChange}
-          vadSilenceThreshold={vadSilenceThreshold ?? DEFAULT_VAD_SILENCE}
+          vadSilenceThreshold={vadSilenceThreshold}
           onVadSilenceThresholdChange={handleVadSilenceChange}
-          vadSensitivity={vadSensitivity ?? DEFAULT_VAD_SENSITIVITY}
+          vadSensitivity={vadSensitivity}
           onVadSensitivityChange={handleVadSensitivityChange}
           sttProvider={sttProvider}
           onSttProviderChange={handleSttProviderChange}
