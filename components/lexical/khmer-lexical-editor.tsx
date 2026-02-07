@@ -1221,7 +1221,11 @@ function EditorWrapper({
       return
     }
 
-    if (isLoadingPreferences) {
+    // Only wait for preferences if we don't already have a document ID from sessionStorage.
+    // When sessionStorage editor-state is cleared (e.g., too large), we fall through to
+    // the API fetch path — but we still have the doc ID from sessionStorage, so we can
+    // proceed immediately without waiting for preferences to provide lastOpenedDocumentId.
+    if (isLoadingPreferences && !extractValidUUID(sessionDocId)) {
       // Give preferences 5 seconds to load, then proceed anyway
       const prefsTimeout = setTimeout(() => {
         if (isLoadingPreferences && !lastDocLoadedRef.current) {
@@ -1242,12 +1246,14 @@ function EditorWrapper({
         controller.abort()
       }, 8000)
 
-      // Load the last document from preferences
+      // Load the last document from API
+      let gotNotFound = false
       fetch(`/api/documents/${validDocId}`, { signal: controller.signal })
         .then((res) => {
           clearTimeout(fetchTimeout)
           if (res.ok) return res.json()
-          throw new Error("Document not found")
+          if (res.status === 404) gotNotFound = true
+          throw new Error(`Document fetch failed: ${res.status}`)
         })
         .then((doc) => {
           try {
@@ -1288,8 +1294,12 @@ function EditorWrapper({
         })
         .catch((error) => {
           clearTimeout(fetchTimeout)
-          // Document was deleted, doesn't exist, or request timed out
-          updateLastOpenedDocumentId(null)
+          // Only wipe the preference if the document was definitively not found (404).
+          // Network timeouts, auth errors, etc. are transient — the document likely
+          // still exists and will load on the next attempt.
+          if (gotNotFound) {
+            updateLastOpenedDocumentId(null)
+          }
         })
         .finally(() => {
           if (loadingTimeoutRef.current) {
