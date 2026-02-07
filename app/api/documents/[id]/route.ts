@@ -6,9 +6,10 @@ import {
   calculateDocumentSize,
   calculateStoredSize,
   formatBytes,
-  MAX_DOCUMENT_SIZE,
+  getMaxUncompressedSize,
+  getUserStorageLimit,
 } from "@/lib/storage"
-import { compressString, decompressString } from "@/lib/compression"
+import { compressString, decompressString, isCompressed } from "@/lib/compression"
 
 // GET - Get a specific document
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -91,25 +92,32 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       })
     }
 
-    // Calculate document size before compression (for MAX_DOCUMENT_SIZE check)
-    const uncompressedSize = calculateDocumentSize(content, editorState)
+    const editorStateStr = editorState !== undefined
+      ? typeof editorState === "string" ? editorState : JSON.stringify(editorState)
+      : undefined
+    const alreadyCompressed = editorStateStr ? isCompressed(editorStateStr) : false
 
-    // Check document size limit (before compression)
-    if (uncompressedSize > MAX_DOCUMENT_SIZE) {
-      return NextResponse.json(
-        {
-          error: `Document is too large (${formatBytes(uncompressedSize)}). Maximum size is ${formatBytes(MAX_DOCUMENT_SIZE)}.`,
-          code: "DOCUMENT_TOO_LARGE",
-        },
-        { status: 413 }
-      )
+    // Check document size limit (skip if already compressed — client already checked)
+    if (!alreadyCompressed) {
+      const uncompressedSize = calculateDocumentSize(content, editorState)
+      const userLimit = await getUserStorageLimit(user.id)
+      const maxUncompressed = getMaxUncompressedSize(userLimit)
+
+      if (uncompressedSize > maxUncompressed) {
+        return NextResponse.json(
+          {
+            error: `Document is too large (${formatBytes(uncompressedSize)}). Maximum size is ${formatBytes(maxUncompressed)}.`,
+            code: "DOCUMENT_TOO_LARGE",
+          },
+          { status: 413 }
+        )
+      }
     }
 
-    // Compress editorState before storing to reduce storage size
+    // Compress editorState before storing (or use pre-compressed from client)
     let compressedEditorState: string | undefined
-    if (editorState !== undefined) {
-      const editorStateStr = typeof editorState === "string" ? editorState : JSON.stringify(editorState)
-      compressedEditorState = compressString(editorStateStr)
+    if (editorStateStr !== undefined) {
+      compressedEditorState = alreadyCompressed ? editorStateStr : compressString(editorStateStr)
     }
 
     // Calculate the actual stored size (after compression)

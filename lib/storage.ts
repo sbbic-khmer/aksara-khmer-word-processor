@@ -2,7 +2,16 @@ import { prisma } from "./prisma"
 
 // Default limits
 export const DEFAULT_STORAGE_LIMIT = 10 * 1024 * 1024 // 10MB
-export const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024 // 10MB per document (checked before compression)
+const MAX_UNCOMPRESSED_CAP = 100 * 1024 * 1024 // 100MB absolute cap
+
+/**
+ * Get the maximum allowed uncompressed document size for a user.
+ * Uses a 5x multiplier on their storage limit to account for typical
+ * gzip compression ratio on Lexical JSON, capped at 100MB.
+ */
+export function getMaxUncompressedSize(userStorageLimitBytes: number): number {
+  return Math.min(userStorageLimitBytes * 5, MAX_UNCOMPRESSED_CAP)
+}
 
 /**
  * Get the total storage used by a user from cached value.
@@ -115,7 +124,7 @@ export function calculateStoredSize(
 
 /**
  * Calculate the size of a document before compression (for validation).
- * Used to check MAX_DOCUMENT_SIZE before compression.
+ * Used to check per-user max uncompressed size before compression.
  */
 export function calculateDocumentSize(
   content: string | null | undefined,

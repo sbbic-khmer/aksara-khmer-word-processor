@@ -32,6 +32,8 @@ import { $isKhmerBreakNode } from "./nodes/khmer-break-node"
 import { $isHeadingNode } from "@lexical/rich-text"
 import { $isListNode, $isListItemNode } from "@lexical/list"
 
+import { stripBreakNodes } from "@/lib/editor-save-utils"
+import { compressStringClient } from "@/lib/client-compression"
 import { KhmerBreaker } from "@/lib/khmer-breaker"
 import { KHMER_DICTIONARY } from "@/lib/khmer-dictionary-data"
 import { VoiceInput, type VoiceInputHandle } from "@/components/voice-input"
@@ -1340,7 +1342,7 @@ function EditorWrapper({
         try {
           const editorState = editor.getEditorState()
           sessionStorage.setItem('aksara-current-doc-id', currentDocId)
-          sessionStorage.setItem('aksara-editor-state', JSON.stringify(editorState.toJSON()))
+          sessionStorage.setItem('aksara-editor-state', JSON.stringify(stripBreakNodes(editorState.toJSON())))
           sessionStorage.setItem('aksara-doc-state', JSON.stringify({
             id: currentDocId,
             title: documentStateRef.current.title,
@@ -1362,7 +1364,7 @@ function EditorWrapper({
         try {
           const editorState = editor.getEditorState()
           sessionStorage.setItem('aksara-current-doc-id', currentDocId)
-          sessionStorage.setItem('aksara-editor-state', JSON.stringify(editorState.toJSON()))
+          sessionStorage.setItem('aksara-editor-state', JSON.stringify(stripBreakNodes(editorState.toJSON())))
           sessionStorage.setItem('aksara-doc-state', JSON.stringify({
             id: currentDocId,
             title: documentStateRef.current.title,
@@ -1418,7 +1420,9 @@ function EditorWrapper({
       storageError?: { code: "DOCUMENT_TOO_LARGE" | "STORAGE_QUOTA_EXCEEDED"; message: string }
     }> => {
       const currentState = documentStateRef.current
-      const editorState = JSON.stringify(editor.getEditorState().toJSON())
+      const editorState = await compressStringClient(
+        JSON.stringify(stripBreakNodes(editor.getEditorState().toJSON()))
+      )
       const content = editor.getEditorState().read(() => {
         return $getRoot().getTextContent()
       })
@@ -1479,7 +1483,9 @@ function EditorWrapper({
       }
       setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
 
-      const editorState = JSON.stringify(editor.getEditorState().toJSON())
+      const editorState = await compressStringClient(
+        JSON.stringify(stripBreakNodes(editor.getEditorState().toJSON()))
+      )
       const content = editor.getEditorState().read(() => {
         return $getRoot().getTextContent()
       })
@@ -1652,7 +1658,9 @@ function EditorWrapper({
       if (isSaveAs || !documentState.id) {
         // Create new document
         setDocumentState((prev) => ({ ...prev, saveStatus: "saving" }))
-        const editorState = JSON.stringify(editor.getEditorState().toJSON())
+        const editorState = await compressStringClient(
+          JSON.stringify(stripBreakNodes(editor.getEditorState().toJSON()))
+        )
         const content = editor.getEditorState().read(() => {
           return $getRoot().getTextContent()
         })
