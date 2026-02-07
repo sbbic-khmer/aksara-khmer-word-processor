@@ -10,6 +10,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    proxyClientMaxBodySize: '35mb',
+  },
 }
 
 export default withNextIntl(nextConfig);
