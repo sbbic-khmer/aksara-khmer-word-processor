@@ -1262,7 +1262,12 @@ function EditorWrapper({
               const state = editor.parseEditorState(doc.editor_state)
               editor.setEditorState(state)
               // Save editor state to sessionStorage for future reloads
-              sessionStorage.setItem('aksara-editor-state', JSON.stringify(state.toJSON()))
+              try {
+                sessionStorage.setItem('aksara-editor-state', JSON.stringify(state.toJSON()))
+              } catch {
+                // Too large for sessionStorage — remove stale data so API fetch runs on reload
+                try { sessionStorage.removeItem('aksara-editor-state') } catch { /* ignore */ }
+              }
               // Force resegmentation after content is loaded
               // Use a small delay to ensure editor state is fully set
               setTimeout(() => {
@@ -1341,15 +1346,18 @@ function EditorWrapper({
       if (currentDocId) {
         try {
           const editorState = editor.getEditorState()
+          const editorStateJson = JSON.stringify(stripBreakNodes(editorState.toJSON()))
           sessionStorage.setItem('aksara-current-doc-id', currentDocId)
-          sessionStorage.setItem('aksara-editor-state', JSON.stringify(stripBreakNodes(editorState.toJSON())))
+          sessionStorage.setItem('aksara-editor-state', editorStateJson)
           sessionStorage.setItem('aksara-doc-state', JSON.stringify({
             id: currentDocId,
             title: documentStateRef.current.title,
             lastSavedAt: documentStateRef.current.lastSavedAt,
           }))
         } catch {
-          // Ignore errors during cleanup
+          // Editor state too large for sessionStorage — clear stale cache
+          // so the API fetch runs on reload instead of restoring old data
+          try { sessionStorage.removeItem('aksara-editor-state') } catch { /* ignore */ }
         }
       }
     }
@@ -1363,15 +1371,18 @@ function EditorWrapper({
       if (currentDocId) {
         try {
           const editorState = editor.getEditorState()
+          const editorStateJson = JSON.stringify(stripBreakNodes(editorState.toJSON()))
           sessionStorage.setItem('aksara-current-doc-id', currentDocId)
-          sessionStorage.setItem('aksara-editor-state', JSON.stringify(stripBreakNodes(editorState.toJSON())))
+          sessionStorage.setItem('aksara-editor-state', editorStateJson)
           sessionStorage.setItem('aksara-doc-state', JSON.stringify({
             id: currentDocId,
             title: documentStateRef.current.title,
             lastSavedAt: documentStateRef.current.lastSavedAt,
           }))
         } catch {
-          // Ignore errors during unload
+          // Editor state too large for sessionStorage — clear stale cache
+          // so the API fetch runs on reload instead of restoring old data
+          try { sessionStorage.removeItem('aksara-editor-state') } catch { /* ignore */ }
         }
       }
     }
@@ -1601,6 +1612,12 @@ function EditorWrapper({
         saveStatus: "saved",
         lastSavedAt: result.newUpdatedAt,
       }))
+      // Update sessionStorage cache so reload doesn't show stale data
+      try {
+        sessionStorage.setItem('aksara-editor-state', JSON.stringify(stripBreakNodes(editor.getEditorState().toJSON())))
+      } catch {
+        try { sessionStorage.removeItem('aksara-editor-state') } catch { /* ignore */ }
+      }
       if (savedStatusTimeoutRef.current) clearTimeout(savedStatusTimeoutRef.current)
       savedStatusTimeoutRef.current = setTimeout(() => {
         setDocumentState((prev) => ({ ...prev, saveStatus: "idle" }))
@@ -1608,7 +1625,7 @@ function EditorWrapper({
     } else {
       setDocumentState((prev) => ({ ...prev, saveStatus: "error" }))
     }
-  }, [documentState.id, documentState.title, performSave, setDocumentState])
+  }, [documentState.id, documentState.title, editor, performSave, setDocumentState])
 
   // Save on visibility change (user switches tabs) and beforeunload (user closes page)
   useEffect(() => {
