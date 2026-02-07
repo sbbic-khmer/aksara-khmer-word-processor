@@ -1167,7 +1167,7 @@ function EditorWrapper({
     const sessionDocId = typeof window !== 'undefined' ? sessionStorage.getItem('aksara-current-doc-id') : null
     const sessionEditorState = typeof window !== 'undefined' ? sessionStorage.getItem('aksara-editor-state') : null
     const sessionDocState = typeof window !== 'undefined' ? sessionStorage.getItem('aksara-doc-state') : null
-    const targetDocId = extractValidUUID(sessionDocId) || extractValidUUID(lastOpenedDocumentId)
+    const targetDocId = extractValidDocumentId(sessionDocId) || extractValidDocumentId(lastOpenedDocumentId)
 
     // If we already loaded and the target doc matches current doc, skip
     if (lastDocLoadedRef.current && documentState.id === targetDocId) {
@@ -1225,7 +1225,7 @@ function EditorWrapper({
     // When sessionStorage editor-state is cleared (e.g., too large), we fall through to
     // the API fetch path — but we still have the doc ID from sessionStorage, so we can
     // proceed immediately without waiting for preferences to provide lastOpenedDocumentId.
-    if (isLoadingPreferences && !extractValidUUID(sessionDocId)) {
+    if (isLoadingPreferences && !extractValidDocumentId(sessionDocId)) {
       // Give preferences 5 seconds to load, then proceed anyway
       const prefsTimeout = setTimeout(() => {
         if (isLoadingPreferences && !lastDocLoadedRef.current) {
@@ -2313,23 +2313,21 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
   },
 )
 
-function extractValidUUID(value: unknown): string | null {
+function extractValidDocumentId(value: unknown): string | null {
   // If it's an object, try to extract string value
   let str: unknown = value
   if (value && typeof value === "object") {
-    // Some database drivers return UUID as {value: "uuid-string"} or similar
     const obj = value as Record<string, unknown>
     if ("value" in obj) str = obj.value
     else if ("id" in obj)
-      str = obj.id // Try common 'id' property
+      str = obj.id
     else if ("toString" in obj && typeof obj.toString === "function") {
       const stringified = obj.toString()
-      // Only use toString if it's not the default "[object Object]"
       if (stringified !== "[object Object]") str = stringified
     }
   }
 
-  if (typeof str !== "string") return null
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  return uuidRegex.test(str) ? str : null
+  if (typeof str !== "string" || str.length === 0) return null
+  // Accept both UUIDs (hex + dashes) and CUIDs (alphanumeric)
+  return /^[a-z0-9-]+$/i.test(str) ? str : null
 }
