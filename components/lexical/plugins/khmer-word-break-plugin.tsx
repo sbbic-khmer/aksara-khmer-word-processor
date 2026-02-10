@@ -110,12 +110,18 @@ const USER_BREAK_REGEX = /[\u200B\u200C\u200D]/
 
 // Khmer and common sentence-ending punctuation that should have a normal space after them:
 // - ។ (U+17D4) KHMER SIGN KHAN - full stop/period
-// - ៕ (U+17D5) KHMER SIGN BARIYOOSAN - paragraph end  
+// - ៕ (U+17D5) KHMER SIGN BARIYOOSAN - paragraph end
 // - ៖ (U+17D6) KHMER SIGN CAMNUC PII KUUH - colon
 // - ? Question mark
 // - ! Exclamation mark
-// Pattern matches: punctuation followed by a non-space, non-punctuation, non-ZWSP character
-const END_PUNCTUATION_SPACING_REGEX = /([។៕៖?!])([^\s។៕៖?!\u200B])/g
+// Closing quotes/brackets that can follow sentence-ending punctuation:
+// - » \u201D " ' \u2019 › ) ] }
+// Pattern matches: punctuation + optional closing quotes, followed by a non-space, non-punctuation character
+const CLOSING_QUOTES = '»\u201D"\u2019›\\)\\]\\}'
+const END_PUNCTUATION_SPACING_REGEX = new RegExp(
+  `([។៕៖?!][${CLOSING_QUOTES}]*)([^\\s។៕៖?!${CLOSING_QUOTES}\u200B])`,
+  'g'
+)
 
 const containsWhitespace = (str: string): boolean => /\s/.test(str)
 const isWhitespaceOnly = (str: string): boolean => /^\s+$/.test(str)
@@ -130,11 +136,12 @@ function ensureSpaceAfterPunctuation(text: string): { text: string; insertedPosi
   const insertedPositions: number[] = []
   let offset = 0
   
-  const newText = text.replace(END_PUNCTUATION_SPACING_REGEX, (match, punct, nextChar, index) => {
-    // Track where we're inserting a space (adjusted for previous insertions)
-    insertedPositions.push(index + 1 + offset)
+  const newText = text.replace(END_PUNCTUATION_SPACING_REGEX, (match, punctGroup, nextChar, index) => {
+    // punctGroup is the sentence-ending punctuation + any trailing closing quotes (e.g., "។»")
+    // Insert space after the entire group, not between punctuation and closing quote
+    insertedPositions.push(index + punctGroup.length + offset)
     offset += 1 // Each replacement adds one character (the space)
-    return punct + ' ' + nextChar
+    return punctGroup + ' ' + nextChar
   })
   
   return { text: newText, insertedPositions }
