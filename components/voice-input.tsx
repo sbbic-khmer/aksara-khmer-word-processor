@@ -34,7 +34,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
 ) {
   const t = useTranslations("editor")
   const { isDev, isAdmin } = useAuth()
-  const canUseElevenLabs = isDev || isAdmin
+  const canUseElevenLabs = false // disabled for everyone for now
 
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
