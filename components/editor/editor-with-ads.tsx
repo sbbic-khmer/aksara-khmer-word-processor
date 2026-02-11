@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { KhmerLexicalEditor } from "@/components/lexical/khmer-lexical-editor"
-import { MonetagProvider } from "@/components/ads"
+import { MonetagProvider, useAdConfig, SidebarBannerAd, PopupAd, CookieConsentBanner } from "@/components/ads"
 import { DataTransparencyNotice } from "@/components/data-transparency-notice"
 
 function EditorContent() {
+  const { showAds, hasAdConsent, setAdConsent } = useAdConfig()
   const [hasSeenDataNotice, setHasSeenDataNotice] = useState(true) // Default true to not show while loading
   const [preferencesLoaded, setPreferencesLoaded] = useState(false)
 
@@ -24,10 +25,29 @@ function EditorContent() {
 
   return (
     <>
-      {/* Full-width editor - Monetag handles ad display timing/frequency */}
-      <div className="h-screen">
-        <KhmerLexicalEditor />
+      <div className="h-screen flex">
+        {/* Left sidebar banner - xl (1280px+) only */}
+        {showAds && (
+          <div className="hidden xl:flex w-[160px] shrink-0">
+            <SidebarBannerAd zoneId="5851370" />
+          </div>
+        )}
+
+        {/* Editor column */}
+        <div className="flex-1 min-w-0">
+          <KhmerLexicalEditor className="h-full" />
+        </div>
+
+        {/* Right sidebar banner - lg (1024px+) */}
+        {showAds && (
+          <div className="hidden lg:flex w-[160px] shrink-0">
+            <SidebarBannerAd zoneId="5851260" />
+          </div>
+        )}
       </div>
+
+      {/* Popup ad for mobile/tablet (below lg breakpoint) */}
+      {showAds && <PopupAd />}
 
       {/* Data transparency notice - shown once to new users */}
       {preferencesLoaded && (
@@ -35,6 +55,11 @@ function EditorContent() {
           hasSeenNotice={hasSeenDataNotice}
           onDismiss={() => setHasSeenDataNotice(true)}
         />
+      )}
+
+      {/* Cookie consent banner - shown when ads enabled but no consent stored */}
+      {showAds && hasAdConsent === null && (
+        <CookieConsentBanner onConsent={(advertising) => setAdConsent(advertising)} />
       )}
     </>
   )

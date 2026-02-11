@@ -353,6 +353,35 @@
       "characters": "{count} characters"
     }
   },
+  "cookieConsent": {
+    "title": "Cookie Preferences",
+    "subtitle": "We use cookies to keep Aksara running and to show ads that support the service.",
+    "description": "Aksara is a free, ad-supported service. We use essential cookies for the app to work and advertising cookies to show relevant ads. You can manage your preferences below.",
+    "acceptAll": "Accept All",
+    "managePreferences": "Manage Preferences",
+    "preferencesTitle": "Cookie Preferences",
+    "preferencesSubtitle": "Choose which cookies you allow",
+    "essential": {
+      "title": "Essential Cookies",
+      "alwaysOn": "Always on",
+      "description": "Required for the app to function. Includes authentication, preferences, and session management."
+    },
+    "advertising": {
+      "title": "Advertising Cookies",
+      "description": "Aksara is free because it's supported by ads. These cookies enable third-party advertising that keeps the service running."
+    },
+    "policyInfo": "For more details about how we handle your data, read our",
+    "privacyPolicy": "Privacy Policy",
+    "back": "Back",
+    "savePreferences": "Save Preferences",
+    "warning": {
+      "title": "Ads Support Aksara",
+      "subtitle": "Aksara relies on advertising to remain free.",
+      "description": "Without ad consent, Aksara cannot operate as a free service. If you prefer not to see ads, you may leave the application.",
+      "goBack": "Go Back",
+      "leave": "Leave"
+    }
+  },
   "dataNotice": {
     "title": "Your Data & Privacy",
     "subtitle": "Here's how Aksara handles your information",
