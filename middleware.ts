@@ -22,8 +22,8 @@ function addSecurityHeaders(response: NextResponse) {
     "font-src 'self' https://fonts.gstatic.com",
     // Connect: Allow HTTPS broadly for ad network tracking/delivery + specific APIs
     "connect-src 'self' https: wss://*.elevenlabs.io",
-    // Frames: required for Turnstile and ads
-    "frame-src https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://www.google.com https://tpc.googlesyndication.com",
+    // Frames: required for Turnstile and ads (ExoClick uses iframes for interstitials)
+    "frame-src https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://www.google.com https://tpc.googlesyndication.com https://*.pemsrv.com https://*.magsrv.com https://*.realsrv.com https://*.exoclick.com https://*.exosrv.com",
     // Prevent this site from being embedded in iframes
     "frame-ancestors 'none'",
     // Media: self + ElevenLabs for voice
