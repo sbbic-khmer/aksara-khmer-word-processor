@@ -13,7 +13,7 @@ function addSecurityHeaders(response: NextResponse) {
   const csp = [
     "default-src 'self'",
     // Scripts: self + inline (for Next.js) + eval (for some libs) + ad networks + analytics
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://challenges.cloudflare.com https://www.googletagservices.com https://adservice.google.com https://*.nap5k.com https://nap5k.com https://*.gizokraijaw.net https://gizokraijaw.net https://static.cloudflareinsights.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://challenges.cloudflare.com https://www.googletagservices.com https://adservice.google.com https://static.cloudflareinsights.com",
     // Styles: self + inline (for styled components, Tailwind)
     "style-src 'self' 'unsafe-inline'",
     // Images: self + https (for user avatars, ads) + data (for inline images)
@@ -22,8 +22,8 @@ function addSecurityHeaders(response: NextResponse) {
     "font-src 'self' https://fonts.gstatic.com",
     // Connect: Allow HTTPS broadly for ad network tracking/delivery + specific APIs
     "connect-src 'self' https: wss://*.elevenlabs.io",
-    // Frames: required for Turnstile, ads, and Monetag
-    "frame-src https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://www.google.com https://tpc.googlesyndication.com https://*.nap5k.com https://*.gizokraijaw.net",
+    // Frames: required for Turnstile and ads
+    "frame-src https://challenges.cloudflare.com https://googleads.g.doubleclick.net https://www.google.com https://tpc.googlesyndication.com",
     // Prevent this site from being embedded in iframes
     "frame-ancestors 'none'",
     // Media: self + ElevenLabs for voice
