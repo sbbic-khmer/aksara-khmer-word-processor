@@ -46,7 +46,7 @@ function EditorContent() {
         )}
       </div>
 
-      {/* Popup ad for mobile/tablet (below lg breakpoint) */}
+      {/* Popup ad - serves mobile or desktop zone based on window width */}
       {showAds && <PopupAd />}
 
       {/* Data transparency notice - shown once to new users */}
