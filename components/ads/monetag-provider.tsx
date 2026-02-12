@@ -39,12 +39,11 @@ export function MonetagProvider({ children }: AdProviderProps) {
     showAds: false,
     isLoading: true,
   })
-  const [hasAdConsent, setHasAdConsent] = useState<boolean | null>(null)
-
-  // Read stored consent on mount
-  useEffect(() => {
-    setHasAdConsent(getStoredConsent())
-  }, [])
+  const [hasAdConsent, setHasAdConsent] = useState<boolean | null>(() => {
+    // Read synchronously during init to avoid flash of consent banner
+    if (typeof window === "undefined") return null
+    return getStoredConsent()
+  })
 
   // Only show ads on the editor page
   const isEditorPage = pathname?.includes("/editor")
