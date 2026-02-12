@@ -1,49 +1,43 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 export function PopupAd() {
-  const hasServedMobileRef = useRef(false)
-  const hasServedDesktopRef = useRef(false)
+  const hasServedRef = useRef(false)
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null)
 
+  // Determine device type on mount
   useEffect(() => {
-    function tryServe() {
-      if (window.innerWidth >= 1024) {
-        if (hasServedDesktopRef.current) return
-        hasServedDesktopRef.current = true
-      } else {
-        if (hasServedMobileRef.current) return
-        hasServedMobileRef.current = true
-      }
-      ;(window.AdProvider = window.AdProvider || []).push({ serve: {} })
-    }
-
-    tryServe()
-
-    function onResize() {
-      tryServe()
-    }
-
-    window.addEventListener("resize", onResize)
-    return () => window.removeEventListener("resize", onResize)
+    setIsDesktop(window.innerWidth >= 1024)
   }, [])
 
-  return (
-    <>
-      {/* Mobile/tablet popup (below lg) */}
-      <ins
-        className="eas6a97888e33"
-        data-zoneid="5851278"
-        data-block-ad-types="0"
-        style={{ display: "none" }}
-      />
-      {/* Desktop fullscreen popup (lg+) */}
+  // Serve the ad once the correct <ins> tag is rendered
+  useEffect(() => {
+    if (isDesktop === null) return
+    if (hasServedRef.current) return
+    hasServedRef.current = true
+    ;(window.AdProvider = window.AdProvider || []).push({ serve: {} })
+  }, [isDesktop])
+
+  if (isDesktop === null) return null
+
+  if (isDesktop) {
+    return (
       <ins
         className="eas6a97888e35"
         data-zoneid="5851398"
         data-block-ad-types="0"
         style={{ display: "none" }}
       />
-    </>
+    )
+  }
+
+  return (
+    <ins
+      className="eas6a97888e33"
+      data-zoneid="5851278"
+      data-block-ad-types="0"
+      style={{ display: "none" }}
+    />
   )
 }
