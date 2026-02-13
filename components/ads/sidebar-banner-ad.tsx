@@ -38,7 +38,12 @@ export function SidebarBannerAd({ zoneId }: { zoneId: string }) {
 
   return (
     <div ref={containerRef} className="flex items-center justify-center h-full">
-      <ins className="eas6a97888e2" data-zoneid={zoneId} data-block-ad-types="0" />
+      <ins
+        className="eas6a97888e2"
+        data-zoneid={zoneId}
+        data-block-ad-types="0"
+        style={{ display: "inline-block", width: "160px", height: "600px" }}
+      />
     </div>
   )
 }
