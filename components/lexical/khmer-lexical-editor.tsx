@@ -35,7 +35,6 @@ import { $isListNode, $isListItemNode } from "@lexical/list"
 import { stripBreakNodes } from "@/lib/editor-save-utils"
 import { compressStringClient } from "@/lib/client-compression"
 import { KhmerBreaker } from "@/lib/khmer-breaker"
-import { KHMER_DICTIONARY } from "@/lib/khmer-dictionary-data"
 import { VoiceInput, type VoiceInputHandle } from "@/components/voice-input"
 import { VoiceIndicator } from "@/components/voice-indicator"
 import { FormattingToolbar } from "@/components/editor/formatting-toolbar"
@@ -900,8 +899,8 @@ function EditorContent({
       <ToolbarPlugin onFormatsChange={handleFormatsChange} />
       <KhmerWordBreakPlugin breaker={breaker} showBreaks={showBreaks} />
       <VoiceInputPlugin />
-      <KhmerSpellCheckPlugin />
-<KhmerGrammarCheckPlugin />
+      {deferredPluginsReady && <KhmerSpellCheckPlugin />}
+{deferredPluginsReady && <KhmerGrammarCheckPlugin />}
 <ClickSelectionPlugin />
 <OnChangePlugin onChange={onTextChange} onContentChange={onContentChange} breaker={breaker} />
       <HistoryPlugin />
@@ -1068,6 +1067,17 @@ function EditorWrapper({
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
   const [conflictServerUpdatedAt, setConflictServerUpdatedAt] = useState<string | null>(null)
+
+  // Defer spell check and grammar check on mobile to reduce memory pressure
+  const [deferredPluginsReady, setDeferredPluginsReady] = useState(() => {
+    if (typeof window === "undefined") return false
+    return window.innerWidth >= 1024 // Desktop: ready immediately
+  })
+  useEffect(() => {
+    if (deferredPluginsReady) return // Already ready (desktop)
+    const timer = setTimeout(() => setDeferredPluginsReady(true), 10_000)
+    return () => clearTimeout(timer)
+  }, [deferredPluginsReady])
   const [storageErrorDialogOpen, setStorageErrorDialogOpen] = useState(false)
   const [storageErrorCode, setStorageErrorCode] = useState<"DOCUMENT_TOO_LARGE" | "STORAGE_QUOTA_EXCEEDED" | null>(null)
   const [storageErrorMessage, setStorageErrorMessage] = useState("")
@@ -2055,7 +2065,7 @@ function EditorWrapper({
 export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexicalEditorProps>(
   function KhmerLexicalEditor({ className, initialEditorState }, ref) {
     const t = useTranslations("editor")
-    const [breaker] = useState(() => new KhmerBreaker(KHMER_DICTIONARY))
+    const [breaker, setBreaker] = useState<KhmerBreaker | null>(null)
     const [showBreaks, setShowBreaks] = useState(true)
     const [wordCount, setWordCount] = useState(0)
     const [charCount, setCharCount] = useState(0)
@@ -2121,9 +2131,23 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       setMounted(true)
     }, [])
 
+    // Lazy-load the embedded dictionary and create the breaker
+    useEffect(() => {
+      let cancelled = false
+      import("@/lib/khmer-dictionary-data").then(({ KHMER_DICTIONARY }) => {
+        if (!cancelled) {
+          setBreaker(new KhmerBreaker(KHMER_DICTIONARY))
+        }
+      })
+      return () => { cancelled = true }
+    }, [])
+
     // Load full dictionary asynchronously after mount
     // This supplements the embedded 5k dictionary with the full 32k dictionary
+    // Skip on mobile to save ~5-10 MB of trie memory
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 1024
     useEffect(() => {
+      if (!breaker || isMobile) return
       breaker.loadFullDictionaryAsync().catch((err) => {
         console.error("Failed to load full dictionary:", err)
       })
@@ -2242,7 +2266,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       nodes: [HeadingNode, ListNode, ListItemNode, KhmerBreakNode],
     }
 
-    if (!mounted) {
+    if (!mounted || !breaker) {
       return (
         <div className={cn("flex flex-col h-screen bg-gray-50 dark:bg-gray-900", className)}>
           <div className="animate-pulse flex-1" />
