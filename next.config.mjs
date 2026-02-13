@@ -12,6 +12,7 @@ const nextConfig = {
   },
   experimental: {
     proxyClientMaxBodySize: '35mb',
+    optimizePackageImports: ['lucide-react'],
   },
 }
 

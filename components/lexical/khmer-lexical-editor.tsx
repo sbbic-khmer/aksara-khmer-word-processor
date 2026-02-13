@@ -50,7 +50,6 @@ import { usePreferences } from "@/hooks/use-preferences"
 import { useUserDictionary } from "@/hooks/use-user-dictionary"
 import { useIgnoredDictionaryWords } from "@/hooks/use-ignored-dictionary-words"
 import { useIsMobile } from "@/hooks/use-is-mobile"
-import { exportToOdtFromLexical } from "@/lib/odt-export-lexical"
 import { cn } from "@/lib/utils"
 import {
   setDebugEnabled,
@@ -459,6 +458,10 @@ function EditorContent({
     setSpellCheckDebugMode(newValue)
     debugLog("Spell Check Debug mode", newValue ? "enabled" : "disabled")
   }, [spellCheckDebugMode, setSpellCheckDebugMode])
+
+  const handleToggleBreaks = useCallback(() => setShowBreaks(!showBreaks), [showBreaks, setShowBreaks])
+  const handleToggleSpellCheck = useCallback(() => setSpellCheckEnabled(!spellCheckEnabled), [spellCheckEnabled, setSpellCheckEnabled])
+  const handleToggleGrammarCheck = useCallback(() => setGrammarCheckEnabled(!grammarCheckEnabled), [grammarCheckEnabled, setGrammarCheckEnabled])
 
   // Fix for clicks on paragraph elements (between words/on KhmerBreakNodes)
   // This intercepts clicks BEFORE the browser sets selection, preventing the visual flash
@@ -942,11 +945,11 @@ function EditorContent({
           onJoinWord={joinWord}
           onSplitWord={onSplitWord}
           showBreaks={showBreaks}
-          onToggleBreaks={() => setShowBreaks(!showBreaks)}
+          onToggleBreaks={handleToggleBreaks}
           spellCheckEnabled={spellCheckEnabled}
-          onToggleSpellCheck={() => setSpellCheckEnabled(!spellCheckEnabled)}
+          onToggleSpellCheck={handleToggleSpellCheck}
           grammarCheckEnabled={grammarCheckEnabled}
-          onToggleGrammarCheck={() => setGrammarCheckEnabled(!grammarCheckEnabled)}
+          onToggleGrammarCheck={handleToggleGrammarCheck}
           zoomLevel={zoomLevel}
           onZoomChange={onZoomChange}
           isCompact={isCompactToolbar}
@@ -1076,14 +1079,21 @@ function EditorWrapper({
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false)
   const [conflictServerUpdatedAt, setConflictServerUpdatedAt] = useState<string | null>(null)
 
-  // Defer spell check and grammar check on mobile to reduce memory pressure
+  // Defer spell check and grammar check on mobile to reduce memory pressure.
+  // Desktop: ready immediately. Mobile: short delay so the editor is interactive first.
   const [deferredPluginsReady, setDeferredPluginsReady] = useState(() => {
     if (typeof window === "undefined") return false
     return window.innerWidth >= 1024 // Desktop: ready immediately
   })
   useEffect(() => {
     if (deferredPluginsReady) return // Already ready (desktop)
-    const timer = setTimeout(() => setDeferredPluginsReady(true), 10_000)
+    // Use requestIdleCallback when available so plugins load in the first idle
+    // window after the editor renders, otherwise fall back to 2s timeout.
+    if ("requestIdleCallback" in window) {
+      const id = requestIdleCallback(() => setDeferredPluginsReady(true), { timeout: 2000 })
+      return () => cancelIdleCallback(id)
+    }
+    const timer = setTimeout(() => setDeferredPluginsReady(true), 2000)
     return () => clearTimeout(timer)
   }, [deferredPluginsReady])
   const [storageErrorDialogOpen, setStorageErrorDialogOpen] = useState(false)
@@ -2160,7 +2170,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     // Load full dictionary asynchronously after mount
     // This supplements the embedded 5k dictionary with the full 32k dictionary
     // Skip on mobile to save ~5-10 MB of trie memory
-    const isMobileScreen = typeof window !== "undefined" && window.innerWidth < 1024
+    const [isMobileScreen] = useState(() => typeof window !== "undefined" && window.innerWidth < 1024)
     useEffect(() => {
       if (!breaker || isMobileScreen) return
       breaker.loadFullDictionaryAsync().catch((err) => {
@@ -2188,10 +2198,11 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       setCharCount(chars)
     }, [])
 
-    const handleExportOdt = useCallback(() => {
+    const handleExportOdt = useCallback(async () => {
       if (editorRef.current) {
         const contentEditable = editorRef.current.querySelector('[contenteditable="true"]')
         if (contentEditable) {
+          const { exportToOdtFromLexical } = await import("@/lib/odt-export-lexical")
           const filename = `${documentState.title || "document"}.odt`
           exportToOdtFromLexical(contentEditable as HTMLElement, filename)
         }

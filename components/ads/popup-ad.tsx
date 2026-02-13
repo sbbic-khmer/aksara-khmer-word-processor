@@ -1,8 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useAdConfig } from "./monetag-provider"
+import { NeverBlockPopupAd } from "./neverblock-popup-ad"
 
 export function PopupAd() {
+  const { adBlocked } = useAdConfig()
   const hasServedRef = useRef(false)
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null)
 
@@ -13,13 +16,20 @@ export function PopupAd() {
 
   // Serve the ad once the correct <ins> tag is rendered
   useEffect(() => {
+    if (adBlocked) return
     if (isDesktop === null) return
     if (hasServedRef.current) return
     hasServedRef.current = true
     ;(window.AdProvider = window.AdProvider || []).push({ serve: {} })
-  }, [isDesktop])
+  }, [isDesktop, adBlocked])
 
   if (isDesktop === null) return null
+
+  const zoneId = isDesktop ? "5851398" : "5851278"
+
+  if (adBlocked) {
+    return <NeverBlockPopupAd zoneId={zoneId} />
+  }
 
   if (isDesktop) {
     return (
