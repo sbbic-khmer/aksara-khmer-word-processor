@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Loader2, Search, Info, Check, X, ArrowUpCircle, Copy, CheckCircle2, ListChecks } from "lucide-react"
+import { Loader2, Search, Info, Check, X, ArrowUpCircle, Copy, CheckCircle2, ListChecks, Trash2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
@@ -52,8 +52,11 @@ export function IgnoredDictionaryWordsTab() {
   const [promotingWord, setPromotingWord] = useState<string | null>(null)
   const [selectedWords, setSelectedWords] = useState<Set<string>>(new Set())
   const [bulkPromoteDialogOpen, setBulkPromoteDialogOpen] = useState(false)
+  const [removeAllDialogOpen, setRemoveAllDialogOpen] = useState(false)
   const [tsRegexCopied, setTsRegexCopied] = useState(false)
   const [jsonRegexCopied, setJsonRegexCopied] = useState(false)
+  const [removeAllTsRegexCopied, setRemoveAllTsRegexCopied] = useState(false)
+  const [removeAllJsonRegexCopied, setRemoveAllJsonRegexCopied] = useState(false)
   const [isBulkPromoting, setIsBulkPromoting] = useState(false)
   const tableRef = useRef<HTMLDivElement>(null)
 
@@ -194,6 +197,45 @@ export function IgnoredDictionaryWordsTab() {
     } catch {
       // Clipboard API not available
     }
+  }
+
+  // Generate regex for ALL ignored words (regardless of promoted status)
+  const generateAllTsRegex = useMemo(() => {
+    if (words.length === 0) return ""
+    const escapedWords = words.map((w) =>
+      w.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    )
+    if (escapedWords.length === 1) {
+      return `^\\s*\\{ word: "${escapedWords[0]}", frequency: \\d+ \\},?\\s*(\\r?\\n|$)`
+    }
+    return `^\\s*\\{ word: "(${escapedWords.join("|")})", frequency: \\d+ \\},?\\s*(\\r?\\n|$)`
+  }, [words])
+
+  const generateAllJsonRegex = useMemo(() => {
+    if (words.length === 0) return ""
+    const escapedWords = words.map((w) =>
+      w.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    )
+    if (escapedWords.length === 1) {
+      return `^\\s*"${escapedWords[0]}":\\s*\\d+,?\\s*(\\r?\\n|$)`
+    }
+    return `^\\s*"(${escapedWords.join("|")})":\\s*\\d+,?\\s*(\\r?\\n|$)`
+  }, [words])
+
+  const copyAllTsRegex = async () => {
+    try {
+      await navigator.clipboard.writeText(generateAllTsRegex)
+      setRemoveAllTsRegexCopied(true)
+      setTimeout(() => setRemoveAllTsRegexCopied(false), 2000)
+    } catch {}
+  }
+
+  const copyAllJsonRegex = async () => {
+    try {
+      await navigator.clipboard.writeText(generateAllJsonRegex)
+      setRemoveAllJsonRegexCopied(true)
+      setTimeout(() => setRemoveAllJsonRegexCopied(false), 2000)
+    } catch {}
   }
 
   const handleBulkPromote = async () => {
@@ -423,6 +465,80 @@ export function IgnoredDictionaryWordsTab() {
         </DialogContent>
       </Dialog>
 
+      {/* Remove All Dialog */}
+      <Dialog open={removeAllDialogOpen} onOpenChange={setRemoveAllDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Remove All {words.length} Ignored Words from Dictionary</DialogTitle>
+            <DialogDescription>
+              Copy these regexes to remove all ignored words (both promoted and not promoted) from the frequency dictionary files.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">
+                  For <code className="bg-muted px-1 rounded">lib/khmer-dictionary-data.ts</code>:
+                </p>
+                <div className="relative">
+                  <Textarea
+                    readOnly
+                    value={generateAllTsRegex}
+                    className="font-mono text-sm pr-12 min-h-[60px]"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={copyAllTsRegex}
+                  >
+                    {removeAllTsRegexCopied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">
+                  For <code className="bg-muted px-1 rounded">public/dictionaries/km_frequency_dictionary.json</code>:
+                </p>
+                <div className="relative">
+                  <Textarea
+                    readOnly
+                    value={generateAllJsonRegex}
+                    className="font-mono text-sm pr-12 min-h-[60px]"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={copyAllJsonRegex}
+                  >
+                    {removeAllJsonRegexCopied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Use Find & Replace with regex mode enabled in your editor to delete all matching lines.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveAllDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div ref={tableRef}>
       <Card>
         <CardHeader>
@@ -483,6 +599,19 @@ export function IgnoredDictionaryWordsTab() {
                       {selectedWords.size} selected
                     </span>
                   )}
+                </div>
+              )}
+              {words.length > 0 && (
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRemoveAllDialogOpen(true)}
+                    className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove All from Dictionary ({words.length})
+                  </Button>
                 </div>
               )}
             </div>
