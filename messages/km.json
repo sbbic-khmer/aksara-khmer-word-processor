@@ -274,7 +274,13 @@
         "fitToWidth": "តម្រឹមតាមទទឹង"
       },
       "compactToolbar": "របារឧបករណ៍បង្រួម",
-      "fullToolbar": "របារឧបករណ៍ពេញ"
+      "fullToolbar": "របារឧបករណ៍ពេញ",
+      "more": "ជម្រើសបន្ថែម",
+      "textFormatting": "ទម្រង់អត្ថបទ",
+      "headings": "ចំណងជើង",
+      "alignment": "តម្រឹម",
+      "lists": "បញ្ជី",
+      "fontSizeMenu": "ទំហំអក្សរ"
     },
     "contextMenu": {
       "spellCheck": {

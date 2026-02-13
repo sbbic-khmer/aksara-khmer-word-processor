@@ -28,9 +28,25 @@ import {
   Settings,
   FoldVertical,
   UnfoldVertical,
+  MoreHorizontal,
+  Check,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { Link } from "@/i18n/navigation"
 
@@ -64,6 +80,7 @@ interface FormattingToolbarProps {
   onZoomChange: (level: number) => void
   isCompact: boolean
   onToggleCompact: () => void
+  isMobile: boolean
 }
 
 // Toolbar button with consistent styling
@@ -126,6 +143,176 @@ function ToolbarGroup({ children, label }: { children: React.ReactNode; label?: 
   )
 }
 
+// Mobile overflow menu with all secondary formatting actions
+function MobileOverflowMenu({
+  activeFormats,
+  onFormat,
+  showBreaks,
+  onToggleBreaks,
+  spellCheckEnabled,
+  onToggleSpellCheck,
+  grammarCheckEnabled,
+  onToggleGrammarCheck,
+  t,
+}: {
+  activeFormats: ActiveFormats
+  onFormat: (command: string, value?: string) => void
+  showBreaks: boolean
+  onToggleBreaks: () => void
+  spellCheckEnabled: boolean
+  onToggleSpellCheck: () => void
+  grammarCheckEnabled: boolean
+  onToggleGrammarCheck: () => void
+  t: (key: string) => string
+}) {
+  const FONT_SIZES = [
+    { value: "1", label: t('fontSize.tiny') },
+    { value: "2", label: t('fontSize.small') },
+    { value: "3", label: t('fontSize.normal') },
+    { value: "4", label: t('fontSize.medium') },
+    { value: "5", label: t('fontSize.large') },
+    { value: "6", label: t('fontSize.xLarge') },
+    { value: "7", label: t('fontSize.xxLarge') },
+  ]
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center justify-center h-8 w-8 p-0 transition-all duration-150 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:outline-none"
+          aria-label={t('more')}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        {/* Text Formatting */}
+        <DropdownMenuLabel>{t('textFormatting')}</DropdownMenuLabel>
+        <DropdownMenuCheckboxItem checked={activeFormats.bold} onCheckedChange={() => onFormat("bold")}>
+          <Bold className="h-4 w-4 mr-2" /> {t('bold')}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem checked={activeFormats.italic} onCheckedChange={() => onFormat("italic")}>
+          <Italic className="h-4 w-4 mr-2" /> {t('italic')}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem checked={activeFormats.underline} onCheckedChange={() => onFormat("underline")}>
+          <Underline className="h-4 w-4 mr-2" /> {t('underline')}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem checked={activeFormats.strikethrough} onCheckedChange={() => onFormat("strikethrough")}>
+          <Strikethrough className="h-4 w-4 mr-2" /> {t('strikethrough')}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem checked={activeFormats.highlight} onCheckedChange={() => onFormat("highlight")}>
+          <Highlighter className="h-4 w-4 mr-2" /> {t('highlight')}
+        </DropdownMenuCheckboxItem>
+
+        <DropdownMenuSeparator />
+
+        {/* Headings submenu */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Heading1 className="h-4 w-4 mr-2" /> {t('headings')}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem onSelect={() => onFormat("heading", "h1")}>
+              <Heading1 className="h-4 w-4 mr-2" /> {t('heading1')}
+              {activeFormats.heading === "H1" && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onFormat("heading", "h2")}>
+              <Heading2 className="h-4 w-4 mr-2" /> {t('heading2')}
+              {activeFormats.heading === "H2" && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onFormat("heading", "h3")}>
+              <Heading3 className="h-4 w-4 mr-2" /> {t('heading3')}
+              {activeFormats.heading === "H3" && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onFormat("heading", "p")}>
+              <Type className="h-4 w-4 mr-2" /> {t('normalText')}
+              {!activeFormats.heading && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        {/* Font Size submenu */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Type className="h-4 w-4 mr-2" /> {t('fontSizeMenu')}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup value={activeFormats.fontSize} onValueChange={(value) => onFormat("fontSize", value)}>
+              {FONT_SIZES.map((size) => (
+                <DropdownMenuRadioItem key={size.value} value={size.value}>
+                  {size.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        <DropdownMenuSeparator />
+
+        {/* Lists */}
+        <DropdownMenuLabel>{t('lists')}</DropdownMenuLabel>
+        <DropdownMenuCheckboxItem checked={activeFormats.list === "unordered"} onCheckedChange={() => onFormat("bulletList")}>
+          <List className="h-4 w-4 mr-2" /> {t('bulletList')}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem checked={activeFormats.list === "ordered"} onCheckedChange={() => onFormat("numberedList")}>
+          <ListOrdered className="h-4 w-4 mr-2" /> {t('numberedList')}
+        </DropdownMenuCheckboxItem>
+
+        <DropdownMenuSeparator />
+
+        {/* Alignment submenu */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <AlignLeft className="h-4 w-4 mr-2" /> {t('alignment')}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem onSelect={() => onFormat("align", "left")}>
+              <AlignLeft className="h-4 w-4 mr-2" /> {t('alignLeft')}
+              {activeFormats.alignment === "left" && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onFormat("align", "center")}>
+              <AlignCenter className="h-4 w-4 mr-2" /> {t('alignCenter')}
+              {activeFormats.alignment === "center" && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onFormat("align", "right")}>
+              <AlignRight className="h-4 w-4 mr-2" /> {t('alignRight')}
+              {activeFormats.alignment === "right" && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onFormat("align", "full")}>
+              <AlignJustify className="h-4 w-4 mr-2" /> {t('justify')}
+              {activeFormats.alignment === "justify" && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        <DropdownMenuSeparator />
+
+        {/* Toggles */}
+        <DropdownMenuCheckboxItem checked={spellCheckEnabled} onCheckedChange={onToggleSpellCheck}>
+          {spellCheckEnabled ? <SpellCheck className="h-4 w-4 mr-2" /> : <SpellCheck2 className="h-4 w-4 mr-2" />}
+          {spellCheckEnabled ? t('disableSpellCheck') : t('enableSpellCheck')}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem checked={showBreaks} onCheckedChange={onToggleBreaks}>
+          <WrapText className="h-4 w-4 mr-2" /> {showBreaks ? t('hideWordBreaks') : t('showWordBreaks')}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem checked={grammarCheckEnabled} onCheckedChange={onToggleGrammarCheck}>
+          <BookCheck className="h-4 w-4 mr-2" /> {grammarCheckEnabled ? t('disableGrammarCheck') : t('enableGrammarCheck')}
+        </DropdownMenuCheckboxItem>
+
+        <DropdownMenuSeparator />
+
+        {/* Settings */}
+        <DropdownMenuItem asChild>
+          <Link href="/settings">
+            <Settings className="h-4 w-4 mr-2" /> {t('settings')}
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export function FormattingToolbar({
   activeFormats,
   onFormat,
@@ -144,6 +331,7 @@ export function FormattingToolbar({
   onZoomChange,
   isCompact,
   onToggleCompact,
+  isMobile,
 }: FormattingToolbarProps) {
   const t = useTranslations('editor.toolbar')
 
@@ -259,6 +447,38 @@ export function FormattingToolbar({
       </ToolbarButton>
     </ToolbarGroup>
   )
+
+  // Mobile layout: single compact row with overflow menu
+  if (isMobile) {
+    return (
+      <TooltipProvider delayDuration={300}>
+        <div className="flex items-center gap-x-1">
+          {historyGroup}
+          <ToolbarSeparator />
+          <ToolbarGroup label="Word breaking">
+            <ToolbarButton onClick={onJoinWord} tooltip={t('joinWords')}>
+              <Unlink2 className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton onClick={onSplitWord} tooltip={t('splitWord')}>
+              <Link2 className="h-4 w-4" />
+            </ToolbarButton>
+          </ToolbarGroup>
+          <ToolbarSeparator />
+          <MobileOverflowMenu
+            activeFormats={activeFormats}
+            onFormat={onFormat}
+            showBreaks={showBreaks}
+            onToggleBreaks={onToggleBreaks}
+            spellCheckEnabled={spellCheckEnabled}
+            onToggleSpellCheck={onToggleSpellCheck}
+            grammarCheckEnabled={grammarCheckEnabled}
+            onToggleGrammarCheck={onToggleGrammarCheck}
+            t={t}
+          />
+        </div>
+      </TooltipProvider>
+    )
+  }
 
   if (isCompact) {
     return (

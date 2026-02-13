@@ -49,6 +49,7 @@ import { useReplacements } from "@/hooks/use-replacements"
 import { usePreferences } from "@/hooks/use-preferences"
 import { useUserDictionary } from "@/hooks/use-user-dictionary"
 import { useIgnoredDictionaryWords } from "@/hooks/use-ignored-dictionary-words"
+import { useIsMobile } from "@/hooks/use-is-mobile"
 import { exportToOdtFromLexical } from "@/lib/odt-export-lexical"
 import { cn } from "@/lib/utils"
 import {
@@ -296,6 +297,7 @@ function EditorContent({
   onZoomChange,
   isCompactToolbar,
   onToggleCompactToolbar,
+  isMobile,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -325,6 +327,7 @@ function EditorContent({
   onZoomChange: (level: number) => void
   isCompactToolbar: boolean
   onToggleCompactToolbar: () => void
+  isMobile: boolean
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
@@ -906,7 +909,7 @@ function EditorContent({
       <HistoryPlugin />
       <ListPlugin />
 
-      <div className="flex flex-wrap items-center gap-1 px-2 sm:px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div className={cn("flex items-center gap-1 px-2 sm:px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900", isMobile ? "flex-nowrap" : "flex-wrap")}>
         <FileMenu
           onNew={onNew}
           onOpen={onOpenDialog}
@@ -946,6 +949,7 @@ function EditorContent({
           onZoomChange={onZoomChange}
           isCompact={isCompactToolbar}
           onToggleCompact={onToggleCompactToolbar}
+          isMobile={isMobile}
         />
 
         <div className="ml-auto flex items-center">
@@ -1028,6 +1032,7 @@ function EditorWrapper({
   onZoomChange,
   isCompactToolbar,
   onToggleCompactToolbar,
+  isMobile,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -1057,6 +1062,7 @@ function EditorWrapper({
   onZoomChange: (level: number) => void
   isCompactToolbar: boolean
   onToggleCompactToolbar: () => void
+  isMobile: boolean
 }) {
   const t = useTranslations("editor")
   const [editor] = useLexicalComposerContext()
@@ -2017,6 +2023,7 @@ function EditorWrapper({
           onZoomChange={onZoomChange}
           isCompactToolbar={isCompactToolbar}
           onToggleCompactToolbar={onToggleCompactToolbar}
+          isMobile={isMobile}
         />
       </div>
 
@@ -2083,6 +2090,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     const voiceInputRef = useRef<VoiceInputHandle>(null)
     const editorRef = useRef<HTMLDivElement>(null)
     const { theme: colorTheme, setTheme } = useTheme()
+    const isMobile = useIsMobile()
 
     const [documentState, setDocumentState] = useState<DocumentState>({
       id: null,
@@ -2145,9 +2153,9 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
     // Load full dictionary asynchronously after mount
     // This supplements the embedded 5k dictionary with the full 32k dictionary
     // Skip on mobile to save ~5-10 MB of trie memory
-    const isMobile = typeof window !== "undefined" && window.innerWidth < 1024
+    const isMobileScreen = typeof window !== "undefined" && window.innerWidth < 1024
     useEffect(() => {
-      if (!breaker || isMobile) return
+      if (!breaker || isMobileScreen) return
       breaker.loadFullDictionaryAsync().catch((err) => {
         console.error("Failed to load full dictionary:", err)
       })
@@ -2321,6 +2329,7 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
               onZoomChange={handleZoomChange}
               isCompactToolbar={isCompactToolbar}
               onToggleCompactToolbar={handleToggleCompactToolbar}
+              isMobile={isMobile}
             />
           </GrammarCheckProvider>
           </SpellCheckProvider>

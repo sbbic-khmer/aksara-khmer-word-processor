@@ -274,7 +274,13 @@
         "fitToWidth": "Fit to width"
       },
       "compactToolbar": "Compact toolbar",
-      "fullToolbar": "Full toolbar"
+      "fullToolbar": "Full toolbar",
+      "more": "More options",
+      "textFormatting": "Text Formatting",
+      "headings": "Headings",
+      "alignment": "Alignment",
+      "lists": "Lists",
+      "fontSizeMenu": "Font Size"
     },
     "contextMenu": {
       "spellCheck": {
