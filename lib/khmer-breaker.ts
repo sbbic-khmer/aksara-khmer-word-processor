@@ -313,6 +313,29 @@ class KhmerCharSets {
     return this.isConsonant(token[0]) && this.isBantoc(token[1])
   }
 
+  /**
+   * Check if a token ends with a "dangling dependent vowel" (dependent vowel without
+   * a following consonant or sign).
+   *
+   * In Khmer, dependent vowels typically attach to consonants and are often followed
+   * by final consonants, signs, or other marks. A word ending in a bare dependent vowel
+   * is linguistically rare and often indicates an incorrect word break.
+   *
+   * Example: "ផាសុ" ends with ុ (U+17BB) which is suspicious - the correct break is
+   * likely "ផា|សុខភាព" not "ផាសុ|ខភាព".
+   *
+   * Common dangling vowels: ុ ិ ី ួ (short vowels that rarely appear word-finally alone)
+   */
+  endsWithDanglingVowel(token: string): boolean {
+    if (token.length === 0) return false
+    const lastChar = token[token.length - 1]
+
+    // Only consider certain dependent vowels that are suspicious when word-final
+    // U+17BB (ុ), U+17B7 (ិ), U+17B8 (ី), U+17BD (ួ)
+    const danglingVowels = new Set(['\u17BB', '\u17B7', '\u17B8', '\u17BD'])
+    return danglingVowels.has(lastChar)
+  }
+
   // Khmer semivowels យ (ya) and វ (va) - these often appear at the end of
   // syllables and can indicate the break point is mid-word if preceded by
   // combining marks
@@ -657,8 +680,17 @@ export class KhmerBreaker {
         const remainder = word.slice(prefixText.length)
         const remainderFreq = this.trie.getFrequency(remainder)
 
-        // Check if remainder is a known dictionary word
+        // Check if remainder is a known dictionary word with sufficient frequency
+        // For single-cluster remainders, require higher frequency to prevent spurious compounds
         if (remainderFreq > 0) {
+          const remainderClusters = this.charSets.extractClusters(remainder).length
+          const minRemainderFreq = remainderClusters === 1 ? 5000 : 0
+
+          if (remainderFreq < minRemainderFreq) {
+            // Remainder is too low-frequency for a valid compound
+            continue
+          }
+
           const affix = PREFIX_MAP.get(prefixText)!
 
           if (isWordBreakerDebugEnabled()) {
@@ -685,8 +717,18 @@ export class KhmerBreaker {
         const stem = word.slice(0, -suffixText.length)
         const stemFreq = this.trie.getFrequency(stem)
 
-        // Check if stem is a known dictionary word
+        // Check if stem is a known dictionary word with sufficient frequency
+        // For single-cluster stems, require higher frequency to prevent spurious compounds
+        // like "ខភាព" (ខ + ភាព) where "ខ" is too low-meaning
         if (stemFreq > 0) {
+          const stemClusters = this.charSets.extractClusters(stem).length
+          const minStemFreq = stemClusters === 1 ? 5000 : 0
+
+          if (stemFreq < minStemFreq) {
+            // Stem is too low-frequency for a valid compound
+            continue
+          }
+
           const affix = SUFFIX_MAP.get(suffixText)!
 
           if (isWordBreakerDebugEnabled()) {
@@ -1229,6 +1271,7 @@ export class KhmerBreaker {
   private static readonly OOV_PENALTY = 6.0                  // Cost for unknown token
   private static readonly OOV_SINGLE_CLUSTER_PENALTY = 12.0  // Heavy cost for single-cluster OOV
   private static readonly DANGLING_BANTOC_PENALTY = 20.0     // Very heavy cost for consonant + ់ tokens
+  private static readonly DANGLING_VOWEL_PENALTY = 15.0      // Heavy cost for words ending in bare dependent vowel (e.g., ផាសុ)
   private static readonly SEMIVOWEL_BOUNDARY_PENALTY = 3.0   // Penalty for breaking before semivowel (យ/វ) after combining mark
   private static readonly BOUNDARY_PENALTY = 2.0             // Cost per token boundary
   private static readonly LENGTH_BONUS = 0.25                // Reward per character for longer tokens
@@ -1737,6 +1780,17 @@ export class KhmerBreaker {
               // Only allow if it's a known dictionary word (very rare)
               if (!this.trie.hasWord(piece)) {
                 score -= KhmerBreaker.DANGLING_BANTOC_PENALTY
+              }
+            }
+
+            // Apply heavy penalty for words ending in dangling dependent vowel
+            // Example: "ផាសុ" ends with ុ which is suspicious - likely should be "ផា|សុខភាព"
+            // not "ផាសុ|ខភាព". In Khmer, words rarely end in bare short vowels (ុ ិ ី ួ)
+            // without following consonants or signs.
+            if (this.charSets.endsWithDanglingVowel(piece)) {
+              // Only allow if it's a known dictionary word
+              if (!this.trie.hasWord(piece)) {
+                score -= KhmerBreaker.DANGLING_VOWEL_PENALTY
               }
             }
 
