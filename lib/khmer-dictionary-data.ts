@@ -850,7 +850,6 @@ export const KHMER_DICTIONARY: DictionaryEntry[] = [
   { word: "សន្តិភាព", frequency: 1477 },
   { word: "ពីត", frequency: 1475 },
   { word: "ឆ្លុះ", frequency: 1474 },
-  { word: "រី", frequency: 1473 },
   { word: "ទាស់", frequency: 1471 },
   { word: "ថត", frequency: 1470 },
   { word: "នាយ", frequency: 1468 },
