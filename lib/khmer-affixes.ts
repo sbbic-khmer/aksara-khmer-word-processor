@@ -55,12 +55,12 @@ export const KHMER_PREFIXES: AffixConfig[] = [
 ]
 
 // Suffixes
-// Most suffixes create fused compounds that stay as one word:
-// សុខ + ភាព = សុខភាព (health) - one segment
+// Most suffixes create fused compounds that stay as one word.
+// Exception: ភorg org org (isBreakPoint: true) splits at morpheme boundary (org org org|org org org org)
 export const KHMER_SUFFIXES: AffixConfig[] = [
   { text: 'កម្ម', type: 'suffix', isBreakPoint: false },    // -ification (ទំនើបកម្ម = modernization)
   { text: 'នីយកម្ម', type: 'suffix', isBreakPoint: false }, // -ization (formal)
-  { text: 'ភាព', type: 'suffix', isBreakPoint: false },    // -ness/-ity (សុខភាព = health)
+  { text: 'ភាព', type: 'suffix', isBreakPoint: true },    // -ness/-ity (សុខភាព = health)
   { text: 'ធម៌', type: 'suffix', isBreakPoint: false },    // system/virtue (វប្បធម៌ = culture)
   { text: 'និយម', type: 'suffix', isBreakPoint: false },   // -ism (ប្រជាធិបតេយ្យនិយម = democracy)
   { text: 'វិទ្យា', type: 'suffix', isBreakPoint: false }, // -logy/science

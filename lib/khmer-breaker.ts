@@ -42,6 +42,7 @@ const CLOSING_PUNCTUATION = new Set([
   "\u2014", // em dash —
   "\u2013", // en dash –
   "\u2026", // horizontal ellipsis …
+  "-", // hyphen-minus (U+002D) - stays with previous segment (e.g., ៣០-៣១)
 ])
 
 // Opening punctuation stays with NEXT segment
@@ -2217,19 +2218,24 @@ export class KhmerBreaker {
 
   // Penalty multiplier for low-frequency short words
   private static readonly LOW_FREQ_PENALTY_MULTIPLIER = 4.0
+  private static readonly LOW_FREQ_SINGLE_CLUSTER_MULTIPLIER = 8.0
 
   /**
    * Calculate a penalty for short words based on their frequency.
    * Unlike isSignificantWord() which is a hard gate, this returns a continuous
    * penalty that allows low-frequency words to be considered but with a cost.
-   * 
+   *
    * This is important for Khmer because many real 2-cluster words may have
    * low corpus frequency but are still valid (e.g., "ប្រិយ" freq=398).
-   * 
+   *
+   * Single-cluster words now use a soft penalty instead of hard rejection to
+   * allow valid words like "ផា" (freq=548) to compete when they lead to better
+   * overall segmentations (e.g., "ផា|សុខភាព" instead of "ផាសុ|ខភាព").
+   *
    * Returns:
    * - 0 for words that meet frequency thresholds
    * - Positive penalty for low-frequency short words
-   * - Infinity for single-cluster words below threshold (hard reject)
+   * - Higher penalty for single-cluster words (but no longer infinity)
    */
   private shortWordPenalty(word: string, freq: number): number {
     const clusters = this.charSets.extractClusters(word).length
@@ -2237,9 +2243,18 @@ export class KhmerBreaker {
     // 3+ clusters: always ok, no penalty
     if (clusters >= 3) return 0
 
-    // 1 cluster: keep strict - these explode segmentation if allowed freely
+    // 1 cluster: use soft penalty instead of hard reject
+    // This allows valid low-freq single-cluster words like "ផា" (freq=548)
+    // to compete when they lead to better overall paths, while still keeping
+    // junk consonants heavily penalized
     if (clusters <= 1) {
-      return freq >= this.MIN_FREQUENCY_FOR_SINGLE_CHAR ? 0 : Number.POSITIVE_INFINITY
+      if (freq >= this.MIN_FREQUENCY_FOR_SINGLE_CHAR) return 0
+
+      // Soft penalty scaled by distance from threshold
+      // Uses higher multiplier (8.0) than 2-cluster words (4.0) to maintain
+      // strong preference against single-cluster words
+      const ratio = (this.MIN_FREQUENCY_FOR_SINGLE_CHAR - freq) / this.MIN_FREQUENCY_FOR_SINGLE_CHAR
+      return KhmerBreaker.LOW_FREQ_SINGLE_CLUSTER_MULTIPLIER * ratio
     }
 
     // 2 clusters: allow but penalize if low frequency

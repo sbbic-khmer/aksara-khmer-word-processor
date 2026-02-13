@@ -4,7 +4,6 @@ import type React from "react"
 import { usePathname } from "next/navigation"
 import { useAuth } from "./auth-provider"
 import { LoginScreen } from "./login-screen"
-import { Loader2 } from "lucide-react"
 
 const PUBLIC_PATHS = ["/", "/login", "/signup"]
 const LOCALES = ["en", "km"]
@@ -35,11 +34,11 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   }
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-      </div>
-    )
+    // Render a blank background instead of a spinner — the editor has its own
+    // loading overlay, so showing a spinner here too causes two sequential
+    // spinners.  Auth typically resolves in <500ms, so a brief blank screen
+    // is preferable to two distinct loading phases.
+    return <div className="min-h-screen bg-background" />
   }
 
   if (!isAuthenticated) {

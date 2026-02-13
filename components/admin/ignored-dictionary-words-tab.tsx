@@ -345,7 +345,7 @@ export function IgnoredDictionaryWordsTab() {
 
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">
-                    For <code className="bg-muted px-1 rounded">lib/khmer-affixes.json</code> (or similar JSON files):
+                    For <code className="bg-muted px-1 rounded">public/dictionaries/km_frequency_dictionary.json</code> (or similar JSON files):
                   </p>
                   <div className="relative">
                     <Textarea
