@@ -1756,16 +1756,26 @@ export class KhmerBreaker {
           const word = text.slice(s.pos, end)
           const len = end - s.pos
 
+          // When a match was extended past combining marks, the original dictionary
+          // frequency may be inflated. E.g. "បង" (freq 27466) extended to "បង្រorg org org org org org"
+          // — the extended word is NOT "បorg org" so using freq 27466 is wrong.
+          // Use the extended word's actual trie frequency if available, else cap it.
+          let freq = m.frequency
+          if (len > m.length) {
+            const extendedFreq = this.trie.getFrequency(word)
+            freq = extendedFreq > 0 ? extendedFreq : Math.min(freq, 10)
+          }
+
           // Calculate penalty for short low-frequency words
           // This replaces the hard gate of isSignificantWord with a soft penalty
-          const penalty = this.shortWordPenalty(word, m.frequency)
+          const penalty = this.shortWordPenalty(word, freq)
 
           // Skip if penalty is infinite (single-cluster below threshold)
           if (!Number.isFinite(penalty)) {
             continue
           }
 
-          let sc = Math.log((m.frequency || 1) + 1)
+          let sc = Math.log((freq || 1) + 1)
           sc += KhmerBreaker.LENGTH_BONUS * len
           sc -= KhmerBreaker.BOUNDARY_PENALTY
           sc -= penalty // Apply frequency-based penalty for short words
