@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const { token } = await createVerificationToken(user.id)
 
     // Build verification URL
-    const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'https://aksarapro.app'
     const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${token}`
 
     // Send verification email

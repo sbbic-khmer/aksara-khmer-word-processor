@@ -76,7 +76,7 @@ export const auth = betterAuth({
 
   // Trusted origins for CSRF protection
   trustedOrigins: [
-    process.env.BETTER_AUTH_URL || "http://localhost:3000",
+    process.env.BETTER_AUTH_URL || "https://aksarapro.app",
   ],
 
   // Hooks for email verification
@@ -88,7 +88,7 @@ export const auth = betterAuth({
           if (isEmailConfigured()) {
             try {
               const { token } = await createVerificationToken(user.id)
-              const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+              const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'https://aksarapro.app'
               const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${token}`
 
               await sendVerificationEmail(user.email, verificationUrl, user.name || undefined)

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     await writeFile(filepath, Buffer.from(bytes))
 
     // Build URL
-    const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'https://aksarapro.app'
     const url = `${baseUrl}/uploads/email-images/${filename}`
 
     // Save to database

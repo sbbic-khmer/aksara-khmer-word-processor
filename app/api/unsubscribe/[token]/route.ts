@@ -35,11 +35,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const userId = verifyUnsubscribeToken(token)
   if (!userId) {
     // Redirect to error page
-    const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'https://aksarapro.app'
     return NextResponse.redirect(`${baseUrl}/unsubscribe/invalid`)
   }
 
   // For GET requests, redirect to the unsubscribe page for confirmation
-  const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'https://aksarapro.app'
   return NextResponse.redirect(`${baseUrl}/unsubscribe/${token}`)
 }

@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const { token } = await createPasswordResetToken(user.id)
 
     // Build reset URL
-    const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+    const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'https://aksarapro.app'
     const resetUrl = `${baseUrl}/reset-password/${token}`
 
     // Send reset email

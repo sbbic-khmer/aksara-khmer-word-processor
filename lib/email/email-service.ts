@@ -122,6 +122,18 @@ export async function sendPasswordResetEmail(
 }
 
 /**
+ * Escape user input for safe HTML interpolation
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
  * Convert HTML to plain text (basic implementation)
  */
 function htmlToPlainText(html: string): string {
@@ -143,7 +155,7 @@ function htmlToPlainText(html: string): string {
  * Uses email-client-safe CSS
  */
 function generateVerificationEmailHtml(verificationUrl: string, userName?: string): string {
-  const greeting = userName ? `Hi ${userName},` : 'Hi,'
+  const greeting = userName ? `Hi ${escapeHtml(userName)},` : 'Hi,'
 
   return `
 <!DOCTYPE html>

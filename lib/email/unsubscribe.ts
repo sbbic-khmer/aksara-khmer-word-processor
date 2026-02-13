@@ -46,7 +46,7 @@ export function verifyUnsubscribeToken(token: string): string | null {
  * Generate unsubscribe URL for a user
  */
 export function getUnsubscribeUrl(userId: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+  const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'https://aksarapro.app'
   const token = generateUnsubscribeToken(userId)
   return `${baseUrl}/unsubscribe/${token}`
 }

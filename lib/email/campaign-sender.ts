@@ -140,7 +140,7 @@ export async function processEmailQueue(): Promise<{
 
     try {
       // Add tracking pixel and unsubscribe link to email content
-      const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+      const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'https://aksarapro.app'
       const trackingPixel = `<img src="${baseUrl}/api/email/track/open/${send.id}" width="1" height="1" style="display:none" alt="" />`
       const unsubscribeUrl = getUnsubscribeUrl(send.userId)
       const unsubscribeFooter = `
