@@ -1845,6 +1845,60 @@ export class KhmerBreaker {
           oovEnd++
         }
 
+        // OOV+suffix fusion: when no compound was found (stem is OOV) and the OOV
+        // chunk is immediately followed by a non-breakpoint suffix, fuse them into
+        // a single token. E.g. "ទុរណ" (OOV) + "កម្ម" (suffix) → "ទុរណកម្ម"
+        if (!compound) {
+          const oovText = text.slice(s.pos, oovEnd)
+          const oovClusterCount = this.charSets.extractClusters(oovText).length
+
+          // Only fuse if:
+          // 1. OOV has at least 2 clusters (avoid fusing single stray consonants)
+          // 2. No strong dictionary match exists at this position — if there's a known
+          //    word here (like ពេល freq 50000), the beam should take the dictionary path
+          //    rather than swallowing it into a giant OOV+suffix fusion
+          const hasStrongDictMatch = matches.some(m => m.frequency >= 1000 && m.length >= 3)
+          if (oovClusterCount >= 2 && !hasStrongDictMatch) {
+            for (const suffixText of SUFFIXES_BY_LENGTH) {
+              const affix = SUFFIX_MAP.get(suffixText)!
+              if (affix.isBreakPoint) continue // Only fuse non-breakpoint suffixes
+
+              const suffixEnd = oovEnd + suffixText.length
+              if (suffixEnd > endPos) continue
+
+              if (text.substring(oovEnd, suffixEnd) === suffixText) {
+                // Verify suffix end is at a safe boundary
+                let extendedEnd = suffixEnd
+                if (extendedEnd < endPos && !this.isSafeBoundary(text, extendedEnd)) {
+                  const extended = this.extendPastCombiningMarks(text, extendedEnd)
+                  if (extended < 0) continue
+                  extendedEnd = extended
+                }
+
+                const suffixFreq = this.trie.getFrequency(suffixText)
+                if (suffixFreq > 0) {
+                  compound = {
+                    type: 'suffix',
+                    affix,
+                    affixText: suffixText,
+                    remainder: oovText,
+                    remainderFreq: Math.floor(suffixFreq * 0.5),
+                    isBreakPoint: false,
+                  }
+                  compoundLen = extendedEnd - s.pos
+
+                  if (isWordBreakerDebugEnabled()) {
+                    console.log(
+                      `[v0] beamSegment: OOV+suffix fusion "${text.slice(s.pos, extendedEnd)}" = OOV "${oovText}" + suffix "${suffixText}" (score basis: ${compound.remainderFreq})`
+                    )
+                  }
+                  break // Longest matching suffix (SUFFIXES_BY_LENGTH sorted longest first)
+                }
+              }
+            }
+          }
+        }
+
         // If compound is followed by ៗ (repetition sign), extend compound length
         if (compound && s.pos + compoundLen < endPos && this.charSets.isRepetitionSign(text[s.pos + compoundLen])) {
           compoundLen++
@@ -1929,8 +1983,15 @@ export class KhmerBreaker {
             }
           } else {
             // Non-break-point compound: keep as single unit with good score
-            // Score it similarly to a dictionary word based on the remainder's frequency
-            const compoundScore = Math.log(compound.remainderFreq + 1) +
+            // For suffix compounds, also consider the suffix's dictionary frequency.
+            // A known suffix (e.g. ការណ៍ freq 1519) attached to even a low-freq stem
+            // (e.g. ព្រឹត្ត freq 2) should score competitively against splitting them.
+            let effectiveFreq = compound.remainderFreq
+            if (compound.type === 'suffix') {
+              const suffixDictFreq = this.trie.getFrequency(compound.affixText)
+              effectiveFreq = Math.max(effectiveFreq, suffixDictFreq)
+            }
+            const compoundScore = Math.log(effectiveFreq + 1) +
               KhmerBreaker.LENGTH_BONUS * oovLen +
               KhmerBreaker.COMPOUND_BONUS - // Bonus for being a valid compound
               KhmerBreaker.BOUNDARY_PENALTY

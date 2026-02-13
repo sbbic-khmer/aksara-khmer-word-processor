@@ -76,6 +76,7 @@ export const KHMER_SUFFIXES: AffixConfig[] = [
   { text: 'ភិបាល', type: 'suffix', isBreakPoint: false },  // administration
   { text: 'ធិបតី', type: 'suffix', isBreakPoint: false },  // chief/president
   { text: 'ធិការ', type: 'suffix', isBreakPoint: false },  // authority/directorate
+  { text: 'ការណ៍', type: 'suffix', isBreakPoint: false }, // affair/event (ព្រឹត្តការណ៍ = event)
 ]
 
 // Combined list for iteration
