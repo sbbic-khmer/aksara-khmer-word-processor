@@ -8,6 +8,11 @@
  * where K = consonant/independent vowel, H = COENG (្), M = combining marks
  *
  * CRITICAL RULE: You can NEVER break after a COENG (្, U+17D2).
+ *
+ * VARIANT-AWARE LOOKUP:
+ * The dictionary lookup includes fuzzy matching for doubled consonants.
+ * When a direct match fails, it tries normalizing doubled consonants (ត្ត → ត)
+ * to handle common misspellings. Example: ប្រត្តិកម្ម → ប្រតិកម្ម (dictionary form).
  */
 
 import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
@@ -95,7 +100,144 @@ class KhmerTrie {
   }
 
   /**
-   * Find the longest dictionary match starting at position
+   * Reorder mistyped coeng sequences to canonical Unicode order.
+   * C + Vowel/Sign + ្ + C → C + ្ + C + Vowel/Sign
+   * This preserves string length (same chars, different order).
+   */
+  reorderCoengs(text: string): string {
+    const COENG = "\u17D2"
+    let result = ""
+    let i = 0
+
+    while (i < text.length) {
+      const code_i = text[i].codePointAt(0)!
+      const isConsonant_i = code_i >= 0x1780 && code_i <= 0x17a2
+
+      if (isConsonant_i) {
+        // Collect any vowels/signs immediately after this consonant
+        let j = i + 1
+        while (j < text.length) {
+          const cj = text[j].codePointAt(0)!
+          if ((cj >= 0x17b4 && cj <= 0x17c5) || (cj >= 0x17c6 && cj <= 0x17d1)) {
+            j++
+          } else {
+            break
+          }
+        }
+        const vowelSigns = text.substring(i + 1, j)
+
+        // Check if what follows is COENG + consonant
+        if (vowelSigns.length > 0 && j + 1 < text.length && text[j] === COENG) {
+          const cAfterCoeng = text[j + 1].codePointAt(0)!
+          if (cAfterCoeng >= 0x1780 && cAfterCoeng <= 0x17a2) {
+            result += text[i] + COENG + text[j + 1] + vowelSigns
+            i = j + 2
+            continue
+          }
+        }
+      }
+
+      result += text[i]
+      i++
+    }
+
+    return result
+  }
+
+  /**
+   * Collapse doubled consonants: C + ្ + C(same) → C
+   * Handles Pali/Sanskrit variant spellings (e.g., ត្ត → ត).
+   */
+  collapseDoubledConsonants(text: string): string {
+    const COENG = "\u17D2"
+    let result = ""
+    let i = 0
+
+    while (i < text.length) {
+      if (i + 2 < text.length) {
+        const char1 = text[i]
+        const char2 = text[i + 1]
+        const char3 = text[i + 2]
+
+        const code1 = char1.codePointAt(0)!
+        const code3 = char3.codePointAt(0)!
+
+        if (code1 >= 0x1780 && code1 <= 0x17a2 &&
+            char2 === COENG &&
+            code3 >= 0x1780 && code3 <= 0x17a2 &&
+            char1 === char3) {
+          result += char1
+          i += 3
+          continue
+        }
+      }
+
+      result += text[i]
+      i++
+    }
+
+    return result
+  }
+
+  /**
+   * Normalize Khmer text for variant-aware dictionary lookup.
+   * Runs coeng reordering first, then doubled consonant collapsing.
+   */
+  normalizeForLookup(text: string): string {
+    return this.collapseDoubledConsonants(this.reorderCoengs(text))
+  }
+
+  /**
+   * Tolerant trie traversal that handles doubled consonants.
+   * At each C + ្ + C(same), explores both paths: skip (treat as single C)
+   * or keep (normal traversal). Returns the longest match found.
+   * This selectively skips only the doubled consonants that aren't in the
+   * dictionary path, preserving ones that are (e.g., ម្ម in កម្ម).
+   */
+  findVariantInTrie(text: string): { consumedLength: number; frequency: number } | null {
+    const COENG = "\u17D2"
+    let bestMatch: { consumedLength: number; frequency: number } | null = null
+
+    // DFS exploring both paths at doubled consonants.
+    // Bounded: words ~20 chars max, 1-2 doubled consonants → ~40 states max.
+    const explore = (node: TrieNode, pos: number, didSkip: boolean) => {
+      if (node.isWord && node.frequency !== 0 && pos > 0) {
+        if (didSkip && (!bestMatch || pos > bestMatch.consumedLength)) {
+          bestMatch = { consumedLength: pos, frequency: node.frequency }
+        }
+      }
+
+      if (pos >= text.length) return
+
+      const char = text[pos]
+      const code = char.codePointAt(0)!
+      const isConsonant = code >= 0x1780 && code <= 0x17a2
+
+      // Check for doubled consonant: C + ្ + C(same)
+      if (isConsonant && pos + 2 < text.length &&
+          text[pos + 1] === COENG && text[pos + 2] === char) {
+        if (node.children.has(char)) {
+          // Path A: Skip doubled consonant (consume 3 text chars, advance 1 in trie)
+          explore(node.children.get(char)!, pos + 3, true)
+          // Path B: Keep it (normal traversal, consume 1 text char)
+          explore(node.children.get(char)!, pos + 1, didSkip)
+        }
+      } else {
+        // Normal single-character advancement
+        if (node.children.has(char)) {
+          explore(node.children.get(char)!, pos + 1, didSkip)
+        }
+      }
+    }
+
+    explore(this.root, 0, false)
+    return bestMatch
+  }
+
+  /**
+   * Find the longest dictionary match starting at position.
+   * Falls back to tolerant variant matching for doubled consonants
+   * and mis-ordered coeng sequences.
    */
   findLongestMatch(text: string, startIndex: number): { word: string; frequency: number } | null {
     let node = this.root
@@ -126,13 +268,57 @@ class KhmerTrie {
       }
     }
 
+    // Variant lookup via tolerant trie traversal.
+    // At each doubled consonant (C + ្ + C_same), explores both paths:
+    // skip (treat as single C) or keep (normal traversal).
+    // This correctly handles cases like ប្រត្តិកម្ម → dictionary ប្រតិកម្ម:
+    // skips ត្ត (not in dict) but keeps ម្ម (is in dict).
+    // Also applies coeng reordering first to fix mis-typed Unicode order.
+    const remainingText = text.substring(startIndex)
+    if (remainingText.length >= 5 && remainingText.includes("\u17D2")) {
+      const reordered = this.reorderCoengs(remainingText)
+      const variantResult = this.findVariantInTrie(reordered)
+
+      if (variantResult) {
+        // reorderCoengs preserves length, so consumedLength maps directly to original
+        const originalWord = remainingText.substring(0, variantResult.consumedLength)
+
+        // Only use variant if it's longer than the direct match
+        if (!lastMatch || originalWord.length > lastMatch.word.length) {
+          // Reduce frequency to prefer exact matches when available (75% of original frequency)
+          const adjustedFrequency = Math.floor(variantResult.frequency * 0.75)
+
+          if (isWordBreakerDebugEnabled()) {
+            console.log(
+              `[v0] findLongestMatch at pos ${startIndex}: found VARIANT "${originalWord}" (freq: ${variantResult.frequency} → ${adjustedFrequency})${lastMatch ? `, beating direct match "${lastMatch.word}"` : ""}`,
+            )
+          }
+
+          return {
+            word: originalWord,
+            frequency: adjustedFrequency,
+          }
+        }
+      }
+    }
+
+    // Return direct match if we have one
+    if (lastMatch) {
+      if (isWordBreakerDebugEnabled()) {
+        console.log(
+          `[v0] findLongestMatch at pos ${startIndex} in "${text.substring(startIndex, startIndex + 10)}...": found matches: [${debugMatches.join(", ")}], returning: "${lastMatch.word}"`,
+        )
+      }
+      return lastMatch
+    }
+
     if (isWordBreakerDebugEnabled()) {
       console.log(
-        `[v0] findLongestMatch at pos ${startIndex} in "${text.substring(startIndex, startIndex + 10)}...": found matches: [${debugMatches.join(", ")}], returning: ${lastMatch ? `"${lastMatch.word}"` : "null"}`,
+        `[v0] findLongestMatch at pos ${startIndex} in "${text.substring(startIndex, startIndex + 10)}...": found matches: [${debugMatches.join(", ")}], returning: null`,
       )
     }
 
-    return lastMatch
+    return null
   }
 
   /**
@@ -716,7 +902,16 @@ export class KhmerBreaker {
     for (const suffixText of SUFFIXES_BY_LENGTH) {
       if (word.endsWith(suffixText) && word.length > suffixText.length) {
         const stem = word.slice(0, -suffixText.length)
-        const stemFreq = this.trie.getFrequency(stem)
+        let stemFreq = this.trie.getFrequency(stem)
+
+        // If exact stem not found, try variant lookup (handles doubled consonants)
+        if (stemFreq === 0 && stem.length >= 3 && stem.includes("\u17D2")) {
+          const reordered = this.trie.reorderCoengs(stem)
+          const variantResult = this.trie.findVariantInTrie(reordered)
+          if (variantResult && variantResult.consumedLength === reordered.length) {
+            stemFreq = Math.floor(variantResult.frequency * 0.75)
+          }
+        }
 
         // Check if stem is a known dictionary word with sufficient frequency
         // For single-cluster stems, require higher frequency to prevent spurious compounds
@@ -1516,6 +1711,20 @@ export class KhmerBreaker {
         // Khmer text - find dictionary matches
         const maxLen = Math.min(KhmerBreaker.MAX_WORD_LEN, endPos - s.pos)
         const matches = this.trie.findAllMatches(text, s.pos, maxLen, this.charSets)
+
+        // Also try variant matching (handles doubled consonants, coeng reordering)
+        const remainingForVariant = text.substring(s.pos)
+        if (remainingForVariant.length >= 5 && remainingForVariant.includes("\u17D2")) {
+          const reordered = this.trie.reorderCoengs(remainingForVariant)
+          const variantResult = this.trie.findVariantInTrie(reordered)
+          if (variantResult) {
+            const longestDirect = matches.length > 0 ? Math.max(...matches.map(m => m.length)) : 0
+            if (variantResult.consumedLength > longestDirect) {
+              const adjustedFreq = Math.floor(variantResult.frequency * 0.75)
+              matches.push({ length: variantResult.consumedLength, frequency: adjustedFreq })
+            }
+          }
+        }
 
         // Build candidate tokens
         // segments?: string[] allows a single candidate to produce multiple output pieces
