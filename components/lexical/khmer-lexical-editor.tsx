@@ -1441,6 +1441,10 @@ function EditorWrapper({
       const root = $getRoot()
       root.clear()
     })
+    // Clear sessionStorage so the document loading effect doesn't re-load the old doc
+    sessionStorage.removeItem('aksara-current-doc-id')
+    sessionStorage.removeItem('aksara-editor-state')
+    sessionStorage.removeItem('aksara-doc-state')
     setDocumentState({ id: null, title: t("header.untitled"), hasUnsavedChanges: false, saveStatus: "idle", lastSavedAt: null })
     updateLastOpenedDocumentId(null)
   }, [editor, documentState.hasUnsavedChanges, setDocumentState, updateLastOpenedDocumentId])
