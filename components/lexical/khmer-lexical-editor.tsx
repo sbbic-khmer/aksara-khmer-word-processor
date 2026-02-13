@@ -298,6 +298,7 @@ function EditorContent({
   isCompactToolbar,
   onToggleCompactToolbar,
   isMobile,
+  deferredPluginsReady,
 }: {
   breaker: KhmerBreaker
   showBreaks: boolean
@@ -328,6 +329,7 @@ function EditorContent({
   isCompactToolbar: boolean
   onToggleCompactToolbar: () => void
   isMobile: boolean
+  deferredPluginsReady: boolean
 }) {
   const [editor] = useLexicalComposerContext()
   const { formatText, undo, redo, insertZWSP, joinWord } = useToolbarCommands()
@@ -2024,6 +2026,7 @@ function EditorWrapper({
           isCompactToolbar={isCompactToolbar}
           onToggleCompactToolbar={onToggleCompactToolbar}
           isMobile={isMobile}
+          deferredPluginsReady={deferredPluginsReady}
         />
       </div>
 
