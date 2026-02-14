@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+const BASE_URL = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'https://aksarapro.app'
+
 interface RouteParams {
   params: Promise<{ sendId: string; linkId: string }>
 }
@@ -11,7 +13,7 @@ interface RouteParams {
  * Track email link clicks and redirect to original URL.
  * Only tracks first click (ignores subsequent clicks).
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { sendId, linkId } = await params
 
   try {
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     if (!send) {
       // Invalid send ID - redirect to home page
-      return NextResponse.redirect(new URL('/', request.url))
+      return NextResponse.redirect(new URL('/', BASE_URL))
     }
 
     // Parse tracked links from campaign content
@@ -56,6 +58,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   } catch (error) {
     console.error('Failed to track click:', error)
     // On error, redirect to home
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL('/', BASE_URL))
   }
 }
