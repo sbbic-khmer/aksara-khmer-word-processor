@@ -1,5 +1,6 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
+import Script from "next/script"
 import { Geist, Geist_Mono, Moul, Battambang, Kantumruy_Pro, Noto_Sans_Khmer } from "next/font/google"
 import "./globals.css"
 
@@ -119,6 +120,18 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${moul.variable} ${battambang.variable} ${kantumruyPro.variable} ${notoSansKhmer.variable} font-sans antialiased`}
       >
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-0Y5N5YNVZD"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-0Y5N5YNVZD');
+          `}
+        </Script>
         {children}
       </body>
     </html>
