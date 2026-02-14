@@ -13,7 +13,7 @@ function addSecurityHeaders(response: NextResponse) {
   const csp = [
     "default-src 'self'",
     // Scripts: self + inline (for Next.js) + eval (for some libs) + ad networks + analytics
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://challenges.cloudflare.com https://www.googletagservices.com https://adservice.google.com https://static.cloudflareinsights.com https://a.magsrv.com https://a.pemsrv.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://pagead2.googlesyndication.com https://challenges.cloudflare.com https://www.googletagservices.com https://adservice.google.com https://static.cloudflareinsights.com https://a.magsrv.com https://a.pemsrv.com https://www.googletagmanager.com",
     // Styles: self + inline (for styled components, Tailwind)
     "style-src 'self' 'unsafe-inline'",
     // Images: self + https (for user avatars, ads) + data (for inline images)
