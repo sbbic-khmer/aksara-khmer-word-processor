@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
         "User-Agent": userAgent,
         "Accept-Language": acceptLanguage,
         Referer: referer,
+        "X-Forwarded-For": ip,
       },
     })
 
