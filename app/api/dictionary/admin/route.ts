@@ -30,15 +30,32 @@ export async function GET() {
       _max: { createdAt: true },
     })
 
-    // Format and enhance with dictionary status
+    // Get promoted words
+    const promotedWords = await prisma.promotedUserDictionaryWord.findMany({
+      include: {
+        promoter: {
+          select: { name: true },
+        },
+      },
+    })
+
+    const promotedMap = new Map(promotedWords.map((p) => [p.word, p]))
+
+    // Format and enhance with dictionary status + promotion data
     const enhancedWords = wordGroups
-      .map((w) => ({
-        word: w.word,
-        user_count: w._count.userId,
-        first_added: w._min.createdAt,
-        last_added: w._max.createdAt,
-        in_frequency_dictionary: frequencyDictionaryWords.has(w.word),
-      }))
+      .map((w) => {
+        const promoted = promotedMap.get(w.word)
+        return {
+          word: w.word,
+          user_count: w._count.userId,
+          first_added: w._min.createdAt,
+          last_added: w._max.createdAt,
+          in_frequency_dictionary: frequencyDictionaryWords.has(w.word),
+          promoted_at: promoted?.promotedAt ?? null,
+          promoted_frequency: promoted?.frequency ?? null,
+          promoted_by_name: promoted?.promoter?.name ?? null,
+        }
+      })
       // Sort by user_count DESC, then last_added DESC
       .sort((a, b) => {
         if (b.user_count !== a.user_count) return b.user_count - a.user_count
@@ -54,6 +71,7 @@ export async function GET() {
     const notInDictionaryCount = enhancedWords.filter(
       (w) => !w.in_frequency_dictionary
     ).length
+    const promotedCount = promotedWords.length
 
     return NextResponse.json({
       words: enhancedWords,
@@ -61,6 +79,7 @@ export async function GET() {
         total: enhancedWords.length,
         inDictionary: inDictionaryCount,
         notInDictionary: notInDictionaryCount,
+        promotedCount,
       },
     })
   } catch (error) {

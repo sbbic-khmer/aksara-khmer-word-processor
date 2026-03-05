@@ -48,6 +48,7 @@ model User {
   userReplacements       UserReplacement[]
   createdMasterReplacements MasterReplacement[] @relation("CreatedBy")
   promotedIgnoredWords   PromotedIgnoredWord[]
+  promotedUserDictionaryWords PromotedUserDictionaryWord[]
 
   // Email system relations
   emailVerificationTokens EmailVerificationToken[]
@@ -200,6 +201,20 @@ model PromotedIgnoredWord {
   promoter User? @relation(fields: [promotedBy], references: [id], onDelete: SetNull)
 
   @@map("promoted_ignored_word")
+}
+
+// Admin-promoted user dictionary words (for bulk add to frequency dictionary)
+model PromotedUserDictionaryWord {
+  id         String   @id @default(cuid())
+  word       String   @unique
+  promotedBy String?
+  notes      String?
+  frequency  Int      @default(100)
+  promotedAt DateTime @default(now())
+
+  promoter User? @relation(fields: [promotedBy], references: [id], onDelete: SetNull)
+
+  @@map("promoted_user_dictionary_word")
 }
 
 // Spell check: Words to add to spell checker (treated as correct)
