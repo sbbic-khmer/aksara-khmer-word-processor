@@ -2134,12 +2134,32 @@ export class KhmerBreaker {
       return avgB - avgA
     })
     const result = states[0]?.pieces ?? [text]
-    
-    if (isWordBreakerDebugEnabled()) {
-      console.log(`[v0] beamSegment: "${text}" -> [${result.map((s) => `"${s}"`).join(", ")}]`)
+
+    // Post-processing: merge orphaned single-cluster OOV tokens into the previous word.
+    // A bare consonant (e.g., "រ") is almost never a valid Khmer word — it typically
+    // indicates a dictionary gap or misspelling. Merging it back produces cleaner breaks.
+    const merged: string[] = []
+    for (let i = 0; i < result.length; i++) {
+      const piece = result[i]
+      if (
+        merged.length > 0 &&
+        !this.trie.hasWord(piece) &&
+        this.charSets.extractClusters(piece).length <= 1
+      ) {
+        if (isWordBreakerDebugEnabled()) {
+          console.log(`[v0] beamSegment: merging orphan "${piece}" into previous "${merged[merged.length - 1]}"`)
+        }
+        merged[merged.length - 1] += piece
+      } else {
+        merged.push(piece)
+      }
     }
-    
-    return result
+
+    if (isWordBreakerDebugEnabled()) {
+      console.log(`[v0] beamSegment: "${text}" -> [${merged.map((s) => `"${s}"`).join(", ")}]`)
+    }
+
+    return merged
   }
 
   /**
