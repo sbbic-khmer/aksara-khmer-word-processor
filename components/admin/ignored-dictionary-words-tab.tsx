@@ -345,14 +345,14 @@ export function IgnoredDictionaryWordsTab() {
 
       {/* Bulk Promote Dialog */}
       <Dialog open={bulkPromoteDialogOpen} onOpenChange={setBulkPromoteDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Promote {selectedWords.size} Words</DialogTitle>
             <DialogDescription>
               Before marking these words as promoted, you need to remove them from the frequency dictionary file.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
             <div>
               <h4 className="font-medium mb-2">Step 1: Copy these regexes</h4>
               <p className="text-sm text-muted-foreground mb-2">
@@ -467,14 +467,14 @@ export function IgnoredDictionaryWordsTab() {
 
       {/* Remove All Dialog */}
       <Dialog open={removeAllDialogOpen} onOpenChange={setRemoveAllDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Remove All {words.length} Ignored Words from Dictionary</DialogTitle>
             <DialogDescription>
               Copy these regexes to remove all ignored words (both promoted and not promoted) from the frequency dictionary files.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">
