@@ -23,6 +23,17 @@ import { TITLE_SET, TITLES_BY_LENGTH, isTitle } from "./khmer-titles"
 const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
 
+// Connector characters that glue adjacent Khmer tokens together (no break inserted).
+// Examples: ៤:២៥-២៦, បុត្រា/ព្រះ, អស់—ខណៈ, ខ.២១-២៤
+const CONNECTOR_CHARS = new Set([
+  "-",      // hyphen-minus (U+002D)
+  "/",      // slash
+  ".",      // period (when between Khmer chars, e.g., ខ.២១)
+  "\u2014", // em dash —
+  "\u2013", // en dash –
+  ":",      // colon (already handled for digits, now generalized)
+])
+
 // Closing punctuation stays with PREVIOUS segment
 const CLOSING_PUNCTUATION = new Set([
   "។", // Khmer full stop
@@ -626,7 +637,12 @@ class KhmerCharSets {
     // Example: អ្វីៗ (things), ផ្សេងៗ (various)
     if (this.isRepetitionSign(after)) return false
 
-    // 5) Unicode LB9: never break BEFORE a combining mark.
+    // 5) Never break around connector characters (-, /, ., —, –, :) between Khmer chars.
+    // Examples: ៤:២៥-២៦, បុត្រា/ព្រះ, ខ.២១-២៤
+    if (CONNECTOR_CHARS.has(before) && this.isKhmerChar(after)) return false
+    if (CONNECTOR_CHARS.has(after) && this.isKhmerChar(before)) return false
+
+    // 6) Unicode LB9: never break BEFORE a combining mark.
     // In Khmer this means dependent vowels, signs, and other marks
     // must stay attached to the previous base/cluster.
     if (this.isCombiningMark(after)) return false
@@ -1108,10 +1124,11 @@ export class KhmerBreaker {
   getSegments(text: string): string[] {
     if (!text || text.length === 0) return []
 
-    // Pre-process: Remove ZWSP that incorrectly breaks Khmer digit:digit patterns
-    // This fixes cases where previous word-breaking inserted ZWSP in "២៣:​៨"
-    // Khmer digits are ០-៩ (U+17E0 - U+17E9)
-    const cleanedText = text.replace(/([\u17E0-\u17E9]+):\u200B+([\u17E0-\u17E9])/g, '$1:$2')
+    // Pre-process: Remove ZWSP that incorrectly breaks around connector chars between Khmer chars.
+    // This fixes cases where previous word-breaking inserted ZWSP in patterns like "២៣:​៨" or "បុត្រា​/​ព្រះ"
+    // Khmer range: U+1780-U+17FF
+    const cleanedText = text.replace(/([\u1780-\u17FF])([-\/.:\u2013\u2014])\u200B+([\u1780-\u17FF])/g, '$1$2$3')
+      .replace(/([\u1780-\u17FF])\u200B+([-\/.:\u2013\u2014])([\u1780-\u17FF])/g, '$1$2$3')
 
     const userChunks = cleanedText.split(ZWSP)
     const allSegments: string[] = []
@@ -1124,8 +1141,49 @@ export class KhmerBreaker {
     }
 
     // Post-processing pipeline
-    const punctMerged = this.mergePunctuation(allSegments)
+    const connectorMerged = this.mergeConnectors(allSegments)
+    const punctMerged = this.mergePunctuation(connectorMerged)
     return this.mergeKnownCompounds(punctMerged)
+  }
+
+  /**
+   * Merge segments connected by connector characters (-, /, ., —, –, :).
+   * E.g., ["បុត្រា", "/", "ព្រះ"] → ["បុត្រា/ព្រះ"]
+   * E.g., ["អស់", "—", "ខណៈ"] → ["អស់—ខណៈ"]
+   */
+  private mergeConnectors(segments: string[]): string[] {
+    if (segments.length <= 2) return segments
+
+    const result: string[] = []
+
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i]
+
+      // Check if this segment is a lone connector char between other segments
+      if (
+        segment.length === 1 &&
+        CONNECTOR_CHARS.has(segment) &&
+        result.length > 0 &&
+        i + 1 < segments.length
+      ) {
+        // Check that previous and next segments contain Khmer chars
+        const prev = result[result.length - 1]
+        const next = segments[i + 1]
+        const prevHasKhmer = [...prev].some(c => isKhmerCodePoint(c.codePointAt(0) || 0))
+        const nextHasKhmer = [...next].some(c => isKhmerCodePoint(c.codePointAt(0) || 0))
+
+        if (prevHasKhmer && nextHasKhmer) {
+          // Merge: prev + connector + next
+          result[result.length - 1] = prev + segment + next
+          i++ // Skip next segment (already merged)
+          continue
+        }
+      }
+
+      result.push(segment)
+    }
+
+    return result
   }
 
   /**
@@ -1650,21 +1708,19 @@ export class KhmerBreaker {
           continue
         }
         
-        // Handle Khmer digit runs (including colon-separated patterns like ២៣:៨)
+        // Handle Khmer digit runs (including connector-separated patterns like ៤:២៥-២៦, ខ.២១-២៤)
         if (this.charSets.isKhmerDigit(ch)) {
           let runEnd = s.pos + 1
           while (runEnd < endPos) {
             const nextCh = text[runEnd]
             if (this.charSets.isKhmerDigit(nextCh)) {
               runEnd++
-            } else if (nextCh === ':') {
-              // Colon after Khmer digit - check if followed by another Khmer digit
+            } else if (CONNECTOR_CHARS.has(nextCh)) {
+              // Connector after Khmer digit - check if followed by another Khmer digit
               if (runEnd + 1 < endPos && this.charSets.isKhmerDigit(text[runEnd + 1])) {
-                // Colon followed by Khmer digit - keep together (e.g., ២៣:៨)
                 runEnd++
               } else if (runEnd + 1 >= endPos) {
-                // Colon at end of text - keep with digits to prevent break insertion
-                // This handles typing "២៣:" before the final digit is typed
+                // Connector at end of text - keep with digits to prevent break insertion
                 runEnd++
                 break
               } else {
@@ -2624,47 +2680,48 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
     const charIsKhmer = isKhmerCodePoint(cp)
     const charIsKhmerDigit = isKhmerDigit(cp)
     
-    // Check if this is a colon between Khmer digits (e.g., "២៣:៨" for time/verse references)
-    // If so, don't treat it as a break point - keep it with the digits
-    // Also handle case where there's a ZWSP between colon and digit (e.g., "២៣:​៨")
-    const ZWSP = '\u200B'
-    let colonFollowedByKhmerDigit = false
-    let skipZwspAfterColon = false
-    if (char === ':' && currentIsKhmerDigit === true) {
-      if (i + 1 < chars.length && isKhmerDigit(chars[i + 1].codePointAt(0) || 0)) {
-        colonFollowedByKhmerDigit = true
-      } else if (i + 1 < chars.length && chars[i + 1] === ZWSP && 
-                 i + 2 < chars.length && isKhmerDigit(chars[i + 2].codePointAt(0) || 0)) {
-        // Colon followed by ZWSP followed by Khmer digit
-        colonFollowedByKhmerDigit = true
-        skipZwspAfterColon = true
+    // Check if this is a connector character (-, /, ., —, –, :) between Khmer chars.
+    // If so, keep it in the current run rather than splitting.
+    // Also handle ZWSP that may appear after the connector (from previous word-breaking).
+    const ZWSP_CHAR = '\u200B'
+    let isConnectorBetweenKhmer = false
+    let skipZwspAfterConnector = false
+    if (CONNECTOR_CHARS.has(char) && currentIsKhmer === true && currentRun.length > 0) {
+      const nextChar = i + 1 < chars.length ? chars[i + 1] : null
+      const nextNextChar = i + 2 < chars.length ? chars[i + 2] : null
+      if (nextChar && isKhmerCodePoint(nextChar.codePointAt(0) || 0)) {
+        isConnectorBetweenKhmer = true
+      } else if (nextChar === ZWSP_CHAR && nextNextChar && isKhmerCodePoint(nextNextChar.codePointAt(0) || 0)) {
+        // Connector followed by ZWSP followed by Khmer char
+        isConnectorBetweenKhmer = true
+        skipZwspAfterConnector = true
       }
     }
-    const isColonBetweenKhmerDigits = colonFollowedByKhmerDigit
-    
-    // Check if this is a ZWSP between colon and Khmer digit (should be kept with the run)
-    const isZwspInDigitColonPattern = char === ZWSP && 
-      currentRun.endsWith(':') && 
-      currentIsKhmerDigit === true &&
-      i + 1 < chars.length && 
-      isKhmerDigit(chars[i + 1].codePointAt(0) || 0)
-    
-    const isBreakPoint = !isColonBetweenKhmerDigits && !isZwspInDigitColonPattern && (
+
+    // Check if this is a ZWSP between a connector and Khmer char (should be kept with the run)
+    const isZwspAfterConnector = char === ZWSP_CHAR &&
+      currentRun.length > 0 &&
+      CONNECTOR_CHARS.has(currentRun[currentRun.length - 1]) &&
+      currentIsKhmer === true &&
+      i + 1 < chars.length &&
+      isKhmerCodePoint((chars[i + 1].codePointAt(0) || 0))
+
+    const isBreakPoint = !isConnectorBetweenKhmer && !isZwspAfterConnector && (
       char === " " || /\s/.test(char) || OPENING_PUNCTUATION.has(char) || CLOSING_PUNCTUATION.has(char)
     )
 
-    // Handle colon between Khmer digits FIRST (before other checks)
-    // This keeps patterns like "២៣:៨" or "២៣:​៨" together as one run
-    if (isColonBetweenKhmerDigits) {
+    // Handle connector between Khmer chars - keep in same run
+    if (isConnectorBetweenKhmer) {
       currentRun += char
-      // If there's a ZWSP after the colon, also consume it
-      if (skipZwspAfterColon) {
+      if (skipZwspAfterConnector) {
         currentRun += chars[i + 1] // Add the ZWSP
         i++ // Skip the ZWSP in the next iteration
       }
-      // Don't change currentIsKhmerDigit - we're still in a digit context
-    } else if (isZwspInDigitColonPattern) {
-      // ZWSP between colon and digit - keep it with the run
+      // After a connector, the next Khmer char may be a different type (letter vs digit)
+      // but we keep the run together. Reset digit tracking since it's mixed.
+      currentIsKhmerDigit = null
+    } else if (isZwspAfterConnector) {
+      // ZWSP between connector and Khmer char - keep it with the run
       currentRun += char
     } else if (isBreakPoint) {
       // Flush current run
