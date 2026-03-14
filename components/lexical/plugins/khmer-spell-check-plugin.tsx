@@ -60,6 +60,34 @@ function isKhmerLetter(char: string): boolean {
     return (code >= 0x1780 && code <= 0x17D3) || (code >= 0x17DB && code <= 0x17DD);
 }
 
+// Connector characters that the word breaker merges between Khmer chars (must match khmer-breaker.ts)
+const CONNECTOR_CHARS = new Set(['-', '/', '.', '\u2014', '\u2013', ':']);
+
+// Split text on connector characters that appear between Khmer characters.
+// E.g., "ហើយ—ទោះ" → ["ហើយ", "ទោះ"], "hello" → ["hello"]
+function splitOnConnectors(text: string): string[] {
+    const chars = [...text];
+    const parts: string[] = [];
+    let current = '';
+
+    for (let i = 0; i < chars.length; i++) {
+        if (CONNECTOR_CHARS.has(chars[i])) {
+            // Check if connector is between Khmer characters
+            const prevIsKhmer = current.length > 0 && isKhmerLetter(chars[i - 1]);
+            const nextIsKhmer = i + 1 < chars.length && isKhmerLetter(chars[i + 1]);
+            if (prevIsKhmer && nextIsKhmer) {
+                parts.push(current);
+                current = '';
+                continue;
+            }
+        }
+        current += chars[i];
+    }
+    if (current) parts.push(current);
+
+    return parts;
+}
+
 // Check if a character is Khmer punctuation
 function isKhmerPunctuation(char: string): boolean {
     const code = char.charCodeAt(0);
@@ -337,15 +365,26 @@ export function KhmerSpellCheckPlugin() {
                             console.log(`[SpellCheck] Batch check complete: ${checkedCount} words in ${elapsed?.toFixed(1)}ms`);
                         }
 
-                        // Apply results to spans
+                        // Collect per-span results: a span is correct only if ALL
+                        // its mapped words are correct (handles connector-split tokens
+                        // where one span maps to multiple sub-words).
+                        const spanResults = new Map<Element, boolean>();
                         for (const [checkedWord, spans] of wordSpanMap) {
                             const isCorrect = results?.[checkedWord] ?? true;
                             for (const span of spans) {
-                                if (isCorrect) {
-                                    span.classList.remove(MISSPELLED_CLASS);
-                                } else {
-                                    span.classList.add(MISSPELLED_CLASS);
+                                if (!isCorrect) {
+                                    spanResults.set(span, false);
+                                } else if (!spanResults.has(span)) {
+                                    spanResults.set(span, true);
                                 }
+                            }
+                        }
+
+                        for (const [span, isCorrect] of spanResults) {
+                            if (isCorrect) {
+                                span.classList.remove(MISSPELLED_CLASS);
+                            } else {
+                                span.classList.add(MISSPELLED_CLASS);
                             }
                         }
 
@@ -471,15 +510,20 @@ export function KhmerSpellCheckPlugin() {
                     return;
                 }
 
-                // Clean the word for checking
-                const cleanWord = cleanKhmerWord(currentContent);
-                if (!cleanWord) {
-                    span.classList.remove(MISSPELLED_CLASS);
-                    return;
+                // Split on connector punctuation (—, –, -, /, ., :) between Khmer chars.
+                // The word breaker merges these into single tokens, but each sub-word
+                // should be spell-checked independently.
+                const subWords = splitOnConnectors(currentContent);
+                const cleanWords: string[] = [];
+
+                for (const sub of subWords) {
+                    const cleaned = cleanKhmerWord(sub);
+                    if (cleaned && containsKhmer(cleaned)) {
+                        cleanWords.push(cleaned);
+                    }
                 }
 
-                // Skip non-Khmer text
-                if (!containsKhmer(cleanWord)) {
+                if (cleanWords.length === 0) {
                     span.classList.remove(MISSPELLED_CLASS);
                     return;
                 }
@@ -490,30 +534,28 @@ export function KhmerSpellCheckPlugin() {
                     span.classList.remove(MISSPELLED_CLASS);
                     skippedCount++;
                     if (debugMode) {
-                        console.log(`[SpellCheck] Skipping "${cleanWord}" - follows title pattern (likely proper noun)`);
+                        console.log(`[SpellCheck] Skipping "${cleanWords.join(', ')}" - follows title pattern (likely proper noun)`);
                     }
                     return;
                 }
 
-                // Check if word is in user's added words (should be considered correct)
-                if (addedWordsSet.has(cleanWord)) {
-                    span.classList.remove(MISSPELLED_CLASS);
-                    skippedCount++;
-                    return;
+                // Check each sub-word against user dictionaries and add to batch
+                let allSkipped = true;
+                for (const cleanWord of cleanWords) {
+                    if (addedWordsSet.has(cleanWord) || ignoredWordsSet.has(cleanWord)) {
+                        skippedCount++;
+                        continue;
+                    }
+                    allSkipped = false;
+                    if (!wordSpanMap.has(cleanWord)) {
+                        wordSpanMap.set(cleanWord, []);
+                    }
+                    wordSpanMap.get(cleanWord)!.push(span);
                 }
 
-                // Check if word is in user's ignored words (skip spell check)
-                if (ignoredWordsSet.has(cleanWord)) {
+                if (allSkipped) {
                     span.classList.remove(MISSPELLED_CLASS);
-                    skippedCount++;
-                    return;
                 }
-
-                // Add to word -> spans mapping for batch checking
-                if (!wordSpanMap.has(cleanWord)) {
-                    wordSpanMap.set(cleanWord, []);
-                }
-                wordSpanMap.get(cleanWord)!.push(span);
             });
 
             previousSpanSet = currentSpanSet;
