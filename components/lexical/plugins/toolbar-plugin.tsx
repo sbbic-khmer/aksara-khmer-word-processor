@@ -9,6 +9,7 @@ import {
   REDO_COMMAND,
   $createParagraphNode,
   $isTextNode,
+  $getRoot,
 } from "lexical"
 import { FORCE_RESEGMENT_COMMAND, clearSegmentationCache } from "./khmer-word-break-plugin"
 import { $setBlocksType, $patchStyleText } from "@lexical/selection"
@@ -289,6 +290,48 @@ export function useToolbarCommands() {
   }, [editor])
 
   const confirmSplit = useCallback(async (originalWord: string, word1: string, word2: string) => {
+    // 0. Insert ZWSP at the split point so the word visually splits immediately
+    editor.update(() => {
+      // Search all text nodes for the original word (selection may have moved while dialog was open)
+      const textNodes = $getRoot().getAllTextNodes()
+      for (const node of textNodes) {
+        const text = node.getTextContent()
+        // Strip ZWSPs/WJs for matching
+        const cleanText = text.replace(/[\u200B\u2060]/g, '')
+        const wordIndex = cleanText.indexOf(originalWord)
+        if (wordIndex === -1) continue
+
+        // Map clean index back to raw index (account for zero-width chars)
+        let cleanCount = 0
+        let rawStart = -1
+        for (let i = 0; i < text.length; i++) {
+          if (text[i] !== ZWSP && text[i] !== WJ) {
+            if (cleanCount === wordIndex) {
+              rawStart = i
+              break
+            }
+            cleanCount++
+          }
+        }
+        if (rawStart === -1) continue
+
+        // Find the raw position where word1 ends (after word1.length clean chars from rawStart)
+        let word1Chars = 0
+        let insertPos = rawStart
+        for (let i = rawStart; i < text.length && word1Chars < word1.length; i++) {
+          if (text[i] !== ZWSP && text[i] !== WJ) {
+            word1Chars++
+          }
+          insertPos = i + 1
+        }
+
+        // Insert ZWSP at the split point
+        const newText = text.slice(0, insertPos) + ZWSP + text.slice(insertPos)
+        node.setTextContent(newText)
+        break // Only split the first occurrence
+      }
+    })
+
     // 1. Delete the original word from user dictionary (if present)
     try {
       await fetch(`/api/dictionary/user?word=${encodeURIComponent(originalWord)}`, {

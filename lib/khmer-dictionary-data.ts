@@ -3667,7 +3667,6 @@ export const KHMER_DICTIONARY: DictionaryEntry[] = [
   { word: "ឌៀន", frequency: 200 },
   { word: "ឌៀហ្គោ", frequency: 200 },
   { word: "ណង", frequency: 200 },
-  { word: "ណាក", frequency: 200 },
   { word: "ណានកូលេ", frequency: 200 },
   { word: "ណាមីប៊ី", frequency: 200 },
   { word: "ណាម៉ា", frequency: 200 },

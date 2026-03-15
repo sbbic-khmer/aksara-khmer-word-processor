@@ -725,6 +725,7 @@ export class KhmerBreaker {
   private trie: KhmerTrie
   private charSets: KhmerCharSets
   private useIntlSegmenter: boolean
+  private previousUserWords: Set<string> = new Set()
 
   // Short dictionary matches (1-2 chars) with low frequency are likely
   // just particles/letters, not real words worth breaking at.
@@ -829,12 +830,25 @@ export class KhmerBreaker {
    * @param frequency The frequency to assign (default: 50000, very high to prioritize)
    */
   addUserWords(words: string[], frequency = 50000) {
+    const currentWords = new Set<string>()
+
     for (const word of words) {
       const cleanWord = word.trim()
       if (cleanWord && cleanWord.length > 0) {
+        currentWords.add(cleanWord)
         this.trie.insert(cleanWord, frequency)
       }
     }
+
+    // Remove words that were in the previous set but not the current one.
+    // Reset to frequency 0 so the beam search no longer matches them.
+    for (const prevWord of this.previousUserWords) {
+      if (!currentWords.has(prevWord)) {
+        this.trie.insert(prevWord, 0)
+      }
+    }
+
+    this.previousUserWords = currentWords
   }
 
   /**
@@ -1135,14 +1149,16 @@ export class KhmerBreaker {
     for (const chunk of userChunks) {
       if (!chunk) continue // Skip empty chunks from consecutive ZWSP
 
+      // Post-process each ZWSP-separated chunk independently so that
+      // mergeKnownCompounds cannot re-merge segments the user explicitly split.
       const chunkSegments = this.segmentChunk(chunk)
-      allSegments.push(...chunkSegments)
+      const connectorMerged = this.mergeConnectors(chunkSegments)
+      const punctMerged = this.mergePunctuation(connectorMerged)
+      const compoundMerged = this.mergeKnownCompounds(punctMerged)
+      allSegments.push(...compoundMerged)
     }
 
-    // Post-processing pipeline
-    const connectorMerged = this.mergeConnectors(allSegments)
-    const punctMerged = this.mergePunctuation(connectorMerged)
-    return this.mergeKnownCompounds(punctMerged)
+    return allSegments
   }
 
   /**
