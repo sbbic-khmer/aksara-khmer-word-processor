@@ -56,8 +56,6 @@ const CLOSING_PUNCTUATION = new Set([
   ";", // semicolon
   "៚", // Khmer sign koomuut
   "'", // ASCII apostrophe (U+0027) - used in contractions like "don't"
-  "\u2014", // em dash —
-  "\u2013", // en dash –
   "\u2026", // horizontal ellipsis …
   "-", // hyphen-minus (U+002D) - stays with previous segment (e.g., ៣០-៣១)
 ])

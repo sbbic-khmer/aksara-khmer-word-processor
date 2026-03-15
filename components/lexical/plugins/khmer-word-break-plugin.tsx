@@ -326,7 +326,9 @@ useEffect(() => {
             isWhitespaceOnly(segment) ||
             isWhitespaceOnly(nextSegment) ||
             containsWhitespace(segment.slice(-1)) ||
-            containsWhitespace(nextSegment.slice(0, 1))
+            containsWhitespace(nextSegment.slice(0, 1)) ||
+            segment === '\u2014' || segment === '\u2013' ||
+            nextSegment === '\u2014' || nextSegment === '\u2013'
 
           if (!skipBreak) {
             newNodes.push($createKhmerBreakNode())
@@ -513,7 +515,10 @@ useEffect(() => {
               isWhitespaceOnly(segment) ||
               isWhitespaceOnly(nextSegment) ||
               containsWhitespace(segment.slice(-1)) ||
-              containsWhitespace(nextSegment.slice(0, 1))
+              containsWhitespace(nextSegment.slice(0, 1)) ||
+              // Em/en dashes are standard punctuation the browser breaks around natively
+              segment === '\u2014' || segment === '\u2013' ||
+              nextSegment === '\u2014' || nextSegment === '\u2013'
 
             if (!skipBreak) {
               newNodes.push($createKhmerBreakNode())
@@ -659,11 +664,15 @@ useEffect(() => {
             const nextSegment = text.slice(endPos, nextEndPos)
             
             // Skip break if current or next segment is whitespace only
+            const cleanSegment = segment.replace(USER_BREAK_REGEX, '')
+            const cleanNextSegment = nextSegment.replace(USER_BREAK_REGEX, '')
             const skipBreak =
-              isWhitespaceOnly(segment.replace(USER_BREAK_REGEX, '')) ||
-              isWhitespaceOnly(nextSegment.replace(USER_BREAK_REGEX, '')) ||
-              containsWhitespace(segment.replace(USER_BREAK_REGEX, '').slice(-1)) ||
-              containsWhitespace(nextSegment.replace(USER_BREAK_REGEX, '').slice(0, 1))
+              isWhitespaceOnly(cleanSegment) ||
+              isWhitespaceOnly(cleanNextSegment) ||
+              containsWhitespace(cleanSegment.slice(-1)) ||
+              containsWhitespace(cleanNextSegment.slice(0, 1)) ||
+              cleanSegment === '\u2014' || cleanSegment === '\u2013' ||
+              cleanNextSegment === '\u2014' || cleanNextSegment === '\u2013'
             
             if (!skipBreak) {
               newNodes.push($createKhmerBreakNode())
