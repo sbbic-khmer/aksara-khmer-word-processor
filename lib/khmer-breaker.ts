@@ -24,13 +24,14 @@ const ZWSP = "\u200B"
 const WJ = "\u2060" // Word Joiner - prevents breaks
 
 // Connector characters that glue adjacent Khmer tokens together (no break inserted).
-// Examples: ៤:២៥-២៦, បុត្រា/ព្រះ, អស់—ខណៈ, ខ.២១-២៤
+// These are character-level joiners (compounds, abbreviations, references).
+// Em dash (—) and en dash (–) are excluded — they are clause/range separators
+// and should produce separate tokens so spell checking works independently.
+// Examples: ៤:២៥-២៦, បុត្រា/ព្រះ, ខ.២១-២៤
 const CONNECTOR_CHARS = new Set([
   "-",      // hyphen-minus (U+002D)
   "/",      // slash
   ".",      // period (when between Khmer chars, e.g., ខ.២១)
-  "\u2014", // em dash —
-  "\u2013", // en dash –
   ":",      // colon (already handled for digits, now generalized)
 ])
 
@@ -637,7 +638,7 @@ class KhmerCharSets {
     // Example: អ្វីៗ (things), ផ្សេងៗ (various)
     if (this.isRepetitionSign(after)) return false
 
-    // 5) Never break around connector characters (-, /, ., —, –, :) between Khmer chars.
+    // 5) Never break around connector characters (-, /, ., :) between Khmer chars.
     // Examples: ៤:២៥-២៦, បុត្រា/ព្រះ, ខ.២១-២៤
     if (CONNECTOR_CHARS.has(before) && this.isKhmerChar(after)) return false
     if (CONNECTOR_CHARS.has(after) && this.isKhmerChar(before)) return false
@@ -1147,9 +1148,9 @@ export class KhmerBreaker {
   }
 
   /**
-   * Merge segments connected by connector characters (-, /, ., —, –, :).
+   * Merge segments connected by connector characters (-, /, ., :).
    * E.g., ["បុត្រា", "/", "ព្រះ"] → ["បុត្រា/ព្រះ"]
-   * E.g., ["អស់", "—", "ខណៈ"] → ["អស់—ខណៈ"]
+   * E.g., ["៤", ":", "២៥"] → ["៤:២៥"]
    */
   private mergeConnectors(segments: string[]): string[] {
     if (segments.length <= 2) return segments
@@ -2680,7 +2681,7 @@ function splitByScript(text: string): Array<{ text: string; isKhmer: boolean }> 
     const charIsKhmer = isKhmerCodePoint(cp)
     const charIsKhmerDigit = isKhmerDigit(cp)
     
-    // Check if this is a connector character (-, /, ., —, –, :) between Khmer chars.
+    // Check if this is a connector character (-, /, ., :) between Khmer chars.
     // If so, keep it in the current run rather than splitting.
     // Also handle ZWSP that may appear after the connector (from previous word-breaking).
     const ZWSP_CHAR = '\u200B'
