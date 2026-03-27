@@ -387,6 +387,20 @@ function EditorContent({
     ? (CSS as { highlights: Map<string, unknown> }).highlights
     : null
 
+  // Inject ::highlight() styles at runtime (PostCSS/Lightning CSS can't parse them at build time)
+  useEffect(() => {
+    if (!highlightRegistry) return
+    const style = document.createElement("style")
+    style.textContent = [
+      "::highlight(find-highlight) { background-color: oklch(0.9 0.12 90); }",
+      "::highlight(find-highlight-current) { background-color: oklch(0.78 0.15 55); }",
+      ".dark ::highlight(find-highlight) { background-color: oklch(0.45 0.1 90); }",
+      ".dark ::highlight(find-highlight-current) { background-color: oklch(0.55 0.15 55); }",
+    ].join("\n")
+    document.head.appendChild(style)
+    return () => { style.remove() }
+  }, [highlightRegistry])
+
   // Clear CSS highlights
   const clearHighlights = useCallback(() => {
     highlightRegistry?.delete("find-highlight")

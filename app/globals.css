@@ -345,24 +345,9 @@
   text-decoration-color: oklch(0.65 0.2 250);
 }
 
-/* Find/Replace - match highlighting via CSS Custom Highlights API.
-   Uses browser-level overlays instead of DOM <mark> elements,
-   so Lexical's MutationObserver is never triggered. */
-::highlight(find-highlight) {
-  background-color: oklch(0.9 0.12 90); /* warm yellow */
-}
-
-::highlight(find-highlight-current) {
-  background-color: oklch(0.78 0.15 55); /* orange for current match */
-}
-
-.dark ::highlight(find-highlight) {
-  background-color: oklch(0.45 0.1 90);
-}
-
-.dark ::highlight(find-highlight-current) {
-  background-color: oklch(0.55 0.15 55);
-}
+/* Find/Replace highlight styles are injected at runtime via
+   khmer-lexical-editor.tsx because ::highlight() pseudo-elements
+   are not yet supported by PostCSS / Lightning CSS at build time. */
 
 /* Scroll-triggered animations */
 @keyframes float {
