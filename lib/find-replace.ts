@@ -163,11 +163,18 @@ export function $findAll(options: FindOptions): FindMatch[] {
   const { query, matchCase, useRegex } = options
   if (!query) return []
 
+  // Strip invisible characters from the query — users may paste text
+  // copied from the editor which contains ZWSPs between words
+  const cleanQuery = useRegex
+    ? query
+    : Array.from(query).filter((ch) => !INVISIBLE_CHARS.has(ch)).join("")
+  if (!cleanQuery) return []
+
   // Build regex from query
   let pattern: RegExp
   try {
     const flags = matchCase ? "g" : "gi"
-    pattern = useRegex ? new RegExp(query, flags) : new RegExp(escapeRegex(query), flags)
+    pattern = useRegex ? new RegExp(query, flags) : new RegExp(escapeRegex(cleanQuery), flags)
   } catch {
     // Invalid regex — return no matches
     return []

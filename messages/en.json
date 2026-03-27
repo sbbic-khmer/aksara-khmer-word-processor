@@ -280,7 +280,8 @@
       "headings": "Headings",
       "alignment": "Alignment",
       "lists": "Lists",
-      "fontSizeMenu": "Font Size"
+      "fontSizeMenu": "Font Size",
+      "findReplace": "Find & Replace"
     },
     "contextMenu": {
       "spellCheck": {

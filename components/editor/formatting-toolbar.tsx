@@ -30,6 +30,7 @@ import {
   UnfoldVertical,
   MoreHorizontal,
   Check,
+  Search,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
@@ -81,6 +82,7 @@ interface FormattingToolbarProps {
   isCompact: boolean
   onToggleCompact: () => void
   isMobile: boolean
+  onFindReplace: () => void
 }
 
 // Toolbar button with consistent styling
@@ -153,6 +155,7 @@ function MobileOverflowMenu({
   onToggleSpellCheck,
   grammarCheckEnabled,
   onToggleGrammarCheck,
+  onFindReplace,
   t,
 }: {
   activeFormats: ActiveFormats
@@ -163,6 +166,7 @@ function MobileOverflowMenu({
   onToggleSpellCheck: () => void
   grammarCheckEnabled: boolean
   onToggleGrammarCheck: () => void
+  onFindReplace: () => void
   t: (key: string) => string
 }) {
   const FONT_SIZES = [
@@ -302,6 +306,13 @@ function MobileOverflowMenu({
 
         <DropdownMenuSeparator />
 
+        {/* Find & Replace */}
+        <DropdownMenuItem onSelect={onFindReplace}>
+          <Search className="h-4 w-4 mr-2" /> {t('findReplace')}
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
         {/* Settings */}
         <DropdownMenuItem asChild>
           <Link href="/settings">
@@ -332,6 +343,7 @@ export function FormattingToolbar({
   isCompact,
   onToggleCompact,
   isMobile,
+  onFindReplace,
 }: FormattingToolbarProps) {
   const t = useTranslations('editor.toolbar')
 
@@ -473,6 +485,7 @@ export function FormattingToolbar({
             onToggleSpellCheck={onToggleSpellCheck}
             grammarCheckEnabled={grammarCheckEnabled}
             onToggleGrammarCheck={onToggleGrammarCheck}
+            onFindReplace={onFindReplace}
             t={t}
           />
         </div>
@@ -498,6 +511,10 @@ export function FormattingToolbar({
           </ToolbarGroup>
           <ToolbarSeparator />
           {spellBreakToggles}
+          <ToolbarSeparator />
+          <ToolbarButton onClick={onFindReplace} tooltip={t('findReplace')} shortcut="⌘F">
+            <Search className="h-4 w-4" />
+          </ToolbarButton>
           <ToolbarSeparator />
           {toggleButton}
         </div>
@@ -677,6 +694,13 @@ export function FormattingToolbar({
               <BookCheck className="h-4 w-4" />
             </ToolbarButton>
           </ToolbarGroup>
+
+          <ToolbarSeparator />
+
+          {/* Find & Replace */}
+          <ToolbarButton onClick={onFindReplace} tooltip={t('findReplace')} shortcut="⌘F">
+            <Search className="h-4 w-4" />
+          </ToolbarButton>
 
           <ToolbarSeparator />
 

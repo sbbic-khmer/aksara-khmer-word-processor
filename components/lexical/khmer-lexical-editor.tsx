@@ -1187,6 +1187,7 @@ function EditorContent({
           isCompact={isCompactToolbar}
           onToggleCompact={onToggleCompactToolbar}
           isMobile={isMobile}
+          onFindReplace={() => setFindReplaceOpen(true)}
         />
 
         <div className="ml-auto flex items-center">
