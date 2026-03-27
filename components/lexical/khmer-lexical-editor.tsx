@@ -38,6 +38,8 @@ import { KhmerBreaker } from "@/lib/khmer-breaker"
 import { VoiceInput, type VoiceInputHandle } from "@/components/voice-input"
 import { VoiceIndicator } from "@/components/voice-indicator"
 import { FormattingToolbar } from "@/components/editor/formatting-toolbar"
+import { FindReplaceBar } from "@/components/editor/find-replace-bar"
+import { $findAll, $replaceMatch, $replaceAll, $selectMatch, type FindMatch } from "@/lib/find-replace"
 import { FileMenu } from "@/components/editor/file-menu"
 import { EditorHeader } from "@/components/editor/editor-header"
 import { DocumentsDialog } from "@/components/editor/documents-dialog"
@@ -367,6 +369,236 @@ function EditorContent({
   }, [zoomLevel])
 
   const effectiveZoom = zoomLevel === 0 ? fitToWidthZoom : zoomLevel
+
+  // --- Find/Replace state ---
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false)
+  const [findShowReplace, setFindShowReplace] = useState(false)
+  const [findQuery, setFindQuery] = useState("")
+  const [findReplaceText, setFindReplaceText] = useState("")
+  const [findMatchCase, setFindMatchCase] = useState(false)
+  const [findUseRegex, setFindUseRegex] = useState(false)
+  const [findMatches, setFindMatches] = useState<FindMatch[]>([])
+  const [findCurrentIndex, setFindCurrentIndex] = useState(0)
+  const findHighlightRefsRef = useRef<HTMLElement[]>([])
+
+  // Clear DOM highlights
+  const clearHighlights = useCallback(() => {
+    // Remove all highlight marks we added
+    for (const mark of findHighlightRefsRef.current) {
+      const parent = mark.parentNode
+      if (parent) {
+        // Move mark's children back to parent
+        while (mark.firstChild) {
+          parent.insertBefore(mark.firstChild, mark)
+        }
+        parent.removeChild(mark)
+        parent.normalize() // merge adjacent text nodes
+      }
+    }
+    findHighlightRefsRef.current = []
+  }, [])
+
+  // Apply DOM highlights for all matches
+  const applyHighlights = useCallback((matches: FindMatch[], currentIdx: number) => {
+    clearHighlights()
+    if (matches.length === 0) return
+
+    const editorEl = editor.getRootElement()
+    if (!editorEl) return
+
+    // For each match, find the DOM text nodes and wrap matched ranges with <mark>.
+    // Process in reverse order so that wrapping earlier matches doesn't shift
+    // the text node offsets of later matches within the same DOM element.
+    editor.read(() => {
+      let currentMarkEl: HTMLElement | null = null
+
+      for (let mi = matches.length - 1; mi >= 0; mi--) {
+        const match = matches[mi]
+        const isCurrent = mi === currentIdx
+
+        for (let ri = match.ranges.length - 1; ri >= 0; ri--) {
+          const range = match.ranges[ri]
+          const domElement = editor.getElementByKey(range.node.getKey())
+          if (!domElement) continue
+
+          // Find the first text node inside the DOM element
+          const walker = document.createTreeWalker(domElement, NodeFilter.SHOW_TEXT)
+          let textNode = walker.nextNode() as Text | null
+          if (!textNode) continue
+
+          // Verify offsets are within bounds
+          if (range.startOffset > textNode.length || range.endOffset > textNode.length) continue
+
+          try {
+            const domRange = document.createRange()
+            domRange.setStart(textNode, range.startOffset)
+            domRange.setEnd(textNode, range.endOffset)
+
+            const mark = document.createElement("mark")
+            mark.className = isCurrent ? "find-highlight-current" : "find-highlight"
+            domRange.surroundContents(mark)
+            findHighlightRefsRef.current.push(mark)
+
+            if (isCurrent) {
+              currentMarkEl = mark
+            }
+          } catch {
+            // Range may be invalid if DOM changed; skip this highlight
+          }
+        }
+      }
+
+      // Scroll current match into view after all highlights are applied
+      if (currentMarkEl) {
+        currentMarkEl.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
+    })
+  }, [editor, clearHighlights])
+
+  // Run search when query/options change, and re-run when editor content changes
+  // (typing while find bar is open should update highlights)
+  const findSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const runFindSearch = useCallback(() => {
+    if (!findReplaceOpen || !findQuery) {
+      setFindMatches([])
+      setFindCurrentIndex(0)
+      clearHighlights()
+      return
+    }
+
+    if (findSearchTimerRef.current) clearTimeout(findSearchTimerRef.current)
+    findSearchTimerRef.current = setTimeout(() => {
+      editor.read(() => {
+        const matches = $findAll({
+          query: findQuery,
+          matchCase: findMatchCase,
+          useRegex: findUseRegex,
+        })
+        setFindMatches(matches)
+        setFindCurrentIndex((prev) => Math.min(prev, Math.max(0, matches.length - 1)))
+      })
+    }, 150)
+  }, [findQuery, findMatchCase, findUseRegex, findReplaceOpen, editor, clearHighlights])
+
+  // Re-search when query/options change
+  useEffect(() => {
+    runFindSearch()
+    return () => {
+      if (findSearchTimerRef.current) clearTimeout(findSearchTimerRef.current)
+    }
+  }, [runFindSearch])
+
+  // Re-search when editor content changes while find bar is open.
+  // Skip updates triggered by our own replace operations.
+  const isReplacingRef = useRef(false)
+
+  useEffect(() => {
+    if (!findReplaceOpen || !findQuery) return
+
+    const unregister = editor.registerUpdateListener(({ dirtyElements, dirtyLeaves, tags }) => {
+      if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return
+      if (isReplacingRef.current) return // Skip our own replace updates
+      runFindSearch()
+    })
+
+    return unregister
+  }, [editor, findReplaceOpen, findQuery, runFindSearch])
+
+  // Apply highlights when matches or current index changes
+  useEffect(() => {
+    applyHighlights(findMatches, findCurrentIndex)
+  }, [findMatches, findCurrentIndex, applyHighlights])
+
+  const handleFindNext = useCallback(() => {
+    if (findMatches.length === 0) return
+    const nextIdx = (findCurrentIndex + 1) % findMatches.length
+    setFindCurrentIndex(nextIdx)
+    editor.update(() => {
+      $selectMatch(findMatches[nextIdx])
+    })
+  }, [findMatches, findCurrentIndex, editor])
+
+  const handleFindPrev = useCallback(() => {
+    if (findMatches.length === 0) return
+    const prevIdx = (findCurrentIndex - 1 + findMatches.length) % findMatches.length
+    setFindCurrentIndex(prevIdx)
+    editor.update(() => {
+      $selectMatch(findMatches[prevIdx])
+    })
+  }, [findMatches, findCurrentIndex, editor])
+
+  const handleReplace = useCallback(() => {
+    if (findMatches.length === 0) return
+    const match = findMatches[findCurrentIndex]
+    isReplacingRef.current = true
+    editor.update(() => {
+      $replaceMatch(match, findReplaceText)
+      // Re-search after replacement
+      const newMatches = $findAll({
+        query: findQuery,
+        matchCase: findMatchCase,
+        useRegex: findUseRegex,
+      })
+      setFindMatches(newMatches)
+      const newIdx = Math.min(findCurrentIndex, Math.max(0, newMatches.length - 1))
+      setFindCurrentIndex(newIdx)
+      if (newMatches.length > 0) {
+        $selectMatch(newMatches[newIdx])
+      }
+    })
+    // Reset after microtask so the update listener sees it
+    queueMicrotask(() => { isReplacingRef.current = false })
+  }, [findMatches, findCurrentIndex, findReplaceText, findQuery, findMatchCase, findUseRegex, editor])
+
+  const handleReplaceAll = useCallback(() => {
+    if (findMatches.length === 0) return
+    isReplacingRef.current = true
+    editor.update(() => {
+      $replaceAll(findMatches, findReplaceText)
+      setFindMatches([])
+      setFindCurrentIndex(0)
+    })
+    queueMicrotask(() => { isReplacingRef.current = false })
+  }, [findMatches, findReplaceText, editor])
+
+  const handleFindClose = useCallback(() => {
+    setFindReplaceOpen(false)
+    clearHighlights()
+    editor.focus()
+  }, [editor, clearHighlights])
+
+  // Keyboard shortcuts: Cmd+F / Cmd+H
+  const findReplaceOpenRef = useRef(findReplaceOpen)
+  findReplaceOpenRef.current = findReplaceOpen
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey
+
+      if (isMod && e.key === "f") {
+        e.preventDefault()
+        setFindReplaceOpen(true)
+      } else if (isMod && e.key === "h") {
+        e.preventDefault()
+        setFindReplaceOpen(true)
+        setFindShowReplace(true)
+      } else if (isMod && e.altKey && e.key === "c") {
+        if (findReplaceOpenRef.current) {
+          e.preventDefault()
+          setFindMatchCase((v) => !v)
+        }
+      } else if (isMod && e.altKey && e.key === "r") {
+        if (findReplaceOpenRef.current) {
+          e.preventDefault()
+          setFindUseRegex((v) => !v)
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, []) // Stable — reads state via ref
 
   const handleFormatsChange = useCallback(
     (formats: ActiveFormats) => {
@@ -967,6 +1199,27 @@ function EditorContent({
           />
         </div>
       </div>
+
+      <FindReplaceBar
+        isOpen={findReplaceOpen}
+        showReplace={findShowReplace}
+        onClose={handleFindClose}
+        onToggleReplace={() => setFindShowReplace((v) => !v)}
+        findQuery={findQuery}
+        onFindQueryChange={setFindQuery}
+        replaceText={findReplaceText}
+        onReplaceTextChange={setFindReplaceText}
+        matchCase={findMatchCase}
+        onToggleMatchCase={() => setFindMatchCase((v) => !v)}
+        useRegex={findUseRegex}
+        onToggleRegex={() => setFindUseRegex((v) => !v)}
+        currentMatch={findCurrentIndex}
+        totalMatches={findMatches.length}
+        onNext={handleFindNext}
+        onPrev={handleFindPrev}
+        onReplace={handleReplace}
+        onReplaceAll={handleReplaceAll}
+      />
 
       <div ref={scrollContainerRef} className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-auto">
         <SpellCheckContextMenu>

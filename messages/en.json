@@ -357,6 +357,24 @@
     "stats": {
       "words": "{count} words",
       "characters": "{count} characters"
+    },
+    "findReplace": {
+      "findAndReplace": "Find and Replace",
+      "findPlaceholder": "Find...",
+      "findLabel": "Find",
+      "replacePlaceholder": "Replace...",
+      "replaceLabel": "Replace",
+      "noResults": "No results",
+      "previousMatch": "Previous match",
+      "nextMatch": "Next match",
+      "matchCase": "Match case",
+      "useRegex": "Use regular expression",
+      "replace": "Replace",
+      "replaceAll": "Replace all",
+      "showReplace": "Show replace",
+      "hideReplace": "Hide replace",
+      "close": "Close",
+      "replacedCount": "Replaced {count} occurrences"
     }
   },
   "cookieConsent": {
