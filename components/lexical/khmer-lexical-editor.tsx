@@ -379,81 +379,90 @@ function EditorContent({
   const [findUseRegex, setFindUseRegex] = useState(false)
   const [findMatches, setFindMatches] = useState<FindMatch[]>([])
   const [findCurrentIndex, setFindCurrentIndex] = useState(0)
-  const findHighlightRefsRef = useRef<HTMLElement[]>([])
 
-  // Clear DOM highlights
+  // Use CSS Custom Highlights API for find/replace highlighting.
+  // Unlike DOM <mark> elements, this doesn't modify the DOM at all,
+  // so Lexical's MutationObserver is never triggered.
+  const highlightRegistry = typeof CSS !== "undefined" && "highlights" in CSS
+    ? (CSS as { highlights: Map<string, unknown> }).highlights
+    : null
+
+  // Clear CSS highlights
   const clearHighlights = useCallback(() => {
-    // Remove all highlight marks we added
-    for (const mark of findHighlightRefsRef.current) {
-      const parent = mark.parentNode
-      if (parent) {
-        // Move mark's children back to parent
-        while (mark.firstChild) {
-          parent.insertBefore(mark.firstChild, mark)
-        }
-        parent.removeChild(mark)
-        parent.normalize() // merge adjacent text nodes
-      }
-    }
-    findHighlightRefsRef.current = []
-  }, [])
+    highlightRegistry?.delete("find-highlight")
+    highlightRegistry?.delete("find-highlight-current")
+  }, [highlightRegistry])
 
-  // Apply DOM highlights for all matches
+  // Apply CSS Custom Highlights for all matches
   const applyHighlights = useCallback((matches: FindMatch[], currentIdx: number) => {
     clearHighlights()
-    if (matches.length === 0) return
+    if (matches.length === 0 || !highlightRegistry) return
 
     const editorEl = editor.getRootElement()
     if (!editorEl) return
 
-    // For each match, find the DOM text nodes and wrap matched ranges with <mark>.
-    // Process in reverse order so that wrapping earlier matches doesn't shift
-    // the text node offsets of later matches within the same DOM element.
-    editor.read(() => {
-      let currentMarkEl: HTMLElement | null = null
+    const allRanges: Range[] = []
+    const currentRanges: Range[] = []
+    let scrollRange: Range | null = null
 
-      for (let mi = matches.length - 1; mi >= 0; mi--) {
+    editor.read(() => {
+      for (let mi = 0; mi < matches.length; mi++) {
         const match = matches[mi]
         const isCurrent = mi === currentIdx
 
-        for (let ri = match.ranges.length - 1; ri >= 0; ri--) {
-          const range = match.ranges[ri]
+        for (const range of match.ranges) {
           const domElement = editor.getElementByKey(range.node.getKey())
           if (!domElement) continue
 
-          // Find the first text node inside the DOM element
           const walker = document.createTreeWalker(domElement, NodeFilter.SHOW_TEXT)
-          let textNode = walker.nextNode() as Text | null
+          const textNode = walker.nextNode() as Text | null
           if (!textNode) continue
 
-          // Verify offsets are within bounds
           if (range.startOffset > textNode.length || range.endOffset > textNode.length) continue
 
           try {
-            const domRange = document.createRange()
+            const domRange = new Range()
             domRange.setStart(textNode, range.startOffset)
             domRange.setEnd(textNode, range.endOffset)
 
-            const mark = document.createElement("mark")
-            mark.className = isCurrent ? "find-highlight-current" : "find-highlight"
-            domRange.surroundContents(mark)
-            findHighlightRefsRef.current.push(mark)
-
             if (isCurrent) {
-              currentMarkEl = mark
+              currentRanges.push(domRange)
+              scrollRange = domRange
+            } else {
+              allRanges.push(domRange)
             }
           } catch {
-            // Range may be invalid if DOM changed; skip this highlight
+            // Range may be invalid if DOM changed; skip
           }
         }
       }
-
-      // Scroll current match into view after all highlights are applied
-      if (currentMarkEl) {
-        currentMarkEl.scrollIntoView({ behavior: "smooth", block: "center" })
-      }
     })
-  }, [editor, clearHighlights])
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const HL = (globalThis as any).Highlight
+    if (!HL) return
+
+    if (allRanges.length > 0) {
+      highlightRegistry.set("find-highlight", new HL(...allRanges))
+    }
+    if (currentRanges.length > 0) {
+      highlightRegistry.set("find-highlight-current", new HL(...currentRanges))
+    }
+
+    // Scroll current match into view
+    if (scrollRange) {
+      const rect = scrollRange.getBoundingClientRect()
+      const container = scrollContainerRef.current
+      if (container && rect) {
+        const containerRect = container.getBoundingClientRect()
+        const isVisible = rect.top >= containerRect.top && rect.bottom <= containerRect.bottom
+        if (!isVisible) {
+          const scrollTop = container.scrollTop + rect.top - containerRect.top - containerRect.height / 2
+          container.scrollTo({ top: scrollTop, behavior: "smooth" })
+        }
+      }
+    }
+  }, [editor, clearHighlights, highlightRegistry])
 
   // Run search when query/options change, and re-run when editor content changes
   // (typing while find bar is open should update highlights)
