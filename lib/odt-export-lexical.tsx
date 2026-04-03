@@ -46,12 +46,15 @@ function parseEditorContent(element: HTMLElement): Paragraph[] {
           styles.strikethrough = true
         if (tagName === "mark" || el.classList.contains("highlight")) styles.highlight = true
 
+        // Skip spell check and grammar check markup — these are editor-only decorations
+        const isCheckerMarkup = el.classList.contains("spellcheck-misspelled") || el.classList.contains("grammar-nonstandard")
+
         const computedStyle = window.getComputedStyle(el)
         if (computedStyle.fontWeight === "bold" || Number.parseInt(computedStyle.fontWeight) >= 700) {
           styles.bold = true
         }
         if (computedStyle.fontStyle === "italic") styles.italic = true
-        if (computedStyle.textDecoration.includes("underline")) styles.underline = true
+        if (!isCheckerMarkup && computedStyle.textDecoration.includes("underline")) styles.underline = true
         if (computedStyle.textDecoration.includes("line-through")) styles.strikethrough = true
         const bgColor = computedStyle.backgroundColor
         if (
