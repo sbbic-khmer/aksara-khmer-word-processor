@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useTranslations } from 'next-intl'
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,20 @@ import { LanguageSwitcher } from "@/components/language-switcher"
 import { authClient } from "@/lib/auth-client"
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50/50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
+  )
+}
+
+function ResetPasswordForm() {
   const searchParams = useSearchParams()
   const t = useTranslations('auth')
 
