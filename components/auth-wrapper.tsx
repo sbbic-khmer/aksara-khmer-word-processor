@@ -6,6 +6,7 @@ import { useAuth } from "./auth-provider"
 import { LoginScreen } from "./login-screen"
 
 const PUBLIC_PATHS = ["/", "/login", "/signup"]
+const PUBLIC_PATH_PREFIXES = ["/forgot-password", "/reset-password", "/verify-email"]
 const LOCALES = ["en", "km"]
 
 // Strip locale prefix from pathname to get the base path
@@ -27,7 +28,9 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
 
   // Get the path without locale prefix
   const basePath = getBasePath(pathname)
-  const isPublicPath = PUBLIC_PATHS.includes(basePath)
+  const isPublicPath =
+    PUBLIC_PATHS.includes(basePath) ||
+    PUBLIC_PATH_PREFIXES.some((p) => basePath === p || basePath.startsWith(`${p}/`))
 
   if (isPublicPath) {
     return <>{children}</>
