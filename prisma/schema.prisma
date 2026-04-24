@@ -51,8 +51,6 @@ model User {
   promotedUserDictionaryWords PromotedUserDictionaryWord[]
 
   // Email system relations
-  emailVerificationTokens EmailVerificationToken[]
-  passwordResetTokens     PasswordResetToken[]
   emailSends              EmailSend[]
 
   @@map("user")
@@ -300,36 +298,6 @@ model AppSetting {
 // ============================================================================
 // Email System Tables
 // ============================================================================
-
-// Email verification tokens (for new user email confirmation)
-model EmailVerificationToken {
-  id        String   @id @default(cuid())
-  userId    String
-  tokenHash String   // SHA-256 hash of the actual token
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([tokenHash])
-  @@map("email_verification_token")
-}
-
-// Password reset tokens
-model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId    String
-  tokenHash String   // SHA-256 hash of the actual token
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([tokenHash])
-  @@map("password_reset_token")
-}
 
 // Email campaigns (admin-created bulk emails)
 model EmailCampaign {

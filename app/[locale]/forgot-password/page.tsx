@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
+import { authClient } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +13,7 @@ import { LanguageSwitcher } from "@/components/language-switcher"
 
 export default function ForgotPasswordPage() {
   const t = useTranslations('auth')
+  const locale = useLocale()
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
@@ -20,20 +22,16 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    try {
-      await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
-      // Always show success (for security - don't reveal if email exists)
-      setIsSuccess(true)
-    } catch (error) {
-      // Still show success to prevent enumeration
-      setIsSuccess(true)
-    } finally {
-      setIsLoading(false)
-    }
+    // The locale-aware redirect target is handled server-side in our
+    // sendResetPassword callback, but we pass `redirectTo` for completeness.
+    const localePrefix = locale === 'en' ? '' : `/${locale}`
+    const redirectTo = `${window.location.origin}${localePrefix}/reset-password`
+
+    // Always show success (Better Auth never throws for unknown emails — it
+    // simulates the work to mitigate timing attacks).
+    await authClient.requestPasswordReset({ email, redirectTo }).catch(() => {})
+    setIsSuccess(true)
+    setIsLoading(false)
   }
 
   return (

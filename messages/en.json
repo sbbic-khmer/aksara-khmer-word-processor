@@ -203,7 +203,7 @@
       "newPasswordPlaceholder": "Enter new password",
       "confirmPassword": "Confirm Password",
       "confirmPasswordPlaceholder": "Confirm new password",
-      "requirements": "Password must be at least 6 characters",
+      "requirements": "Password must be at least 8 characters",
       "submitButton": "Reset Password",
       "submitting": "Resetting...",
       "successTitle": "Password Reset!",

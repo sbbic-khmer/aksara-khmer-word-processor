@@ -1,109 +1,84 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState } from "react"
 import { useTranslations } from 'next-intl'
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, Loader2, Lock, CheckCircle2, ArrowRight } from "lucide-react"
-import { Link, useRouter } from "@/i18n/navigation"
+import { Link } from "@/i18n/navigation"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import { authClient } from "@/lib/auth-client"
 
-interface ResetPasswordPageProps {
-  params: Promise<{ token: string }>
-}
-
-export default function ResetPasswordPage({ params }: ResetPasswordPageProps) {
-  const { token } = use(params)
-  const router = useRouter()
+export default function ResetPasswordPage() {
+  const searchParams = useSearchParams()
   const t = useTranslations('auth')
+
+  const token = searchParams.get('token')
+  const urlError = searchParams.get('error')
+
+  // Initial token validity is derived from the URL — Better Auth's GET callback
+  // redirects here with ?error=INVALID_TOKEN for bad/expired tokens. Held in
+  // state so a failed POST can also flip these flags later.
+  const [tokenInvalid, setTokenInvalid] = useState(
+    urlError === 'INVALID_TOKEN' || !token
+  )
+  const [tokenExpired, setTokenExpired] = useState(urlError === 'INVALID_TOKEN')
 
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [isVerifying, setIsVerifying] = useState(true)
   const [isSuccess, setIsSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [tokenValid, setTokenValid] = useState<boolean | null>(null)
-  const [tokenExpired, setTokenExpired] = useState(false)
-
-  // Verify token on mount
-  useEffect(() => {
-    async function verifyToken() {
-      try {
-        const response = await fetch(`/api/auth/verify-reset-token?token=${token}`)
-        const data = await response.json()
-
-        if (data.valid) {
-          setTokenValid(true)
-        } else {
-          setTokenValid(false)
-          setTokenExpired(data.expired || false)
-        }
-      } catch (error) {
-        setTokenValid(false)
-      } finally {
-        setIsVerifying(false)
-      }
-    }
-    verifyToken()
-  }, [token])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (!token) {
+      setTokenInvalid(true)
+      return
+    }
 
     if (password !== confirmPassword) {
       setError(t('resetPassword.passwordMismatch'))
       return
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       setError(t('resetPassword.requirements'))
       return
     }
 
     setIsLoading(true)
 
-    try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
-      })
+    const { error: resetError } = await authClient.resetPassword({
+      newPassword: password,
+      token,
+    })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        if (data.error === 'expired') {
-          setTokenExpired(true)
-          setTokenValid(false)
-        } else {
-          setError(data.message || 'Failed to reset password')
-        }
-        return
+    if (resetError) {
+      const code = resetError.code || ""
+      const message = resetError.message || ""
+      if (code === 'INVALID_TOKEN' || message.toLowerCase().includes('invalid token')) {
+        setTokenInvalid(true)
+        setTokenExpired(true)
+      } else if (message.toLowerCase().includes('too short')) {
+        setError(t('resetPassword.requirements'))
+      } else {
+        setError(message || 'Failed to reset password')
       }
-
-      setIsSuccess(true)
-    } catch (error) {
-      setError('Network error. Please try again.')
-    } finally {
       setIsLoading(false)
+      return
     }
+
+    setIsSuccess(true)
+    setIsLoading(false)
   }
 
-  // Loading state
-  if (isVerifying) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50/50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
-
-  // Invalid or expired token
-  if (tokenValid === false) {
+  if (tokenInvalid) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50/50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-4 relative overflow-hidden">
         <div className="absolute top-[-200px] left-[-100px] w-[500px] h-[500px] bg-blue-400/20 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true" />
@@ -138,7 +113,6 @@ export default function ResetPasswordPage({ params }: ResetPasswordPageProps) {
     )
   }
 
-  // Success state
   if (isSuccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50/50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-4 relative overflow-hidden">
@@ -167,7 +141,6 @@ export default function ResetPasswordPage({ params }: ResetPasswordPageProps) {
     )
   }
 
-  // Reset form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50/50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-4 relative overflow-hidden">
       <div className="absolute top-[-200px] left-[-100px] w-[500px] h-[500px] bg-blue-400/20 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true" />
@@ -233,7 +206,7 @@ export default function ResetPasswordPage({ params }: ResetPasswordPageProps) {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t('resetPassword.newPasswordPlaceholder')}
                 required
-                minLength={6}
+                minLength={8}
                 disabled={isLoading}
                 className="h-12 px-4 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
               />
@@ -250,7 +223,7 @@ export default function ResetPasswordPage({ params }: ResetPasswordPageProps) {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder={t('resetPassword.confirmPasswordPlaceholder')}
                 required
-                minLength={6}
+                minLength={8}
                 disabled={isLoading}
                 className="h-12 px-4 rounded-xl border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200"
               />

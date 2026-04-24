@@ -1,59 +1,154 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
+import { after } from "next/server"
 import { prisma } from "./prisma"
 import { isPbkdf2Hash, verifyPbkdf2Password } from "./password-migration"
-import { createVerificationToken } from "./email/tokens"
-import { sendVerificationEmail, isEmailConfigured } from "./email/email-service"
+import {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+  isEmailConfigured,
+} from "./email/email-service"
+import { defaultLocale, isValidLocale } from "@/i18n/config"
+
+const APP_URL =
+  process.env.NEXT_PUBLIC_BETTER_AUTH_URL ||
+  process.env.BETTER_AUTH_URL ||
+  "https://aksarapro.app"
+
+// Build a locale-prefixed URL on the app side. Better Auth's `url` already
+// includes the right token, but we want the redirect target inside our app to
+// preserve the user's language.
+function withLocalePrefix(path: string, locale: string | undefined): string {
+  const resolved = locale && isValidLocale(locale) ? locale : defaultLocale
+  const prefix = resolved === defaultLocale ? "" : `/${resolved}`
+  return `${APP_URL}${prefix}${path}`
+}
+
+// Pull a locale hint from the request URL or Referer header. Server callbacks
+// don't get explicit locale, so we sniff it from where the user is browsing.
+function detectLocale(request?: Request): string {
+  const candidates: string[] = []
+  if (request) {
+    const referer = request.headers.get("referer")
+    if (referer) candidates.push(referer)
+    candidates.push(request.url)
+  }
+  for (const candidate of candidates) {
+    try {
+      const { pathname } = new URL(candidate)
+      const seg = pathname.split("/").filter(Boolean)[0]
+      if (seg && isValidLocale(seg)) return seg
+    } catch {
+      // ignore malformed URLs
+    }
+  }
+  return defaultLocale
+}
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
 
-  // Email/password authentication with PBKDF2 migration support
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
     maxPasswordLength: 128,
-    // Custom password verification to handle migrated PBKDF2 hashes
-    password: {
-      async verify({ hash, password }) {
-        // Check if this is a migrated PBKDF2 hash
-        if (isPbkdf2Hash(hash)) {
-          const isValid = await verifyPbkdf2Password(password, hash)
-          if (isValid) {
-            // Return true to indicate valid password
-            // Better Auth will automatically re-hash with bcrypt on next update
-            return true
-          }
-          return false
-        }
+    requireEmailVerification: true,
+    resetPasswordTokenExpiresIn: 60 * 60, // 1 hour
+    autoSignIn: false,
 
-        // For bcrypt hashes, explicitly verify with bcrypt
-        // (returning undefined doesn't seem to fall back to default)
+    // Keep all writers (signup, change-password, reset) on bcrypt. Without a
+    // matching `hash`, Better Auth defaults to scrypt and the bcrypt-based
+    // `verify` below would reject every new signup.
+    password: {
+      async hash(password) {
+        const bcrypt = await import("bcryptjs")
+        return bcrypt.hash(password, 10)
+      },
+      async verify({ hash, password }) {
+        if (isPbkdf2Hash(hash)) {
+          return verifyPbkdf2Password(password, hash)
+        }
         const bcrypt = await import("bcryptjs")
         return bcrypt.compare(password, hash)
       },
     },
-  },
 
-  // Session configuration
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // Update session every 24 hours
-    cookieCache: {
-      enabled: true,
-      maxAge: 60 * 5, // 5 minutes cache
+    sendResetPassword: async ({ user, token }, request) => {
+      if (!isEmailConfigured()) {
+        console.error("Password reset requested but email is not configured")
+        return
+      }
+      // Better Auth's default `url` points at its GET callback which validates
+      // the token and then redirects to the client's `redirectTo`. We send the
+      // user directly to our locale-aware reset page; the POST handler still
+      // validates the token on submit.
+      const locale = detectLocale(request)
+      const finalUrl = `${withLocalePrefix("/reset-password", locale)}?token=${encodeURIComponent(token)}`
+      const result = await sendPasswordResetEmail(user.email, finalUrl)
+      if (!result.success) {
+        console.error("Failed to send password reset email:", result.error)
+      }
     },
   },
 
-  // Custom user fields
+  emailVerification: {
+    sendOnSignUp: true,
+    sendOnSignIn: true,
+    autoSignInAfterVerification: true,
+    expiresIn: 60 * 60 * 48, // 48 hours
+
+    sendVerificationEmail: async ({ user, url }, request) => {
+      if (!isEmailConfigured()) {
+        console.error("Verification email requested but email is not configured")
+        return
+      }
+      // Better Auth builds the URL as `${baseURL}/verify-email?token=...`. We
+      // append a locale-aware callbackURL so users land in the editor in their
+      // chosen language after verification.
+      const locale = detectLocale(request)
+      const callbackURL = withLocalePrefix("/editor?verified=true", locale)
+      const separator = url.includes("?") ? "&" : "?"
+      const finalUrl = `${url}${separator}callbackURL=${encodeURIComponent(callbackURL)}`
+      const result = await sendVerificationEmail(
+        user.email,
+        finalUrl,
+        user.name || undefined
+      )
+      if (!result.success) {
+        console.error("Failed to send verification email:", result.error)
+      }
+    },
+  },
+
+  // Defer SMTP work until after the response is sent so signup/forgot-password
+  // /resend-verification responses aren't blocked by 200-800ms email latency.
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === "production",
+    cookiePrefix: "aksara",
+    backgroundTasks: {
+      handler: (promise) => {
+        after(promise.catch((err) => console.error("background task failed:", err)))
+      },
+    },
+  },
+
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // refresh every 24 hours
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // 5 minutes
+    },
+  },
+
   user: {
     additionalFields: {
       isAdmin: {
         type: "boolean",
         defaultValue: false,
-        input: false, // Cannot be set by client
+        input: false,
       },
       storageLimitBytes: {
         type: "number",
@@ -68,44 +163,10 @@ export const auth = betterAuth({
     },
   },
 
-  // Advanced configuration
-  advanced: {
-    useSecureCookies: process.env.NODE_ENV === "production",
-    cookiePrefix: "aksara",
-  },
-
-  // Trusted origins for CSRF protection
   trustedOrigins: [
     process.env.BETTER_AUTH_URL || "https://aksarapro.app",
   ],
-
-  // Hooks for email verification
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (user) => {
-          // Send verification email after user creation
-          if (isEmailConfigured()) {
-            try {
-              const { token } = await createVerificationToken(user.id)
-              const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || 'https://aksarapro.app'
-              const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${token}`
-
-              await sendVerificationEmail(user.email, verificationUrl, user.name || undefined)
-              console.log(`Verification email sent to ${user.email}`)
-            } catch (error) {
-              console.error('Failed to send verification email:', error)
-              // Don't fail registration if email fails
-            }
-          } else {
-            console.log('Email not configured, skipping verification email')
-          }
-        },
-      },
-    },
-  },
 })
 
-// Export types for use in other files
 export type Session = typeof auth.$Infer.Session
 export type User = typeof auth.$Infer.Session.user
