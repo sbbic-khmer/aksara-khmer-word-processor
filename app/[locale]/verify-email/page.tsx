@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { Suspense, useState, useEffect, useCallback } from "react"
 import { useTranslations } from 'next-intl'
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,20 @@ import { Link } from "@/i18n/navigation"
 import { LanguageSwitcher } from "@/components/language-switcher"
 
 export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50/50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      }
+    >
+      <VerifyEmailContent />
+    </Suspense>
+  )
+}
+
+function VerifyEmailContent() {
   const t = useTranslations('auth')
   const searchParams = useSearchParams()
   const error = searchParams.get('error')
