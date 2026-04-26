@@ -215,8 +215,8 @@ function generateVerificationEmailHtml(verificationUrl: string, userName?: strin
                     <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">
                       Or copy and paste this link into your browser:
                     </p>
-                    <p style="margin: 0 0 24px 0; font-size: 14px; color: #3b82f6; word-break: break-all;">
-                      ${safeUrl}
+                    <p style="margin: 0 0 24px 0; font-size: 14px; word-break: break-all;">
+                      <a href="${safeUrl}" style="color: #3b82f6; text-decoration: underline;">${safeUrl}</a>
                     </p>
 
                     <p style="margin: 0; font-size: 14px; color: #64748b;">
@@ -307,8 +307,8 @@ function generatePasswordResetEmailHtml(resetUrl: string): string {
                     <p style="margin: 0 0 16px 0; font-size: 14px; color: #64748b;">
                       Or copy and paste this link into your browser:
                     </p>
-                    <p style="margin: 0 0 24px 0; font-size: 14px; color: #3b82f6; word-break: break-all;">
-                      ${safeUrl}
+                    <p style="margin: 0 0 24px 0; font-size: 14px; word-break: break-all;">
+                      <a href="${safeUrl}" style="color: #3b82f6; text-decoration: underline;">${safeUrl}</a>
                     </p>
 
                     <!-- Security Notice -->
