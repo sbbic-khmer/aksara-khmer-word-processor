@@ -104,13 +104,14 @@ export const auth = betterAuth({
         console.error("Verification email requested but email is not configured")
         return
       }
-      // Better Auth builds the URL as `${baseURL}/verify-email?token=...`. We
-      // append a locale-aware callbackURL so users land in the editor in their
-      // chosen language after verification.
+      // Better Auth builds the URL with a default `callbackURL=/` already
+      // appended. Replace it (don't append a second one) with our locale-aware
+      // editor URL so users land in their chosen language after verification.
       const locale = detectLocale(request)
       const callbackURL = withLocalePrefix("/editor?verified=true", locale)
-      const separator = url.includes("?") ? "&" : "?"
-      const finalUrl = `${url}${separator}callbackURL=${encodeURIComponent(callbackURL)}`
+      const parsed = new URL(url)
+      parsed.searchParams.set("callbackURL", callbackURL)
+      const finalUrl = parsed.toString()
       const result = await sendVerificationEmail(
         user.email,
         finalUrl,
