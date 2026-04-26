@@ -156,6 +156,7 @@ function htmlToPlainText(html: string): string {
  */
 function generateVerificationEmailHtml(verificationUrl: string, userName?: string): string {
   const greeting = userName ? `Hi ${escapeHtml(userName)},` : 'Hi,'
+  const safeUrl = escapeHtml(verificationUrl)
 
   return `
 <!DOCTYPE html>
@@ -204,7 +205,7 @@ function generateVerificationEmailHtml(verificationUrl: string, userName?: strin
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 32px 0;">
                       <tr>
                         <td align="center" style="background-color: #4f46e5; border-radius: 8px;" bgcolor="#4f46e5">
-                          <a href="${verificationUrl}" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
+                          <a href="${safeUrl}" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
                             Verify Email Address
                           </a>
                         </td>
@@ -215,7 +216,7 @@ function generateVerificationEmailHtml(verificationUrl: string, userName?: strin
                       Or copy and paste this link into your browser:
                     </p>
                     <p style="margin: 0 0 24px 0; font-size: 14px; color: #3b82f6; word-break: break-all;">
-                      ${verificationUrl}
+                      ${safeUrl}
                     </p>
 
                     <p style="margin: 0; font-size: 14px; color: #64748b;">
@@ -249,6 +250,7 @@ function generateVerificationEmailHtml(verificationUrl: string, userName?: strin
  * Uses email-client-safe CSS
  */
 function generatePasswordResetEmailHtml(resetUrl: string): string {
+  const safeUrl = escapeHtml(resetUrl)
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -295,7 +297,7 @@ function generatePasswordResetEmailHtml(resetUrl: string): string {
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 32px 0;">
                       <tr>
                         <td align="center" style="background-color: #4f46e5; border-radius: 8px;" bgcolor="#4f46e5">
-                          <a href="${resetUrl}" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
+                          <a href="${safeUrl}" style="display: inline-block; padding: 16px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
                             Reset Password
                           </a>
                         </td>
@@ -306,7 +308,7 @@ function generatePasswordResetEmailHtml(resetUrl: string): string {
                       Or copy and paste this link into your browser:
                     </p>
                     <p style="margin: 0 0 24px 0; font-size: 14px; color: #3b82f6; word-break: break-all;">
-                      ${resetUrl}
+                      ${safeUrl}
                     </p>
 
                     <!-- Security Notice -->

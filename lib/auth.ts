@@ -95,7 +95,11 @@ export const auth = betterAuth({
 
   emailVerification: {
     sendOnSignUp: true,
-    sendOnSignIn: true,
+    // sendOnSignIn intentionally false — otherwise the post-signup redirect to
+    // /editor falls through to the LoginScreen and any sign-in attempt fires a
+    // duplicate verification email. Users who genuinely lost the email use the
+    // "Resend" button on the login screen / verify-email page.
+    sendOnSignIn: false,
     autoSignInAfterVerification: true,
     expiresIn: 60 * 60 * 48, // 48 hours
 
