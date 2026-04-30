@@ -7,7 +7,7 @@ A web-based text editor designed for the Khmer language. Aksara solves the uniqu
 - **Automatic Word Breaking** - Beam search segmentation algorithm with a ~50k word frequency dictionary produces optimal word boundaries in real time
 - **Spell Checking** - SymSpell-based spell checker running in a Web Worker for non-blocking performance (<200ms suggestions)
 - **Grammar Checking** - Rule-based grammar validation with per-word highlighting
-- **Voice Input** - Khmer speech-to-text via ElevenLabs Scribe and Web Speech API with automatic punctuation and number conversion
+- **Voice Input** - Khmer speech-to-text via Web Speech API (Chrome/Chromium) with automatic punctuation and number conversion
 - **Unicode Normalization** - Automatic Khmer combining mark reordering on paste, voice input, copy, and export
 - **Document Management** - Create, save, and organize documents with auto-save and compression
 - **ODT Export** - Export documents to OpenDocument format with proper Khmer font embedding
@@ -20,10 +20,10 @@ A web-based text editor designed for the Khmer language. Aksara solves the uniqu
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
 - **Editor**: [Lexical](https://lexical.dev/) (Meta's extensible text editor)
-- **Database**: [Neon PostgreSQL](https://neon.tech/) (serverless)
+- **Database**: PostgreSQL
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/) v4
 - **UI Components**: [shadcn/ui](https://ui.shadcn.com/) (Radix primitives)
-- **Voice Input**: [ElevenLabs](https://elevenlabs.io/) Scribe API
+- **Voice Input**: Web Speech API (Chrome/Chromium)
 - **Authentication**: [Better Auth](https://www.better-auth.com/)
 
 ## How Word Breaking Works
@@ -43,12 +43,13 @@ Key parameters:
 
 ## Getting Started
 
-### Prerequisites
+### Deploy on Railway
 
-- Node.js 18+
-- A PostgreSQL database (Neon recommended)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/Mz8sB2?referralCode=6EnXto&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
-### Setup
+### Manual Setup
+
+**Prerequisites:** Node.js 18+, PostgreSQL
 
 1. Clone the repository:
    ```bash
