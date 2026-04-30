@@ -1,30 +1,116 @@
-# Aksara v2
+# Aksara - Khmer Text Editor
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+A web-based text editor designed for the Khmer language. Aksara solves the unique challenge of editing Khmer text, which does not use spaces between words, by automatically segmenting text into words using a beam search algorithm backed by a frequency dictionary.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/sungkhums-projects/v0-files)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/ZeCcIjSAeSK)
+## Features
 
-## Overview
+- **Automatic Word Breaking** - Beam search segmentation algorithm with a ~50k word frequency dictionary produces optimal word boundaries in real time
+- **Spell Checking** - SymSpell-based spell checker running in a Web Worker for non-blocking performance (<200ms suggestions)
+- **Grammar Checking** - Rule-based grammar validation with per-word highlighting
+- **Voice Input** - Khmer speech-to-text via ElevenLabs Scribe and Web Speech API with automatic punctuation and number conversion
+- **Unicode Normalization** - Automatic Khmer combining mark reordering on paste, voice input, copy, and export
+- **Document Management** - Create, save, and organize documents with auto-save and compression
+- **ODT Export** - Export documents to OpenDocument format with proper Khmer font embedding
+- **Rich Text Editing** - Bold, italic, underline, strikethrough, headings, and lists
+- **Find & Replace** - Search and replace across documents
+- **User Dictionary** - Add custom words, join/split word preferences that improve segmentation over time
+- **Internationalization** - Full English and Khmer UI translations
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+## Tech Stack
 
-## Deployment
+- **Framework**: [Next.js](https://nextjs.org/) (App Router)
+- **Editor**: [Lexical](https://lexical.dev/) (Meta's extensible text editor)
+- **Database**: [Neon PostgreSQL](https://neon.tech/) (serverless)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) v4
+- **UI Components**: [shadcn/ui](https://ui.shadcn.com/) (Radix primitives)
+- **Voice Input**: [ElevenLabs](https://elevenlabs.io/) Scribe API
+- **Authentication**: [Better Auth](https://www.better-auth.com/)
 
-Your project is live at:
+## How Word Breaking Works
 
-**[https://vercel.com/sungkhums-projects/v0-files](https://vercel.com/sungkhums-projects/v0-files)**
+Khmer script does not use spaces between words. Aksara uses a beam search algorithm to find the globally optimal segmentation:
 
-## Build your app
+1. Text is scanned left-to-right, building candidate segmentations
+2. Each candidate is scored using dictionary frequency (known words) and penalties (unknown words, invalid breaks)
+3. The top 8 candidates (beam width) are kept at each step
+4. Users can override with manual split (ZWSP) or join (Word Joiner) commands
 
-Continue building your app on:
+Key parameters:
+- **Beam Width**: 8 paths kept per step
+- **OOV Penalty**: 6.0 for unknown words
+- **Length Bonus**: 0.25 reward for longer dictionary matches
+- COENG (U+17D2) and repetition sign (U+17D7) boundaries are never broken
 
-**[https://v0.app/chat/ZeCcIjSAeSK](https://v0.app/chat/ZeCcIjSAeSK)**
+## Getting Started
 
-## How It Works
+### Prerequisites
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+- Node.js 18+
+- A PostgreSQL database (Neon recommended)
+
+### Setup
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/sbbic-khmer/aksara-khmer-word-processor.git
+   cd aksara-khmer-word-processor
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Copy the environment template and fill in your values:
+   ```bash
+   cp .env.example .env
+   ```
+
+4. Set up the database:
+   ```bash
+   npx prisma db push
+   ```
+
+5. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+6. Open [http://localhost:3000](http://localhost:3000)
+
+## Project Structure
+
+```
+app/                    # Next.js pages and API routes
+components/lexical/     # Lexical editor plugins and nodes
+  plugins/
+    khmer-word-break-plugin.tsx    # Word segmentation
+    khmer-spell-check-plugin.tsx   # Spell checking
+    khmer-grammar-check-plugin.tsx # Grammar validation
+    voice-input-plugin.tsx         # Voice text insertion
+  nodes/
+    khmer-break-node.tsx           # Visual word break markers
+lib/
+  khmer-breaker.ts                 # Beam search algorithm
+  khmer-normalize.ts               # Unicode normalization
+  odt-export-lexical.tsx           # ODT file generation
+public/
+  dictionaries/                    # Khmer frequency dictionaries
+  workers/spell-check-worker.js    # SymSpell Web Worker
+  lib/symspell-browser.js          # Browser SymSpell implementation
+prisma/                            # Database schema
+messages/                          # i18n translations (en, km)
+```
+
+## Contributing
+
+Contributions are welcome! Please open an issue first to discuss what you'd like to change.
+
+When submitting a pull request:
+- Ensure `npm run build` passes with no errors
+- Test your changes with Khmer text input
+- If adding new UI strings, add them to `messages/en.json`
+
+## License
+
+[MIT](LICENSE)
