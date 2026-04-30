@@ -1,5 +1,6 @@
 import JSZip from "jszip"
 import { debugLog } from "./debug"
+import { normalizeKhmer } from "./khmer-normalize"
 
 const WJ = "\u2060"
 const ZWSP = "\u200B"
@@ -421,7 +422,7 @@ function generateContentXml(paragraphs: Paragraph[]): string {
     }
 
     para.runs.forEach((run) => {
-      const textContent = escapeXml(run.text)
+      const textContent = escapeXml(normalizeKhmer(run.text))
       const textStyleName = getTextStyleName(run)
 
       if (textStyleName) bodyContent += `<text:span text:style-name="${textStyleName}">${textContent}</text:span>`

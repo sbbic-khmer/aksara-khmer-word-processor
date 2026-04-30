@@ -72,6 +72,7 @@
     "file-saver": "^2.0.5",
     "gray-matter": "^4.0.3",
     "jszip": "^3.10.1",
+    "khmer-normalizer": "^1.0.2",
     "lexical": "0.39.0",
     "lucide-react": "0.562.0",
     "mnemonist": "^0.40.3",

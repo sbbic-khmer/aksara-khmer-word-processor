@@ -44,6 +44,7 @@ import { useEffect, useRef, useCallback } from "react"
 import { $createKhmerBreakNode, $isKhmerBreakNode } from "../nodes/khmer-break-node"
 import type { KhmerBreaker } from "@/lib/khmer-breaker"
 import { isWordBreakerDebugEnabled, isCursorDebugEnabled, cursorDebugLog, measurePerformance } from "@/lib/debug"
+import { normalizeKhmer } from "@/lib/khmer-normalize"
 
 const ZWSP = "\u200B"
 const ZWJ = "\u200D"  // Zero-width joiner
@@ -1014,6 +1015,8 @@ useEffect(() => {
           console.log(`[v0:wb] PASTE intercepted - text: "${pastedText}"`)
         }
 
+        const normalizedText = normalizeKhmer(pastedText)
+
         // Prevent default paste handling
         clipboardEvent.preventDefault()
 
@@ -1040,11 +1043,11 @@ useEffect(() => {
           }
 
           // Split pasted text by newlines to handle multiple paragraphs
-          const lines = pastedText.split(/\r?\n/)
+          const lines = normalizedText.split(/\r?\n/)
 
           if (lines.length === 1) {
             // Single line - use insertNodes with our segmented text
-            const nodes = createSegmentedNodes(pastedText, format, style)
+            const nodes = createSegmentedNodes(normalizedText, format, style)
             if (nodes.length > 0) {
               selection.insertNodes(nodes)
             }

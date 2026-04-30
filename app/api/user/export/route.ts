@@ -3,6 +3,7 @@ import JSZip from "jszip"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-server"
 import { decompressString, isCompressed } from "@/lib/compression"
+import { normalizeKhmer } from "@/lib/khmer-normalize"
 
 /**
  * POST /api/user/export
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
 
       // ODT export (simplified server-side version)
       try {
-        const odtBuffer = await generateSimpleOdt(doc.title, doc.content)
+        const odtBuffer = await generateSimpleOdt(doc.title, normalizeKhmer(doc.content))
         documentsFolder?.file(`${doc.id}.odt`, odtBuffer)
       } catch (odtError) {
         // If ODT generation fails, add error note to JSON

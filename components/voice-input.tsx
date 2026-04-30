@@ -9,6 +9,7 @@ import { MicSelector, type SttProvider } from "@/components/mic-selector"
 import { usePreferences } from "@/hooks/use-preferences"
 import { useWebSpeechRecognition } from "@/hooks/use-web-speech-recognition"
 import { applyVoiceTextRules } from "@/lib/voice-text-rules"
+import { normalizeKhmer } from "@/lib/khmer-normalize"
 import { useAuth } from "@/components/auth-provider"
 import { useTranslations } from "next-intl"
 
@@ -89,7 +90,7 @@ export const VoiceInput = forwardRef<VoiceInputHandle, VoiceInputProps>(function
         processed = applyReplacements(processed)
       }
 
-      return processed
+      return normalizeKhmer(processed)
     },
     [applyReplacements],
   )

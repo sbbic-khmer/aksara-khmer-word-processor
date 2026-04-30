@@ -32,6 +32,7 @@ import { $isKhmerBreakNode } from "./nodes/khmer-break-node"
 import { $isHeadingNode } from "@lexical/rich-text"
 import { $isListNode, $isListItemNode } from "@lexical/list"
 
+import { normalizeKhmer } from "@/lib/khmer-normalize"
 import { stripBreakNodes } from "@/lib/editor-save-utils"
 import { compressStringClient } from "@/lib/client-compression"
 import { KhmerBreaker } from "@/lib/khmer-breaker"
@@ -155,10 +156,11 @@ function extractTextFromSelection(
           text = node.getTextContent().slice(startOffset, endPoint.offset)
         }
 
-        plainText += text
+        const normalized = normalizeKhmer(text)
+        plainText += normalized
 
         // Build HTML with formatting
-        let formattedText = text
+        let formattedText = normalized
         const format = node.getFormat()
         if (format & 1) formattedText = `<strong>${formattedText}</strong>` // bold
         if (format & 2) formattedText = `<em>${formattedText}</em>` // italic
@@ -174,7 +176,7 @@ function extractTextFromSelection(
       }
     })
 
-    // Wrap in styled container for Khmer font 
+    // Wrap in styled container for Khmer font
     html = `<div style="font-family: 'Khmer Mondulkiri', 'Battambang', sans-serif;">${html}</div>`
 
     result = { text: plainText, html }
@@ -203,7 +205,7 @@ function extractTextWithZWSP(editor: ReturnType<typeof useLexicalComposerContext
               paragraphText += ZWSP
               paragraphHtml += ZWSP
             } else if ($isTextNode(n)) {
-              const text = n.getTextContent()
+              const text = normalizeKhmer(n.getTextContent())
               paragraphText += text
 
               // Build HTML with formatting
@@ -221,8 +223,9 @@ function extractTextWithZWSP(editor: ReturnType<typeof useLexicalComposerContext
                   paragraphText += ZWSP
                   paragraphHtml += ZWSP
                 } else if ($isTextNode(nested)) {
-                  paragraphText += nested.getTextContent()
-                  paragraphHtml += nested.getTextContent()
+                  const nestedText = normalizeKhmer(nested.getTextContent())
+                  paragraphText += nestedText
+                  paragraphHtml += nestedText
                 }
               })
             }
@@ -251,8 +254,9 @@ function extractTextWithZWSP(editor: ReturnType<typeof useLexicalComposerContext
                 itemText += ZWSP
                 itemHtml += ZWSP
               } else if ($isTextNode(n)) {
-                itemText += n.getTextContent()
-                itemHtml += n.getTextContent()
+                const text = normalizeKhmer(n.getTextContent())
+                itemText += text
+                itemHtml += text
               }
             })
 
