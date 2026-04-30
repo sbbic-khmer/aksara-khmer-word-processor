@@ -45,7 +45,7 @@ Key parameters:
 
 ### Deploy on Railway
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/Mz8sB2?referralCode=6EnXto&utm_medium=integration&utm_source=template&utm_campaign=generic)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aksara-khmer-wordprocessor?referralCode=6EnXto&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
 ### Manual Setup
 
