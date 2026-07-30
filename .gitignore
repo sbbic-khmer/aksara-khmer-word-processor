@@ -31,3 +31,13 @@ next-env.d.ts
 exports/
 # next-agents-md
 .next-docs/
+
+# Khmer segmentation gold corpus
+# The IDML books are copyrighted publications and the extracted corpus is their
+# full text, so neither is committed — this repo is publicly mirrored.
+# Regenerate with `npm run corpus:build` once the books are in IDML-corpus/.
+/IDML-corpus/
+/test-data/idml-corpus/
+
+# macOS
+.DS_Store

@@ -1,0 +1,46 @@
+{
+  "split": "dev",
+  "paragraphs": 651,
+  "goldWords": 67155,
+  "embeddedOnly": false,
+  "wordAll": {
+    "tp": 66397,
+    "fp": 1242,
+    "fn": 758,
+    "precision": 0.9816378125046201,
+    "recall": 0.9887126796217706,
+    "f1": 0.9851625443268989
+  },
+  "wordKhmer": {
+    "tp": 56803,
+    "fp": 1062,
+    "fn": 641,
+    "precision": 0.9816469368357383,
+    "recall": 0.9888413063157162,
+    "f1": 0.9852309880408294
+  },
+  "boundaryAll": {
+    "tp": 66370,
+    "fp": 618,
+    "fn": 134,
+    "precision": 0.9907744670687287,
+    "recall": 0.9979850836039937,
+    "f1": 0.994366703622689
+  },
+  "boundaryKhmer": {
+    "tp": 52932,
+    "fp": 478,
+    "fn": 129,
+    "precision": 0.9910503651001685,
+    "recall": 0.9975688358681517,
+    "f1": 0.9942989170760114
+  },
+  "oovRecall": 0.4605263157894737,
+  "oovWords": 304,
+  "exactReconstruction": 1,
+  "unaligned": 0,
+  "msTotal": 9903.659291,
+  "msPerParagraphP50": 10.392040999999153,
+  "msPerParagraphP95": 41.46741600000041,
+  "charsPerSecond": 24510.839162308173
+}

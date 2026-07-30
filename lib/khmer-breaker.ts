@@ -15,6 +15,7 @@
  * to handle common misspellings. Example: ប្រត្តិកម្ម → ប្រតិកម្ម (dictionary form).
  */
 
+import { KhmerBoundaryTagger } from "./khmer-kcc-tagger"
 import { isDebugEnabled, isWordBreakerDebugEnabled } from "./debug"
 import { PROTECTED_PHRASES } from "./protected-phrases"
 import { PREFIX_MAP, SUFFIX_MAP, PREFIXES_BY_LENGTH, SUFFIXES_BY_LENGTH, type AffixConfig } from "./khmer-affixes"
@@ -409,7 +410,7 @@ class KhmerTrie {
   }
 }
 
-class KhmerCharSets {
+export class KhmerCharSets {
   KHMER_BASE_START = 0x1780
   KHMER_BASE_END = 0x17ff
   COENG = "\u17D2"
@@ -721,22 +722,113 @@ export interface DictionaryEntry {
   frequency: number
 }
 
+/**
+ * Tunable segmentation behaviour.
+ *
+ * These were hand-tuned before there was a way to measure segmentation quality.
+ * They are exposed so `scripts/tune-constants.ts` can search them against the
+ * gold corpus, and so experiments can toggle a rule without editing the class.
+ * Anything changed here must be re-measured with `npm run eval:seg`.
+ */
+export interface SegmentationConfig {
+  /** Paths kept per beam iteration */
+  beamWidth: number
+  /** Longest dictionary match considered, in JS characters */
+  maxWordLen: number
+  /** Cost of an unknown token */
+  oovPenalty: number
+  /** Extra cost when the unknown token is a single cluster */
+  oovSingleClusterPenalty: number
+  /** Clusters an unknown span may span before it is cut off */
+  maxOovClusters: number
+  /** Cost of a bare consonant + ់ token, which is almost always a mis-break */
+  danglingBantocPenalty: number
+  /** Cost of a token ending in a bare short vowel */
+  danglingVowelPenalty: number
+  /** Cost of breaking before យ/វ that follows a combining mark */
+  semivowelBoundaryPenalty: number
+  /** Cost per token boundary; the main control on how finely text is split */
+  boundaryPenalty: number
+  /** Reward per character for longer tokens */
+  lengthBonus: number
+  /** Reward for a token analysed as a fused compound */
+  compoundBonus: number
+  /** Frequency a single-cluster match needs before it is trusted as a word */
+  minFrequencySingleCluster: number
+  /** Frequency a two-cluster match needs before it is trusted as a word */
+  minFrequencyTwoCluster: number
+  /** Scales the penalty applied to under-frequent two-cluster matches */
+  lowFrequencyPenaltyMultiplier: number
+  /** Scales the penalty applied to under-frequent single-cluster matches */
+  lowFrequencySingleClusterMultiplier: number
+  /**
+   * Re-join adjacent segments whose concatenation is a dictionary word.
+   *
+   * This runs after the beam search and overrides it without consulting scores,
+   * so it collapses compounds the search deliberately split.
+   */
+  mergeKnownCompounds: boolean
+}
+
+/**
+ * Fitted by `scripts/tune-constants.ts` against the dev split of the IDML gold
+ * corpus, then confirmed on a held-out book. See docs/segmentation-policy.md.
+ *
+ * Two values look surprising and are load-bearing:
+ *
+ *   - `lengthBonus: 0` and a near-zero `boundaryPenalty`. Both existed to stop
+ *     the breaker shattering words into syllables, but that job is done properly
+ *     by the frequency term and the short-word penalties. Left high, they bias
+ *     towards long tokens and glue real compounds together.
+ *   - `mergeKnownCompounds: false`. Re-joining any adjacent pair that happens to
+ *     be a dictionary entry overrode the search after the fact and was the single
+ *     largest source of error, costing about 2.7 points of word F1.
+ */
+export const DEFAULT_SEGMENTATION_CONFIG: SegmentationConfig = {
+  beamWidth: 12,
+  maxWordLen: 20,
+  oovPenalty: 10.0,
+  oovSingleClusterPenalty: 12.0,
+  maxOovClusters: 6,
+  danglingBantocPenalty: 20.0,
+  danglingVowelPenalty: 15.0,
+  semivowelBoundaryPenalty: 0,
+  boundaryPenalty: 0.25,
+  lengthBonus: 0,
+  compoundBonus: -2.0,
+  minFrequencySingleCluster: 8000,
+  minFrequencyTwoCluster: 500,
+  lowFrequencyPenaltyMultiplier: 2.0,
+  lowFrequencySingleClusterMultiplier: 8.0,
+  mergeKnownCompounds: false,
+}
+
 export class KhmerBreaker {
   private trie: KhmerTrie
   private charSets: KhmerCharSets
   private useIntlSegmenter: boolean
   private previousUserWords: Set<string> = new Set()
+  private tagger: KhmerBoundaryTagger | null = null
+  private previousIgnoredWords: Set<string> = new Set()
+  /** Frequencies held aside so un-ignoring a word can put it back as it was */
+  private ignoredOriginalFrequency: Map<string, number> = new Map()
+  /**
+   * Bumped whenever the dictionary changes. Consumers that cache segmentation
+   * results key on this so a cached paragraph is not reused after the dictionary
+   * that produced it has been replaced.
+   */
+  private _dictionaryVersion = 0
 
-  // Short dictionary matches (1-2 chars) with low frequency are likely
-  // just particles/letters, not real words worth breaking at.
-  // This prevents breaking up transliterated foreign names like "វ៉កគ័រ" (Walker)
-  private MIN_FREQUENCY_FOR_SINGLE_CHAR = 4000
-  private MIN_FREQUENCY_FOR_TWO_CHAR = 1000
+  readonly config: SegmentationConfig
 
-  constructor(dictionaryData: DictionaryEntry[] | null = null) {
+  constructor(
+    dictionaryData: DictionaryEntry[] | null = null,
+    config: Partial<SegmentationConfig> = {},
+  ) {
     this.trie = new KhmerTrie()
     this.charSets = new KhmerCharSets()
     this.useIntlSegmenter = typeof Intl !== "undefined" && "Segmenter" in Intl
+    this.config = { ...DEFAULT_SEGMENTATION_CONFIG, ...config }
 
     if (dictionaryData) {
       this.loadDictionary(dictionaryData)
@@ -784,26 +876,7 @@ export class KhmerBreaker {
       }
 
       const data: Record<string, number> = await response.json()
-      const entries = Object.entries(data)
-
-      if (isDebugEnabled()) {
-        console.log("[v0] Merging", entries.length, "entries from full dictionary")
-      }
-
-      // Merge into trie (won't overwrite existing entries)
-      // IMPORTANT: Use existsInTrie() instead of getFrequency() === 0
-      // because ignored words have frequency 0 but should NOT be overwritten
-      let newWords = 0
-      for (const [word, frequency] of entries) {
-        if (word && word.length > 0) {
-          if (!this.trie.existsInTrie(word)) {
-            // Word not in trie yet, add it
-            this.trie.insert(word, frequency)
-            newWords++
-          }
-          // If word exists (including ignored words), keep existing state
-        }
-      }
+      const newWords = this.mergeDictionary(data)
 
       this.fullDictionaryLoaded = true
 
@@ -817,10 +890,59 @@ export class KhmerBreaker {
   }
 
   /**
+   * Merge additional dictionary entries into the trie.
+   *
+   * Existing entries always win, so user-ignored words (stored with frequency 0)
+   * are never resurrected by a later merge. Kept free of I/O so scripts and tests
+   * can supply entries read from disk.
+   *
+   * @returns how many words were new
+   */
+  mergeDictionary(data: Record<string, number>): number {
+    let newWords = 0
+    for (const [word, frequency] of Object.entries(data)) {
+      // IMPORTANT: existsInTrie() rather than getFrequency() === 0 — ignored
+      // words have frequency 0 but must keep that state.
+      if (word && word.length > 0 && !this.trie.existsInTrie(word)) {
+        this.trie.insert(word, frequency)
+        newWords++
+      }
+    }
+    if (newWords > 0) this._dictionaryVersion++
+    return newWords
+  }
+
+  /**
    * Check if the full dictionary has been loaded
    */
   isFullDictionaryLoaded(): boolean {
     return this.fullDictionaryLoaded
+  }
+
+  /**
+   * Whether a word is in the dictionary. Ignored words report false.
+   */
+  isKnownWord(word: string): boolean {
+    return this.trie.hasWord(word)
+  }
+
+  /**
+   * Dictionary frequency of a word; 0 when absent or ignored.
+   *
+   * Exposed because a binary known/unknown flag loses real signal: entries the
+   * corpus consistently splits are demoted to frequency 1 rather than removed, and
+   * a consumer that cannot see the difference treats them as ordinary words.
+   */
+  wordFrequency(word: string): number {
+    return this.trie.getFrequency(word)
+  }
+
+  /**
+   * Changes every time the dictionary is modified. Cache keys should include it
+   * so results computed against an older dictionary are not reused.
+   */
+  get dictionaryVersion(): number {
+    return this._dictionaryVersion
   }
 
   /**
@@ -829,13 +951,15 @@ export class KhmerBreaker {
    * @param words Array of word strings to add
    * @param frequency The frequency to assign (default: 50000, very high to prioritize)
    */
-  addUserWords(words: string[], frequency = 50000) {
+  addUserWords(words: string[], frequency = 50000): boolean {
     const currentWords = new Set<string>()
+    let changed = false
 
     for (const word of words) {
       const cleanWord = word.trim()
       if (cleanWord && cleanWord.length > 0) {
         currentWords.add(cleanWord)
+        if (!this.previousUserWords.has(cleanWord)) changed = true
         this.trie.insert(cleanWord, frequency)
       }
     }
@@ -845,26 +969,52 @@ export class KhmerBreaker {
     for (const prevWord of this.previousUserWords) {
       if (!currentWords.has(prevWord)) {
         this.trie.insert(prevWord, 0)
+        changed = true
       }
     }
 
     this.previousUserWords = currentWords
+    if (changed) this._dictionaryVersion++
+    return changed
   }
 
   /**
-   * Mark words as ignored by setting their frequency to 0.
-   * This prevents the word breaker from using these words from the master dictionary.
-   * Useful when users want to split a word that exists in the master dictionary.
-   * @param words Array of word strings to ignore
+   * Mark words as ignored so the breaker stops treating them as single words,
+   * which is how a user splits a word that the master dictionary contains.
+   *
+   * Ignoring is reversible: the frequency a word had beforehand is remembered, so
+   * removing it from the ignored list restores it without reloading the page.
+   *
+   * @returns whether the ignored set actually changed
    */
-  addIgnoredWords(words: string[]) {
+  addIgnoredWords(words: string[]): boolean {
+    const current = new Set<string>()
     for (const word of words) {
       const cleanWord = word.trim()
-      if (cleanWord && cleanWord.length > 0) {
-        // Set frequency to 0 to mark as ignored
-        this.trie.insert(cleanWord, 0)
-      }
+      if (cleanWord.length > 0) current.add(cleanWord)
     }
+
+    let changed = false
+
+    for (const word of current) {
+      if (this.previousIgnoredWords.has(word)) continue
+      if (!this.ignoredOriginalFrequency.has(word)) {
+        this.ignoredOriginalFrequency.set(word, this.trie.getFrequency(word))
+      }
+      this.trie.insert(word, 0) // frequency 0 is the tombstone the beam search skips
+      changed = true
+    }
+
+    for (const word of this.previousIgnoredWords) {
+      if (current.has(word)) continue
+      this.trie.insert(word, this.ignoredOriginalFrequency.get(word) ?? 0)
+      this.ignoredOriginalFrequency.delete(word)
+      changed = true
+    }
+
+    this.previousIgnoredWords = current
+    if (changed) this._dictionaryVersion++
+    return changed
   }
 
   // ============ Affix-Based Compound Detection ============
@@ -1083,12 +1233,106 @@ export class KhmerBreaker {
   }
 
   /**
+   * Replace the boundaries chosen inside runs of Khmer letters with the tagger's.
+   *
+   * Only decisions strictly inside such a run are revisited. Everything the rest
+   * of the pipeline established — punctuation attachment, connector gluing, digit
+   * runs, non-Khmer text, and the user's own ZWSP splits, which are already chunk
+   * boundaries by the time this runs — is preserved exactly.
+   *
+   * The frequency model cannot separate ជាមួយ (one word) from ខិតខំ (two): both
+   * are pairs of common syllables, and no boundary penalty tells them apart. The
+   * tagger learned the distinction from the corpus.
+   */
+  private applyBoundaryTagger(text: string, segments: string[]): string[] {
+    if (!this.tagger || segments.length === 0) return segments
+
+    // Boundaries the pipeline produced, as offsets into `text`.
+    const boundaries = new Set<number>()
+    let offset = 0
+    for (let i = 0; i < segments.length - 1; i++) {
+      offset += segments[i].length
+      boundaries.add(offset)
+    }
+
+    for (const run of this.findKhmerLetterRuns(text)) {
+      const clusters = this.charSets.extractClusters(run.text)
+      if (clusters.length < 2) continue
+
+      // Offsets of every cluster edge, which are the only positions the tagger
+      // can express — and drop the pipeline's opinion about the run's interior.
+      const edges: number[] = []
+      let edge = run.start
+      for (const cluster of clusters) {
+        edge += cluster.length
+        edges.push(edge)
+      }
+      for (let position = run.start + 1; position < run.start + run.text.length; position++) {
+        boundaries.delete(position)
+      }
+
+      const decisions = this.tagger.predict(clusters, this)
+      for (let gap = 0; gap < decisions.length; gap++) {
+        // isSafeBoundary keeps the tagger from proposing a break that would be
+        // invalid Khmer, such as inside a COENG cluster or before ៗ.
+        if (decisions[gap] && this.isSafeBoundary(text, edges[gap])) boundaries.add(edges[gap])
+      }
+    }
+
+    const ordered = [...boundaries].filter((b) => b > 0 && b < text.length).sort((a, b) => a - b)
+    const out: string[] = []
+    let start = 0
+    for (const boundary of ordered) {
+      if (boundary > start) out.push(text.slice(start, boundary))
+      start = boundary
+    }
+    if (start < text.length) out.push(text.slice(start))
+    return out
+  }
+
+  /** Maximal runs of Khmer letters, digits and signs — excludes punctuation. */
+  private findKhmerLetterRuns(text: string): Array<{ start: number; text: string }> {
+    const runs: Array<{ start: number; text: string }> = []
+    let start = -1
+    for (let i = 0; i <= text.length; i++) {
+      const ch = i < text.length ? text[i] : ""
+      const isLetter = ch !== "" && this.charSets.isKhmerChar(ch) && !this.charSets.isPunctuation(ch)
+      if (isLetter && start < 0) start = i
+      else if (!isLetter && start >= 0) {
+        runs.push({ start, text: text.slice(start, i) })
+        start = -1
+      }
+    }
+    return runs
+  }
+
+  /**
+   * Use a trained boundary tagger for decisions inside Khmer runs.
+   * Pass null to go back to beam search alone.
+   */
+  setBoundaryTagger(tagger: KhmerBoundaryTagger | null): void {
+    this.tagger = tagger
+    this._dictionaryVersion++
+  }
+
+  /**
+   * Load tagger weights in the background. Failure is non-fatal: segmentation
+   * keeps working from the beam search alone.
+   */
+  async loadBoundaryTaggerAsync(url = "/dictionaries/km_kcc_tagger.json"): Promise<boolean> {
+    const tagger = await KhmerBoundaryTagger.load(url)
+    if (!tagger) return false
+    this.setBoundaryTagger(tagger)
+    return true
+  }
+
+  /**
    * Merge adjacent segments if their concatenation forms a known dictionary word.
    * This is a "safety net" that fixes cases where segmentation split a compound word.
    * E.g., ["កោត", "ខ្លាច"] -> ["កោតខ្លាច"] if កោតខ្លាច is in the dictionary.
    */
   private mergeKnownCompounds(segments: string[]): string[] {
-    if (segments.length <= 1) return segments
+    if (segments.length <= 1 || !this.config.mergeKnownCompounds) return segments
 
     const out: string[] = []
     let i = 0
@@ -1155,7 +1399,7 @@ export class KhmerBreaker {
       const connectorMerged = this.mergeConnectors(chunkSegments)
       const punctMerged = this.mergePunctuation(connectorMerged)
       const compoundMerged = this.mergeKnownCompounds(punctMerged)
-      allSegments.push(...compoundMerged)
+      allSegments.push(...this.applyBoundaryTagger(chunk, compoundMerged))
     }
 
     return allSegments
@@ -1533,18 +1777,7 @@ export class KhmerBreaker {
     return result
   }
 
-  // ============ Beam Search Scoring Constants ============
-  // Tuned to prevent over-splitting into syllables
-  private static readonly BEAM_WIDTH = 8                     // Number of top paths to keep
-  private static readonly MAX_WORD_LEN = 20                  // Maximum word length in characters
-  private static readonly OOV_PENALTY = 6.0                  // Cost for unknown token
-  private static readonly OOV_SINGLE_CLUSTER_PENALTY = 12.0  // Heavy cost for single-cluster OOV
-  private static readonly DANGLING_BANTOC_PENALTY = 20.0     // Very heavy cost for consonant + ់ tokens
-  private static readonly DANGLING_VOWEL_PENALTY = 15.0      // Heavy cost for words ending in bare dependent vowel (e.g., ផាសុ)
-  private static readonly SEMIVOWEL_BOUNDARY_PENALTY = 3.0   // Penalty for breaking before semivowel (យ/វ) after combining mark
-  private static readonly BOUNDARY_PENALTY = 2.0             // Cost per token boundary
-  private static readonly LENGTH_BONUS = 0.25                // Reward per character for longer tokens
-  private static readonly COMPOUND_BONUS = 0                  // Fused compounds scored on stem freq + length alone (no artificial boost)
+  // Scoring constants live in SegmentationConfig so they can be tuned and measured.
 
   /**
    * Check if a position is a safe token boundary.
@@ -1599,7 +1832,6 @@ export class KhmerBreaker {
   }
 
   // Maximum number of clusters to consume in an OOV chunk before forcing a break
-  private static readonly MAX_OOV_CLUSTERS = 8
 
   /**
    * Find the end of an OOV (out-of-vocabulary) chunk starting at position.
@@ -1641,7 +1873,7 @@ export class KhmerBreaker {
       if (this.charSets.canBreakAt(text, pos)) {
         // Check if any dictionary word starting at `start` extends past `pos`
         // If so, we shouldn't break here because we'd be cutting that word short
-        const maxLen = Math.min(KhmerBreaker.MAX_WORD_LEN, endPos - start)
+        const maxLen = Math.min(this.config.maxWordLen, endPos - start)
         const crossBoundaryMatches = this.trie.findAllMatches(text, start, maxLen)
         const hasCrossingWord = crossBoundaryMatches.some(m => {
           const wordEnd = start + m.length
@@ -1677,7 +1909,7 @@ export class KhmerBreaker {
       clusters++
 
       // Don't consume too many clusters - force a break at max
-      if (clusters >= KhmerBreaker.MAX_OOV_CLUSTERS) break
+      if (clusters >= this.config.maxOovClusters) break
     }
 
     return pos
@@ -1695,9 +1927,26 @@ export class KhmerBreaker {
     
     const endPos = text.length
     
-    // State: { pos: current position, score: cumulative score, pieces: tokens so far }
-    type BeamState = { pos: number; score: number; pieces: string[] }
-    let states: BeamState[] = [{ pos: 0, score: 0, pieces: [] }]
+    // Pieces are held as a backwards-linked list shared between states rather than
+    // a per-candidate array copy. Copying made expanding a state O(tokens so far),
+    // so segmenting one paragraph cost O(n^2) allocations.
+    type PieceNode = { piece: string; prev: PieceNode | null }
+    type BeamState = { pos: number; score: number; tail: PieceNode | null; count: number }
+
+    const extend = (s: BeamState, pos: number, score: number, piece: string): BeamState => ({
+      pos,
+      score,
+      tail: { piece, prev: s.tail },
+      count: s.count + 1,
+    })
+
+    const materialise = (state: BeamState | undefined): string[] => {
+      const out: string[] = []
+      for (let node = state?.tail ?? null; node !== null; node = node.prev) out.push(node.piece)
+      return out.reverse()
+    }
+
+    let states: BeamState[] = [{ pos: 0, score: 0, tail: null, count: 0 }]
     
     while (states.length > 0) {
       // If every state finished, break
@@ -1715,11 +1964,7 @@ export class KhmerBreaker {
         
         // Handle whitespace as its own token
         if (ch === ' ' || ch === '\t' || ch === '\n') {
-          nextStates.push({
-            pos: s.pos + 1,
-            score: s.score,
-            pieces: [...s.pieces, ch],
-          })
+          nextStates.push(extend(s, s.pos + 1, s.score, ch))
           continue
         }
         
@@ -1745,21 +1990,13 @@ export class KhmerBreaker {
               break
             }
           }
-          nextStates.push({
-            pos: runEnd,
-            score: s.score,
-            pieces: [...s.pieces, text.slice(s.pos, runEnd)],
-          })
+          nextStates.push(extend(s, runEnd, s.score, text.slice(s.pos, runEnd)))
           continue
         }
         
         // Handle punctuation as its own token
         if (this.charSets.isPunctuation(ch)) {
-          nextStates.push({
-            pos: s.pos + 1,
-            score: s.score,
-            pieces: [...s.pieces, ch],
-          })
+          nextStates.push(extend(s, s.pos + 1, s.score, ch))
           continue
         }
         
@@ -1771,16 +2008,12 @@ export class KhmerBreaker {
                  text[runEnd] !== ' ' && !this.charSets.isPunctuation(text[runEnd])) {
             runEnd++
           }
-          nextStates.push({
-            pos: runEnd,
-            score: s.score,
-            pieces: [...s.pieces, text.slice(s.pos, runEnd)],
-          })
+          nextStates.push(extend(s, runEnd, s.score, text.slice(s.pos, runEnd)))
           continue
         }
         
         // Khmer text - find dictionary matches
-        const maxLen = Math.min(KhmerBreaker.MAX_WORD_LEN, endPos - s.pos)
+        const maxLen = Math.min(this.config.maxWordLen, endPos - s.pos)
         const matches = this.trie.findAllMatches(text, s.pos, maxLen, this.charSets)
 
         // Also try variant matching (handles doubled consonants, coeng reordering)
@@ -1847,8 +2080,8 @@ export class KhmerBreaker {
           }
 
           let sc = Math.log((freq || 1) + 1)
-          sc += KhmerBreaker.LENGTH_BONUS * len
-          sc -= KhmerBreaker.BOUNDARY_PENALTY
+          sc += this.config.lengthBonus * len
+          sc -= this.config.boundaryPenalty
           sc -= penalty // Apply frequency-based penalty for short words
           candidates.push({ len, score: sc })
         }
@@ -2008,17 +2241,17 @@ export class KhmerBreaker {
               // "step-by-step" path that uses the prefix as a standalone word
               const prefixDictFreq = this.trie.getFrequency(compound.affixText)
               const prefixFreq = prefixDictFreq > 0 ? prefixDictFreq : 10000 // Fallback if not in dict
-              const prefixContrib = Math.log(prefixFreq + 1) + KhmerBreaker.LENGTH_BONUS * prefixLen
+              const prefixContrib = Math.log(prefixFreq + 1) + this.config.lengthBonus * prefixLen
 
               // Remainder: use its actual dictionary frequency (NO shortWordPenalty since
               // we know it's a valid compound remainder)
-              const remainderContrib = Math.log(compound.remainderFreq + 1) + KhmerBreaker.LENGTH_BONUS * remainderLen
+              const remainderContrib = Math.log(compound.remainderFreq + 1) + this.config.lengthBonus * remainderLen
 
               // Total score: sum of both parts, minus ONE boundary penalty (single candidate)
               // We only subtract ONE boundary penalty because this is a single candidate
               // that produces two pieces. The non-compound path would pay TWO penalties
               // (one for each word), so the compound has a 2.0 point advantage.
-              const compoundScore = prefixContrib + remainderContrib - KhmerBreaker.BOUNDARY_PENALTY
+              const compoundScore = prefixContrib + remainderContrib - this.config.boundaryPenalty
 
               // Add as a single candidate with multiple segments
               // The segments array tells the state expansion to add both pieces
@@ -2043,12 +2276,12 @@ export class KhmerBreaker {
               const stemLen = compound.remainder.length
               const suffixLen = compound.affixText.length
 
-              const stemContrib = Math.log(compound.remainderFreq + 1) + KhmerBreaker.LENGTH_BONUS * stemLen
+              const stemContrib = Math.log(compound.remainderFreq + 1) + this.config.lengthBonus * stemLen
               // Look up actual suffix frequency from dictionary
               const suffixDictFreq = this.trie.getFrequency(compound.affixText)
               const suffixFreq = suffixDictFreq > 0 ? suffixDictFreq : 10000 // Fallback if not in dict
-              const suffixContrib = Math.log(suffixFreq + 1) + KhmerBreaker.LENGTH_BONUS * suffixLen
-              const compoundScore = stemContrib + suffixContrib - KhmerBreaker.BOUNDARY_PENALTY
+              const suffixContrib = Math.log(suffixFreq + 1) + this.config.lengthBonus * suffixLen
+              const compoundScore = stemContrib + suffixContrib - this.config.boundaryPenalty
 
               candidates.push({
                 len: oovLen,
@@ -2073,9 +2306,9 @@ export class KhmerBreaker {
               effectiveFreq = Math.max(effectiveFreq, suffixDictFreq)
             }
             const compoundScore = Math.log(effectiveFreq + 1) +
-              KhmerBreaker.LENGTH_BONUS * oovLen +
-              KhmerBreaker.COMPOUND_BONUS - // Bonus for being a valid compound
-              KhmerBreaker.BOUNDARY_PENALTY
+              this.config.lengthBonus * oovLen +
+              this.config.compoundBonus - // Bonus for being a valid compound
+              this.config.boundaryPenalty
 
             candidates.push({
               len: oovLen,
@@ -2097,17 +2330,17 @@ export class KhmerBreaker {
         // is preferred over many small OOV chunks
         // Single-cluster OOVs still get heavier penalty to encourage dictionary matches
         const oovPenalty = oovClusters <= 1
-          ? KhmerBreaker.OOV_SINGLE_CLUSTER_PENALTY
-          : KhmerBreaker.OOV_PENALTY
+          ? this.config.oovSingleClusterPenalty
+          : this.config.oovPenalty
 
         // Length bonus encourages keeping OOV chunks together
-        const oovLengthBonus = KhmerBreaker.LENGTH_BONUS * oovLen * 0.5
+        const oovLengthBonus = this.config.lengthBonus * oovLen * 0.5
 
         // Always add the raw OOV as a fallback candidate (compound detection might have
         // added better alternatives above, but beam search will choose the best one)
         candidates.push({
           len: oovLen,
-          score: -oovPenalty - KhmerBreaker.BOUNDARY_PENALTY + oovLengthBonus,
+          score: -oovPenalty - this.config.boundaryPenalty + oovLengthBonus,
         })
         
         // Expand states with all candidates
@@ -2131,7 +2364,7 @@ export class KhmerBreaker {
             if (this.charSets.isDanglingBantoc(piece) || this.charSets.startsWithDanglingBantoc(piece)) {
               // Only allow if it's a known dictionary word (very rare)
               if (!this.trie.hasWord(piece)) {
-                score -= KhmerBreaker.DANGLING_BANTOC_PENALTY
+                score -= this.config.danglingBantocPenalty
               }
             }
 
@@ -2142,7 +2375,7 @@ export class KhmerBreaker {
             if (this.charSets.endsWithDanglingVowel(piece)) {
               // Only allow if it's a known dictionary word
               if (!this.trie.hasWord(piece)) {
-                score -= KhmerBreaker.DANGLING_VOWEL_PENALTY
+                score -= this.config.danglingVowelPenalty
               }
             }
 
@@ -2157,16 +2390,19 @@ export class KhmerBreaker {
                 // If so, breaking here might still be wrong
                 const nextNextChar = pieceEnd + 1 < text.length ? text[pieceEnd + 1] : ''
                 if (nextNextChar && this.charSets.isBase(nextNextChar)) {
-                  score -= KhmerBreaker.SEMIVOWEL_BOUNDARY_PENALTY
+                  score -= this.config.semivowelBoundaryPenalty
                 }
               }
             }
           }
 
+          let tail = s.tail
+          for (const piece of pieces) tail = { piece, prev: tail }
           nextStates.push({
             pos: pieceEnd,
             score: s.score + score,
-            pieces: [...s.pieces, ...pieces],
+            tail,
+            count: s.count + pieces.length,
           })
         }
       }
@@ -2175,12 +2411,12 @@ export class KhmerBreaker {
       nextStates.sort((a, b) => (b.score - a.score) || (b.pos - a.pos))
 
       // Debug: Log state counts and top scores at each iteration
-      if (isWordBreakerDebugEnabled() && nextStates.length > KhmerBreaker.BEAM_WIDTH) {
+      if (isWordBreakerDebugEnabled() && nextStates.length > this.config.beamWidth) {
         // Find states that have the compound segments (pieces ending with two specific words)
         const statesWithCompound = nextStates.filter(s => {
-          if (s.pieces.length < 2) return false
-          const last = s.pieces[s.pieces.length - 1]
-          const secondLast = s.pieces[s.pieces.length - 2]
+          if (s.count < 2) return false
+          const last = s.tail!.piece
+          const secondLast = s.tail!.prev!.piece
           // Check if these look like a prefix + remainder compound split
           // Prefix "org org org" is 4 chars, remainder would be around 5 chars
           return secondLast.length >= 3 && secondLast.length <= 5 && last.length >= 4 && last.length <= 7
@@ -2188,11 +2424,11 @@ export class KhmerBreaker {
         if (statesWithCompound.length > 0) {
           const bestCompound = statesWithCompound.reduce((a, b) => a.score > b.score ? a : b)
           const rank = nextStates.indexOf(bestCompound)
-          console.log(`[v0] beamSegment: ${nextStates.length} states, possible compound at rank ${rank}, score ${bestCompound.score.toFixed(2)}, pieces: [${bestCompound.pieces.slice(-3).map(p => `"${p}"`).join(', ')}]`)
+          console.log(`[v0] beamSegment: ${nextStates.length} states, possible compound at rank ${rank}, score ${bestCompound.score.toFixed(2)}, pieces: [${materialise(bestCompound).slice(-3).map(p => `"${p}"`).join(', ')}]`)
         }
       }
 
-      states = nextStates.slice(0, KhmerBreaker.BEAM_WIDTH)
+      states = nextStates.slice(0, this.config.beamWidth)
     }
     
     // Choose best finished state: furthest position, then highest average score per segment.
@@ -2200,11 +2436,11 @@ export class KhmerBreaker {
     // words accumulate more total score than fewer correct longer words.
     states.sort((a, b) => {
       if (a.pos !== b.pos) return b.pos - a.pos
-      const avgA = a.pieces.length > 0 ? a.score / a.pieces.length : a.score
-      const avgB = b.pieces.length > 0 ? b.score / b.pieces.length : b.score
+      const avgA = a.count > 0 ? a.score / a.count : a.score
+      const avgB = b.count > 0 ? b.score / b.count : b.score
       return avgB - avgA
     })
-    const result = states[0]?.pieces ?? [text]
+    const result = states.length > 0 ? materialise(states[0]) : [text]
 
     // Post-processing: merge orphaned single-cluster OOV tokens into the previous word.
     // A bare consonant (e.g., "រ") is almost never a valid Khmer word — it typically
@@ -2580,16 +2816,14 @@ export class KhmerBreaker {
 
     // Most single Khmer clusters are consonants/vowels, not standalone words
     if (clusterCount <= 1) {
-      return match.frequency >= this.MIN_FREQUENCY_FOR_SINGLE_CHAR
+      return match.frequency >= this.config.minFrequencySingleCluster
     }
 
     // Two-cluster words need moderately high frequency
-    return match.frequency >= this.MIN_FREQUENCY_FOR_TWO_CHAR
+    return match.frequency >= this.config.minFrequencyTwoCluster
   }
 
   // Penalty multiplier for low-frequency short words
-  private static readonly LOW_FREQ_PENALTY_MULTIPLIER = 4.0
-  private static readonly LOW_FREQ_SINGLE_CLUSTER_MULTIPLIER = 8.0
 
   /**
    * Calculate a penalty for short words based on their frequency.
@@ -2619,23 +2853,23 @@ export class KhmerBreaker {
     // to compete when they lead to better overall paths, while still keeping
     // junk consonants heavily penalized
     if (clusters <= 1) {
-      if (freq >= this.MIN_FREQUENCY_FOR_SINGLE_CHAR) return 0
+      if (freq >= this.config.minFrequencySingleCluster) return 0
 
       // Soft penalty scaled by distance from threshold
       // Uses higher multiplier (8.0) than 2-cluster words (4.0) to maintain
       // strong preference against single-cluster words
-      const ratio = (this.MIN_FREQUENCY_FOR_SINGLE_CHAR - freq) / this.MIN_FREQUENCY_FOR_SINGLE_CHAR
-      return KhmerBreaker.LOW_FREQ_SINGLE_CLUSTER_MULTIPLIER * ratio
+      const ratio = (this.config.minFrequencySingleCluster - freq) / this.config.minFrequencySingleCluster
+      return this.config.lowFrequencySingleClusterMultiplier * ratio
     }
 
     // 2 clusters: allow but penalize if low frequency
-    const threshold = this.MIN_FREQUENCY_FOR_TWO_CHAR
+    const threshold = this.config.minFrequencyTwoCluster
     if (freq >= threshold) return 0
 
     // Scale penalty smoothly based on how far below threshold
     // ratio goes from 0 (at threshold) to ~1 (at 0 frequency)
     const ratio = (threshold - freq) / threshold
-    return KhmerBreaker.LOW_FREQ_PENALTY_MULTIPLIER * ratio
+    return this.config.lowFrequencyPenaltyMultiplier * ratio
   }
 }
 

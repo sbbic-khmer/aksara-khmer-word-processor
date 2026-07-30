@@ -14,16 +14,8 @@
   "license": "MIT",
   "author": "",
   "type": "module",
-  "main": "khmer-tiptap-extension.js",
-  "files": [
-    "khmer-breaker.js",
-    "khmer-tiptap-extension.js",
-    "dictionary-converter.js",
-    "README.md"
-  ],
   "scripts": {
     "build": "prisma generate && next build",
-    "convert-dict": "node convert-dictionary.js",
     "demo": "npx serve .",
     "dev": "prisma generate && next dev -p 3001",
     "start": "next start",
@@ -34,7 +26,13 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "corpus:build": "tsx scripts/extract-idml-corpus.ts",
+    "dict:build": "tsx scripts/build-dictionary.ts",
+    "tagger:train": "tsx scripts/train-perceptron.ts",
+    "eval:seg": "tsx scripts/eval-segmentation.ts",
+    "bench:seg": "tsx scripts/bench-segmentation.ts",
+    "tune:seg": "tsx scripts/tune-constants.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

@@ -1401,49 +1401,82 @@ function EditorWrapper({
 
   // Track if initial load has completed (to avoid resegmenting on page load)
   const initialDictLoadRef = useRef(true)
-  const prevUserDictWordCountRef = useRef(0)
   
-  // Load user dictionary words into the breaker and trigger resegmentation when new words are added
+  // Load the full dictionary after mount, supplementing the embedded starter set.
+  //
+  // Text typed before this lands is segmented against a much smaller dictionary, so
+  // whatever is already on screen is resegmented once it arrives — otherwise the
+  // first paragraphs of a session keep their worse segmentation until reload.
+  //
+  // This used to be skipped below 1024px to save trie memory, which quietly gave
+  // phone users lower-quality word breaking. It now loads everywhere except when
+  // the browser reports a metered connection.
   useEffect(() => {
-    if (userDictionaryWords && userDictionaryWords.length > 0) {
-      try {
-        breaker.addUserWords(userDictionaryWords)
-        
-        // Trigger resegmentation if word count increased AFTER initial load
-        if (!initialDictLoadRef.current && userDictionaryWords.length > prevUserDictWordCountRef.current) {
-          clearSegmentationCache()
-          editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
-        }
-      } catch (error) {
-        // Silently handle errors loading user dictionary words
-      }
+    if (!breaker) return
+
+    const saveData =
+      typeof navigator !== "undefined" &&
+      (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true
+    if (saveData) return
+
+    let cancelled = false
+    // The boundary tagger is fetched alongside the dictionary. It decides breaks
+    // inside Khmer runs and is what separates compounds the frequency model
+    // cannot tell apart. Both are optional: if either fetch fails, segmentation
+    // still works from whatever did load.
+    Promise.all([
+      breaker.loadFullDictionaryAsync().catch((err) => {
+        console.error("Failed to load full dictionary:", err)
+      }),
+      breaker.loadBoundaryTaggerAsync().catch((err) => {
+        console.error("Failed to load boundary tagger:", err)
+      }),
+    ]).then(() => {
+      if (cancelled) return
+      clearSegmentationCache()
+      editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+    })
+
+    return () => {
+      cancelled = true
     }
-    
+  }, [breaker, editor])
+
+  // Load user dictionary words into the breaker and resegment when the set changes.
+  // An empty list is meaningful: it means the user removed their last joined word,
+  // which still has to be applied to the trie and re-rendered.
+  useEffect(() => {
+    if (!userDictionaryWords) return
+    try {
+      const changed = breaker.addUserWords(userDictionaryWords)
+
+      if (changed && !initialDictLoadRef.current) {
+        clearSegmentationCache()
+        editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
+      }
+    } catch (error) {
+      // Silently handle errors loading user dictionary words
+    }
+
     // After first effect run, mark initial load as complete
     if (initialDictLoadRef.current) {
       initialDictLoadRef.current = false
     }
-    
-    prevUserDictWordCountRef.current = userDictionaryWords?.length ?? 0
   }, [breaker, editor, userDictionaryWords])
 
-  // Load ignored dictionary words into the breaker
-  // These words will be skipped during segmentation (frequency set to 0)
+  // Load ignored dictionary words into the breaker.
+  // These are skipped during segmentation, and un-ignoring restores them.
   useEffect(() => {
-    if (ignoredDictionaryWords && ignoredDictionaryWords.length > 0) {
-      try {
-        breaker.addIgnoredWords(ignoredDictionaryWords)
+    if (!ignoredDictionaryWords) return
+    try {
+      const changed = breaker.addIgnoredWords(ignoredDictionaryWords)
 
-        // Always trigger resegmentation when ignored words change
-        // This ensures words are properly unsplit even if the count doesn't change
-        if (!initialDictLoadRef.current) {
-          // Clear segmentation cache to ensure stale results aren't used
-          clearSegmentationCache()
-          editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
-        }
-      } catch (error) {
-        // Silently handle errors loading ignored dictionary words
+      if (changed && !initialDictLoadRef.current) {
+        clearSegmentationCache()
+        editor.dispatchCommand(FORCE_RESEGMENT_COMMAND, undefined)
       }
+    } catch (error) {
+      // Silently handle errors loading ignored dictionary words
     }
   }, [breaker, editor, ignoredDictionaryWords])
 
@@ -2448,16 +2481,8 @@ export const KhmerLexicalEditor = forwardRef<KhmerLexicalEditorHandle, KhmerLexi
       return () => { cancelled = true }
     }, [])
 
-    // Load full dictionary asynchronously after mount
-    // This supplements the embedded 5k dictionary with the full 32k dictionary
-    // Skip on mobile to save ~5-10 MB of trie memory
-    const [isMobileScreen] = useState(() => typeof window !== "undefined" && window.innerWidth < 1024)
-    useEffect(() => {
-      if (!breaker || isMobileScreen) return
-      breaker.loadFullDictionaryAsync().catch((err) => {
-        console.error("Failed to load full dictionary:", err)
-      })
-    }, [breaker])
+    // The full dictionary is loaded inside EditorWrapper, which sits within the
+    // Lexical composer and can resegment the document once the dictionary lands.
 
     // User dictionary words are passed to EditorWrapper which handles loading and resegmentation
 
