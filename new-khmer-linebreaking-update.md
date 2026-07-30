@@ -186,8 +186,16 @@ Lectio's own dictionary sync is currently **not running**: it moved to
 `gitlab.com/sungkhum/lectio`, and the GitHub Actions job could no longer reach
 it. The workflow has been repointed at GitLab, but it needs a `GITLAB_SYNC_TOKEN`
 secret (a GitLab token with `write_repository` scope) added to the Aksara repo
-before it will run. Until then Lectio is on the **old dictionary**, so it needs
-both the dictionary files and the code:
+before it will run.
+
+Note that Lectio protects `main` with "Allowed to push: No one", so the sync
+cannot commit to it directly. It pushes an `aksara-dictionary-sync` branch and
+opens a merge request instead, which a Maintainer then merges. Repeat runs
+force-push that branch, so they update the same merge request rather than piling
+up new ones.
+
+Until the token is in place Lectio is on the **old dictionary**, so it needs both
+the dictionary files and the code:
 
 ```bash
 AK=../aksara
