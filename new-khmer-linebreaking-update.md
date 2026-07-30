@@ -173,39 +173,66 @@ explicit `taggerUrl`.
 
 ## 5. Lectio
 
-Lectio consumes the Tiptap extension, so the order is:
+Lectio does **not** install `tiptap-khmer-line-breaker` as a dependency. It
+vendors the whole Khmer stack under `lib/khmer/`, including its own copy of the
+breaker and of the Tiptap extension:
 
-1. Update `tiptap-khmer-line-breaker` per §2 and §3.
-2. Publish or bump it however Lectio consumes it (npm version, or a commit if it
-   is pinned to a git ref).
-3. In Lectio, update that dependency.
-4. Copy `km_kcc_tagger.json` into whatever directory Lectio serves dictionaries
-   from, and pass `taggerUrl` if the path differs from the default.
+```
+lib/khmer/khmer-breaker.ts            <- its own copy, must be replaced
+lib/khmer/khmer-dictionary-data.ts
+lib/khmer/khmer-affixes.ts
+lib/khmer/khmer-titles.ts, khmer-titles.json
+lib/khmer/protected-phrases.ts
+lib/khmer/tiptap-khmer-word-break.ts  <- vendored extension
+lib/khmer/server-breaker.ts           <- Lectio-only, server-side breaking
+lib/khmer/index.ts
+```
 
-Lectio's own dictionary sync is currently **not running**: it moved to
-`gitlab.com/sungkhum/lectio`, and the GitHub Actions job could no longer reach
-it. The workflow has been repointed at GitLab, but it needs a `GITLAB_SYNC_TOKEN`
-secret (a GitLab token with `write_repository` scope) added to the Aksara repo
-before it will run.
-
-Note that Lectio protects `main` with "Allowed to push: No one", so the sync
-cannot commit to it directly. It pushes an `aksara-dictionary-sync` branch and
-opens a merge request instead, which a Maintainer then merges. Repeat runs
-force-push that branch, so they update the same merge request rather than piling
-up new ones.
-
-Until the token is in place Lectio is on the **old dictionary**, so it needs both
-the dictionary files and the code:
+So Lectio needs the same treatment as §2 and §3, not a version bump. Paths differ
+only in the destination directory:
 
 ```bash
 AK=../aksara
-cp $AK/public/dictionaries/km_frequency_dictionary.json public/dictionaries/
-cp $AK/lib/khmer-dictionary-data.ts lib/
+cp $AK/lib/khmer-breaker.ts      lib/khmer/khmer-breaker.ts
+cp $AK/lib/khmer-kcc-tagger.ts   lib/khmer/khmer-kcc-tagger.ts
+cp $AK/lib/khmer-kcc-features.ts lib/khmer/khmer-kcc-features.ts
+cp $AK/lib/debug.ts              lib/khmer/debug.ts
+cp $AK/public/dictionaries/km_kcc_tagger.json public/dictionaries/
 ```
 
-Once the token is in place the sync handles the dictionary side automatically.
+Then apply §3.3 to `lib/khmer/tiptap-khmer-word-break.ts`, and re-export the
+tagger from `lib/khmer/index.ts` if consumers need it.
 
----
+**`server-breaker.ts` needs attention too.** Lectio breaks Khmer on the server as
+well as in the editor. It constructs its own `KhmerBreaker`, so it will pick up
+the new scoring automatically once the file above is replaced — but it will *not*
+load the tagger, because that is fetched over HTTP. Either read the weights from
+disk and pass them in:
+
+```ts
+import { KhmerBoundaryTagger } from "./khmer-kcc-tagger"
+import { readFileSync } from "node:fs"
+
+const tagger = KhmerBoundaryTagger.fromJson(
+  JSON.parse(readFileSync("public/dictionaries/km_kcc_tagger.json", "utf-8")),
+)
+if (tagger) breaker.setBoundaryTagger(tagger)
+```
+
+or accept that server-side breaking stays at the no-tagger quality level. Leaving
+it unset is safe but means client and server segment text slightly differently,
+which matters if either is persisted.
+
+### Dictionary sync
+
+The dictionary files arrive automatically now that `GITLAB_SYNC_TOKEN` is
+configured. Because Lectio protects `main` with "Allowed to push: No one", the
+sync pushes an `aksara-dictionary-sync` branch and opens a merge request for a
+Maintainer to merge. Repeat runs force-push that branch, updating the same merge
+request rather than accumulating new ones.
+
+The sync carries **dictionaries only, never code**. Everything above must be
+copied by hand.
 
 ## 6. Verifying the update
 
