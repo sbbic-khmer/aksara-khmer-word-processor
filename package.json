@@ -31,6 +31,7 @@
     "dict:build": "tsx scripts/build-dictionary.ts",
     "tagger:train": "tsx scripts/train-perceptron.ts",
     "eval:seg": "tsx scripts/eval-segmentation.ts",
+    "segment": "tsx scripts/segment.ts",
     "bench:seg": "tsx scripts/bench-segmentation.ts",
     "tune:seg": "tsx scripts/tune-constants.ts"
   },
