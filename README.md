@@ -114,4 +114,4 @@ When submitting a pull request:
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Aksara's dictionaries build on SIL's [khmerlbdict](https://github.com/silnrsi/khmerlbdict) and the SBBIC Spelling Checker word list. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for credits, license texts and how the dictionaries were built.
