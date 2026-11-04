@@ -1,12 +1,11 @@
-# Updating downstream projects to the new Khmer word breaking
+# Updating tiptap-khmer-line-breaker to the new Khmer word breaking
 
 Aksara's word segmentation was rebuilt against a measured gold standard. On a
 book held out of all tuning, word F1 went from **93.33 to 96.73**, and
 segmentation is about **2.2x faster**.
 
-This describes how `tiptap-khmer-line-breaker` and `lectio` pick that up. All
-three repos are owned by the same person, so the downstream projects can copy
-directly from `sungkhum/aksara`.
+This describes how `tiptap-khmer-line-breaker` picks that up. Both repos are
+owned by the same person, so it can copy directly from `sungkhum/aksara`.
 
 ---
 
@@ -171,70 +170,7 @@ explicit `taggerUrl`.
 
 ---
 
-## 5. Lectio
-
-Lectio does **not** install `tiptap-khmer-line-breaker` as a dependency. It
-vendors the whole Khmer stack under `lib/khmer/`, including its own copy of the
-breaker and of the Tiptap extension:
-
-```
-lib/khmer/khmer-breaker.ts            <- its own copy, must be replaced
-lib/khmer/khmer-dictionary-data.ts
-lib/khmer/khmer-affixes.ts
-lib/khmer/khmer-titles.ts, khmer-titles.json
-lib/khmer/protected-phrases.ts
-lib/khmer/tiptap-khmer-word-break.ts  <- vendored extension
-lib/khmer/server-breaker.ts           <- Lectio-only, server-side breaking
-lib/khmer/index.ts
-```
-
-So Lectio needs the same treatment as §2 and §3, not a version bump. Paths differ
-only in the destination directory:
-
-```bash
-AK=../aksara
-cp $AK/lib/khmer-breaker.ts      lib/khmer/khmer-breaker.ts
-cp $AK/lib/khmer-kcc-tagger.ts   lib/khmer/khmer-kcc-tagger.ts
-cp $AK/lib/khmer-kcc-features.ts lib/khmer/khmer-kcc-features.ts
-cp $AK/lib/debug.ts              lib/khmer/debug.ts
-cp $AK/public/dictionaries/km_kcc_tagger.json public/dictionaries/
-```
-
-Then apply §3.3 to `lib/khmer/tiptap-khmer-word-break.ts`, and re-export the
-tagger from `lib/khmer/index.ts` if consumers need it.
-
-**`server-breaker.ts` needs attention too.** Lectio breaks Khmer on the server as
-well as in the editor. It constructs its own `KhmerBreaker`, so it will pick up
-the new scoring automatically once the file above is replaced — but it will *not*
-load the tagger, because that is fetched over HTTP. Either read the weights from
-disk and pass them in:
-
-```ts
-import { KhmerBoundaryTagger } from "./khmer-kcc-tagger"
-import { readFileSync } from "node:fs"
-
-const tagger = KhmerBoundaryTagger.fromJson(
-  JSON.parse(readFileSync("public/dictionaries/km_kcc_tagger.json", "utf-8")),
-)
-if (tagger) breaker.setBoundaryTagger(tagger)
-```
-
-or accept that server-side breaking stays at the no-tagger quality level. Leaving
-it unset is safe but means client and server segment text slightly differently,
-which matters if either is persisted.
-
-### Dictionary sync
-
-The dictionary files arrive automatically now that `GITLAB_SYNC_TOKEN` is
-configured. Because Lectio protects `main` with "Allowed to push: No one", the
-sync pushes an `aksara-dictionary-sync` branch and opens a merge request for a
-Maintainer to merge. Repeat runs force-push that branch, updating the same merge
-request rather than accumulating new ones.
-
-The sync carries **dictionaries only, never code**. Everything above must be
-copied by hand.
-
-## 6. Verifying the update
+## 5. Verifying the update
 
 The eval harness lives in Aksara and depends on a gold corpus that is not
 committed (the source books are copyrighted). The practical check downstream is
@@ -285,7 +221,7 @@ worth asserting downstream too.
 
 ---
 
-## 7. Things that will bite you
+## 6. Things that will bite you
 
 **The tagger weights are versioned.** `km_kcc_tagger.json` carries a
 `FEATURE_SET_VERSION` that must match `khmer-kcc-features.ts`. Copy the two
@@ -299,7 +235,7 @@ only — never `khmer-breaker.ts`, `khmer-kcc-tagger.ts` or
 dictionary and old code. After any Aksara change to the breaker, the code files
 must be copied by hand. Worth considering: extend
 `.github/workflows/sync-dictionaries.yml` to carry them, or publish the breaker
-as a package that both projects depend on.
+as a package that both repos depend on.
 
 **Do not hand-tune the constants.** They were fitted against the gold corpus with
 `scripts/tune-constants.ts`. Changing one by eye will almost certainly make
@@ -312,7 +248,7 @@ a policy change to discuss, not a constant to nudge — see the policy doc.
 
 ---
 
-## 8. Reference
+## 7. Reference
 
 In the Aksara repo:
 
